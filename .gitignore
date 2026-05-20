@@ -1,0 +1,10 @@
+# Godot 4
+.godot/
+*.import
+*.zip
+*.pck
+*.export_template
+# OS
+.DS_Store
+Thumbs.db
+*.log
