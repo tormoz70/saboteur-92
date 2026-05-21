@@ -1,0 +1,63 @@
+[gd_scene load_steps=6 format=3 uid="uid://guard01scene"]
+
+[ext_resource type="Script" path="res://scripts/enemies/guard.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/tilesets/building_tileset.png" id="2"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(28, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_sight"]
+size = Vector2(440, 80)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle"]
+atlas = ExtResource("2")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_guard"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"loop": true,
+"name": &"idle",
+"speed": 1.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"loop": true,
+"name": &"run",
+"speed": 4.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"loop": false,
+"name": &"punch",
+"speed": 6.0
+}]
+
+[node name="Guard" type="CharacterBody2D" groups=["enemies"]]
+collision_layer = 2
+collision_mask = 4
+script = ExtResource("1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 4)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+modulate = Color(0.9, 0.2, 0.2, 1)
+scale = Vector2(1.5, 2.0)
+sprite_frames = SubResource("SpriteFrames_guard")
+animation = &"idle"
+centered = true
+
+[node name="SightArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SightArea"]
+shape = SubResource("RectangleShape2D_sight")
+
+[node name="AttackArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
+position = Vector2(20, 0)
+shape = SubResource("RectangleShape2D_body")

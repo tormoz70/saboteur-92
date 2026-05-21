@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://exitzone01scene"]
+
+[ext_resource type="Script" path="res://scripts/items/exit_zone.gd" id="1"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_exit"]
+size = Vector2(40, 80)
+
+[node name="ExitZone" type="Area2D"]
+collision_layer = 8
+collision_mask = 1
+script = ExtResource("1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_exit")
+
+[node name="Sprite" type="ColorRect" parent="."]
+offset_left = -20.0
+offset_top = -40.0
+offset_right = 20.0
+offset_bottom = 40.0
+color = Color(0.2, 0.9, 0.4, 0.6)

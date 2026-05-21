@@ -4,6 +4,18 @@
 *.zip
 *.pck
 *.export_template
+
+# Android build artifacts
+android/build/
+android/.build_version
+exports/
+
+# Export credentials and signing
+.godot/export_credentials.cfg
+*.apk
+*.aab
+*.keystore
+
 # OS
 .DS_Store
 Thumbs.db
