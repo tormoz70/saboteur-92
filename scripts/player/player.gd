@@ -67,7 +67,7 @@ func _process_platformer(delta: float) -> void:
 	var direction := Input.get_axis("move_left", "move_right")
 	if direction:
 		velocity.x = direction * speed
-		facing = signi(direction)
+		facing = int(sign(direction))
 		anim.flip_h = facing < 0
 		if is_on_floor() and current_state != State.PUNCH:
 			current_state = State.RUN
@@ -86,7 +86,7 @@ func _start_punch() -> void:
 	current_state = State.PUNCH
 	punch_timer = punch_duration
 	punch_area.monitoring = true
-	punch_area.position.x = 40.0 * facing
+	punch_area.position.x = 24.0 * facing
 
 
 func _update_animation() -> void:
@@ -106,7 +106,7 @@ func _update_animation() -> void:
 
 
 func take_damage() -> void:
-	if is_dead:
+	if is_dead or GameManager.demo_mode:
 		return
 	is_dead = true
 	current_state = State.DEAD
@@ -124,4 +124,4 @@ func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
 		return
 	await get_tree().create_timer(0.5).timeout
-	respawn(Vector2(80, 378))
+	respawn(Vector2(48, 184))

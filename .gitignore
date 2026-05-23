@@ -4,6 +4,10 @@
 *.zip
 *.pck
 *.export_template
+mcp_bridge.gd
+
+# Original game rips — dev reference only, do not ship
+assets/reference/
 
 # Android build artifacts
 android/build/
@@ -20,3 +24,4 @@ exports/
 .DS_Store
 Thumbs.db
 *.log
+.mcp/

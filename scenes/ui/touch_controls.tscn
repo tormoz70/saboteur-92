@@ -1,67 +1,67 @@
 [gd_scene load_steps=5 format=3 uid="uid://touchcontrols01"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_btn"]
-size = Vector2(64, 64)
+size = Vector2(80, 80)
 
 [node name="TouchControls" type="CanvasLayer"]
 layer = 10
 
 [node name="btnLeft" type="TouchScreenButton" parent="."]
-position = Vector2(16, 240)
+position = Vector2(32, 600)
 shape = SubResource("RectangleShape2D_btn")
 action = "move_left"
 
 [node name="Label" type="Label" parent="btnLeft"]
-offset_left = 12.0
-offset_top = 16.0
-offset_right = 52.0
-offset_bottom = 48.0
-theme_override_colors/font_color = Color(1, 1, 1, 0.9)
-theme_override_font_sizes/font_size = 28
+offset_left = 20.0
+offset_top = 22.0
+offset_right = 60.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 36
 text = "◀"
 horizontal_alignment = 1
 
 [node name="btnRight" type="TouchScreenButton" parent="."]
-position = Vector2(96, 240)
+position = Vector2(128, 600)
 shape = SubResource("RectangleShape2D_btn")
 action = "move_right"
 
 [node name="Label" type="Label" parent="btnRight"]
-offset_left = 12.0
-offset_top = 16.0
-offset_right = 52.0
-offset_bottom = 48.0
-theme_override_colors/font_color = Color(1, 1, 1, 0.9)
-theme_override_font_sizes/font_size = 28
+offset_left = 20.0
+offset_top = 22.0
+offset_right = 60.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 36
 text = "▶"
 horizontal_alignment = 1
 
 [node name="btnJump" type="TouchScreenButton" parent="."]
-position = Vector2(420, 230)
+position = Vector2(1120, 588)
 shape = SubResource("RectangleShape2D_btn")
 action = "jump"
 
 [node name="Label" type="Label" parent="btnJump"]
-offset_left = 12.0
-offset_top = 12.0
-offset_right = 52.0
-offset_bottom = 52.0
-theme_override_colors/font_color = Color(1, 1, 1, 0.9)
-theme_override_font_sizes/font_size = 24
+offset_left = 14.0
+offset_top = 18.0
+offset_right = 66.0
+offset_bottom = 62.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 28
 text = "JMP"
 horizontal_alignment = 1
 
 [node name="btnPunch" type="TouchScreenButton" parent="."]
-position = Vector2(340, 240)
+position = Vector2(1000, 600)
 shape = SubResource("RectangleShape2D_btn")
 action = "punch"
 
 [node name="Label" type="Label" parent="btnPunch"]
-offset_left = 8.0
-offset_top = 16.0
-offset_right = 56.0
-offset_bottom = 48.0
-theme_override_colors/font_color = Color(1, 1, 1, 0.9)
-theme_override_font_sizes/font_size = 22
+offset_left = 14.0
+offset_top = 22.0
+offset_right = 66.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 26
 text = "HIT"
 horizontal_alignment = 1

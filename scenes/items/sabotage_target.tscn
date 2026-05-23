@@ -1,9 +1,14 @@
-[gd_scene load_steps=3 format=3 uid="uid://sabotage01scene"]
+[gd_scene load_steps=4 format=3 uid="uid://sabotage01scene"]
 
 [ext_resource type="Script" path="res://scripts/items/sabotage_target.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur85_items.png" id="2"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bomb"]
+atlas = ExtResource("2")
+region = Rect2(48, 0, 24, 24)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_target"]
-size = Vector2(48, 48)
+size = Vector2(32, 32)
 
 [node name="SabotageTarget" type="Area2D"]
 collision_layer = 8
@@ -13,9 +18,9 @@ script = ExtResource("1")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_target")
 
-[node name="Sprite" type="ColorRect" parent="."]
-offset_left = -24.0
-offset_top = -24.0
-offset_right = 24.0
-offset_bottom = 24.0
-color = Color(0.8, 0.2, 0.2, 0.8)
+[node name="Sprite" type="Sprite2D" parent="."]
+modulate = Color(1, 0.5, 0.5, 1)
+texture_filter = 0
+scale = Vector2(2, 2)
+texture = SubResource("AtlasTexture_bomb")
+centered = true

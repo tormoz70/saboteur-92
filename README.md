@@ -17,6 +17,22 @@ assets/          Sprites, tilesets, icons
 exports/         Built APK/AAB output (gitignored)
 ```
 
+## Art assets (Saboteur 1985 style)
+
+Pixel art is generated programmatically to approximate the ZX Spectrum original:
+
+```bash
+python tools/generate_saboteur85_assets.py
+```
+
+Outputs:
+- `assets/sprites/saboteur85_player.png` — ninja (idle, run, jump, punch, climb, death)
+- `assets/sprites/saboteur85_guard.png` — beret guard
+- `assets/sprites/saboteur85_items.png` — key, document, bomb
+- `assets/tilesets/saboteur85_tileset.png` — brick, floor, ladder, door, crate, window
+
+Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
+
 ## Run locally
 
 1. Open the project in Godot 4.6

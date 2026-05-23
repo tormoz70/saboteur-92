@@ -21,29 +21,29 @@ layout_mode = 2
 [node name="LivesLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 22
 text = "Lives: 3"
 
 [node name="ScoreLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 22
 text = "Score: 0"
 
 [node name="InventoryLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.5, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 22
 text = "Items: -"
 
 [node name="BombTimerLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 26
 text = ""
 
 [node name="StatusLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 1, 0.6, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 28
 text = ""

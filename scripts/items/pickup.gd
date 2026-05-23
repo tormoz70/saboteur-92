@@ -3,17 +3,21 @@ extends Area2D
 @export var item_type: String = "key"
 @export var required_item: String = ""
 
-const ITEM_COLORS := {
-	"key": Color(1.0, 0.85, 0.2, 1.0),
-	"document": Color(0.85, 0.95, 1.0, 1.0),
-	"bomb": Color(0.9, 0.3, 0.2, 1.0),
+const ITEM_REGIONS := {
+	"key": Rect2(0, 0, 24, 24),
+	"document": Rect2(24, 0, 24, 24),
+	"bomb": Rect2(48, 0, 24, 24),
 }
 
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
-	if has_node("Sprite") and ITEM_COLORS.has(item_type):
-		$Sprite.color = ITEM_COLORS[item_type]
+	if has_node("Sprite"):
+		var tex: Texture2D = load("res://assets/sprites/saboteur85_items.png")
+		if tex and ITEM_REGIONS.has(item_type):
+			$Sprite.texture = AtlasTexture.new()
+			$Sprite.texture.atlas = tex
+			$Sprite.texture.region = ITEM_REGIONS[item_type]
 
 
 func _on_body_entered(body: Node2D) -> void:

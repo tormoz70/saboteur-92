@@ -10,11 +10,15 @@ var has_document: bool = false
 var has_bomb: bool = false
 var bomb_planted: bool = false
 var bomb_timer: float = 0.0
+var demo_mode: bool = false
 
 const BOMB_FUSE_TIME := 10.0
 
 
 func _ready() -> void:
+	get_tree().debug_collisions_hint = false
+	get_tree().debug_navigation_hint = false
+	get_tree().debug_paths_hint = false
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.item_collected.connect(_on_item_collected)
 	EventBus.bomb_planted.connect(_on_bomb_planted)

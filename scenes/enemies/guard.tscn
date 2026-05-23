@@ -1,34 +1,61 @@
-[gd_scene load_steps=6 format=3 uid="uid://guard01scene"]
+[gd_scene load_steps=12 format=3 uid="uid://guard01scene"]
 
 [ext_resource type="Script" path="res://scripts/enemies/guard.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/tilesets/building_tileset.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur85_guard.png" id="2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
-size = Vector2(28, 48)
+size = Vector2(14, 42)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sight"]
 size = Vector2(440, 80)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_idle"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(11, 11)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_i0"]
 atlas = ExtResource("2")
-region = Rect2(0, 0, 32, 32)
+region = Rect2(0, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_i1"]
+atlas = ExtResource("2")
+region = Rect2(48, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r0"]
+atlas = ExtResource("2")
+region = Rect2(96, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r1"]
+atlas = ExtResource("2")
+region = Rect2(144, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r2"]
+atlas = ExtResource("2")
+region = Rect2(192, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r3"]
+atlas = ExtResource("2")
+region = Rect2(240, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_p0"]
+atlas = ExtResource("2")
+region = Rect2(288, 0, 48, 56)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_guard"]
 animations = [{
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_i0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_i1")}],
 "loop": true,
 "name": &"idle",
-"speed": 1.0
+"speed": 3.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_r0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r3")}],
 "loop": true,
 "name": &"run",
-"speed": 4.0
+"speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p0")}],
 "loop": false,
 "name": &"punch",
-"speed": 6.0
+"speed": 8.0
 }]
 
 [node name="Guard" type="CharacterBody2D" groups=["enemies"]]
@@ -37,15 +64,14 @@ collision_mask = 4
 script = ExtResource("1")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, 4)
+position = Vector2(24, 35)
 shape = SubResource("RectangleShape2D_body")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
-modulate = Color(0.9, 0.2, 0.2, 1)
-scale = Vector2(1.5, 2.0)
+texture_filter = 0
 sprite_frames = SubResource("SpriteFrames_guard")
 animation = &"idle"
-centered = true
+centered = false
 
 [node name="SightArea" type="Area2D" parent="."]
 collision_layer = 0
@@ -59,5 +85,5 @@ collision_layer = 0
 collision_mask = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
-position = Vector2(20, 0)
-shape = SubResource("RectangleShape2D_body")
+position = Vector2(36, 19)
+shape = SubResource("RectangleShape2D_attack")

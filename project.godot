@@ -20,13 +20,18 @@ config/icon="res://icon.svg"
 EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
 
+McpBridge="*res://mcp_bridge.gd"
+[debug]
+
+shapes/collision/draw_2d_collision_shapes=false
+
 [display]
 
-window/size/viewport_width=540
-window/size/viewport_height=320
-window/size/resizable=false
-window/stretch/mode="canvas_items"
-window/stretch/scale=0.5
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="viewport"
 
 [input]
 
@@ -90,3 +95,5 @@ rendering_device/driver.windows="d3d12"
 renderer/rendering_method="mobile"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true

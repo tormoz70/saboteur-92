@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3 uid="uid://level01scene"]
 
 [ext_resource type="Script" path="res://scripts/levels/level_01.gd" id="1"]
-[ext_resource type="TileSet" path="res://assets/tilesets/building_tileset.tres" id="2"]
+[ext_resource type="TileSet" path="res://assets/tilesets/saboteur85_tileset.tres" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/guard.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/items/pickup.tscn" id="5"]
@@ -9,16 +9,16 @@
 [ext_resource type="PackedScene" path="res://scenes/items/exit_zone.tscn" id="7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
-size = Vector2(1280, 32)
+size = Vector2(640, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
-size = Vector2(320, 24)
+size = Vector2(160, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
-size = Vector2(32, 200)
+size = Vector2(16, 240)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ladder"]
-size = Vector2(32, 180)
+size = Vector2(16, 80)
 
 [node name="Level01" type="Node2D"]
 script = ExtResource("1")
@@ -27,8 +27,9 @@ script = ExtResource("1")
 position_smoothing_enabled = true
 limit_left = 0
 limit_top = 0
-limit_right = 1280
-limit_bottom = 640
+limit_right = 640
+limit_bottom = 256
+zoom = Vector2(2, 2)
 
 [node name="TileMapLayer" type="TileMapLayer" parent="."]
 tile_set = ExtResource("2")
@@ -39,28 +40,28 @@ tile_set = ExtResource("2")
 collision_layer = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/Ground"]
-position = Vector2(640, 504)
+position = Vector2(320, 248)
 shape = SubResource("RectangleShape2D_floor")
 
 [node name="UpperFloor" type="StaticBody2D" parent="World"]
 collision_layer = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/UpperFloor"]
-position = Vector2(760, 296)
+position = Vector2(368, 136)
 shape = SubResource("RectangleShape2D_platform")
 
 [node name="LeftWall" type="StaticBody2D" parent="World"]
 collision_layer = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/LeftWall"]
-position = Vector2(16, 360)
+position = Vector2(8, 128)
 shape = SubResource("RectangleShape2D_wall")
 
 [node name="RightWall" type="StaticBody2D" parent="World"]
 collision_layer = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/RightWall"]
-position = Vector2(1264, 360)
+position = Vector2(632, 128)
 shape = SubResource("RectangleShape2D_wall")
 
 [node name="Ladder" type="Area2D" parent="World"]
@@ -68,50 +69,43 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="World/Ladder"]
-position = Vector2(600, 390)
+position = Vector2(600, 184)
 shape = SubResource("RectangleShape2D_ladder")
 
-[node name="LadderVisual" type="ColorRect" parent="World/Ladder"]
-offset_left = -16.0
-offset_top = -90.0
-offset_right = 16.0
-offset_bottom = 90.0
-color = Color(0.7, 0.55, 0.2, 1)
-
 [node name="Player" parent="." instance=ExtResource("3")]
-position = Vector2(80, 378)
+position = Vector2(48, 184)
 
 [node name="Guards" type="Node2D" parent="."]
 
 [node name="Guard1" parent="Guards" instance=ExtResource("4")]
-position = Vector2(360, 460)
+position = Vector2(200, 192)
 
 [node name="Guard2" parent="Guards" instance=ExtResource("4")]
-position = Vector2(820, 460)
-patrol_distance = 80.0
+position = Vector2(420, 192)
+patrol_distance = 64.0
 
 [node name="Guard3" parent="Guards" instance=ExtResource("4")]
-position = Vector2(980, 256)
-patrol_distance = 60.0
+position = Vector2(400, 80)
+patrol_distance = 48.0
 
 [node name="Items" type="Node2D" parent="."]
 
 [node name="Key" parent="Items" instance=ExtResource("5")]
-position = Vector2(220, 462)
+position = Vector2(120, 222)
 item_type = "key"
 
 [node name="Document" parent="Items" instance=ExtResource("5")]
-position = Vector2(920, 254)
+position = Vector2(360, 110)
 item_type = "document"
 required_item = "key"
 
 [node name="Bomb" parent="Items" instance=ExtResource("5")]
-position = Vector2(500, 462)
+position = Vector2(392, 206)
 item_type = "bomb"
 required_item = "document"
 
 [node name="SabotageTarget" parent="." instance=ExtResource("6")]
-position = Vector2(1100, 254)
+position = Vector2(432, 104)
 
 [node name="ExitZone" parent="." instance=ExtResource("7")]
-position = Vector2(60, 452)
+position = Vector2(56, 200)
