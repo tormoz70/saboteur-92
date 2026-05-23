@@ -23,8 +23,18 @@ const PICKUP_HALF_HEIGHT := 18.0
 const SABOTAGE_HALF_HEIGHT := 24.0
 
 
+const CRATE_TILES := [
+	Vector2i(5, 14),
+	Vector2i(6, 14),
+	Vector2i(12, 14),
+	Vector2i(13, 14),
+	Vector2i(24, 14),
+]
+
+
 func _ready() -> void:
 	_build_tilemap()
+	_spawn_crate_collisions()
 	_align_entities()
 	_connect_punch_areas()
 	camera.make_current()
@@ -103,7 +113,7 @@ func _build_tilemap() -> void:
 		_place_tile(37, y, T_LADDER)
 
 	# Warehouse crates
-	for pos in [Vector2i(5, 14), Vector2i(6, 14), Vector2i(12, 14), Vector2i(13, 14), Vector2i(24, 14)]:
+	for pos in CRATE_TILES:
 		_place_tile(pos.x, pos.y, T_CRATE)
 
 	# Windows on upper wall
@@ -112,6 +122,20 @@ func _build_tilemap() -> void:
 
 	# Exit door
 	_place_tile(3, 14, T_DOOR)
+
+
+func _spawn_crate_collisions() -> void:
+	var half := TILE_SIZE * 0.5
+	for pos in CRATE_TILES:
+		var body := StaticBody2D.new()
+		body.collision_layer = 4
+		var col := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(TILE_SIZE, TILE_SIZE)
+		col.shape = shape
+		col.position = Vector2(pos.x * TILE_SIZE + half, pos.y * TILE_SIZE + half)
+		body.add_child(col)
+		$World.add_child(body)
 
 
 func _connect_punch_areas() -> void:
