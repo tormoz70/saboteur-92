@@ -25,3 +25,4 @@ exports/
 Thumbs.db
 *.log
 .mcp/
+.idea/

@@ -19,8 +19,8 @@ config/icon="res://icon.svg"
 
 EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
-
 McpBridge="*res://mcp_bridge.gd"
+
 [debug]
 
 shapes/collision/draw_2d_collision_shapes=false
