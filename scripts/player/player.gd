@@ -50,6 +50,7 @@ func _physics_process(delta: float) -> void:
 
 	_update_animation()
 	move_and_slide()
+	_try_unstuck()
 
 
 func _process_platformer(delta: float) -> void:
@@ -74,6 +75,18 @@ func _process_platformer(delta: float) -> void:
 	elif is_on_floor() and current_state != State.PUNCH:
 		velocity.x = move_toward(velocity.x, 0.0, speed)
 		current_state = State.IDLE
+
+
+func _try_unstuck() -> void:
+	if not is_on_floor() or current_state == State.PUNCH or on_ladder:
+		return
+	var direction := Input.get_axis("move_left", "move_right")
+	if direction == 0.0 or absf(velocity.x) > 8.0:
+		return
+	# Nudge up and along input when wedged between colliders (e.g. door + crate).
+	var escape := Vector2(direction * 6.0, -10.0)
+	if not test_move(global_transform, escape):
+		global_position += escape
 
 
 func _process_climb(_delta: float) -> void:

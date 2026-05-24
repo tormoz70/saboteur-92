@@ -24,8 +24,8 @@ const SABOTAGE_HALF_HEIGHT := 24.0
 
 
 const CRATE_TILES := [
-	Vector2i(5, 14),
-	Vector2i(6, 14),
+	Vector2i(8, 14),
+	Vector2i(9, 14),
 	Vector2i(12, 14),
 	Vector2i(13, 14),
 	Vector2i(24, 14),
