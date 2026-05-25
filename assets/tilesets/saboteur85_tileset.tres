@@ -1,22 +1,21 @@
 [gd_resource type="TileSet" format=3 uid="uid://s85tileset01"]
 
-[ext_resource type="Texture2D" path="res://assets/tilesets/saboteur85_tileset.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://bgiofmaad0ugq" path="res://assets/tilesets/saboteur85_tileset.png" id="1"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]
 texture = ExtResource("1")
-texture_region_size = Vector2i(16, 16)
 0:0/0 = 0
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
 1:0/0 = 0
+1:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
 2:0/0 = 0
 3:0/0 = 0
 4:0/0 = 0
+4:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
 5:0/0 = 0
 6:0/0 = 0
-7:0/0 = 0
-0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
-1:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
-4:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
 6:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(0, 0, 16, 0, 16, 16, 0, 16)
+7:0/0 = 0
 
 [resource]
 physics_layer_0/collision_layer = 4

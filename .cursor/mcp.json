@@ -6,6 +6,13 @@
       "env": {
         "GODOT_PATH": "C:/data/apps/Godot_v4.6.2-stable_win64/Godot_v4.6.2-stable_win64_console.exe"
       }
+    },
+    "aseprite": {
+      "command": "node",
+      "args": ["C:/data/prjs/saboteur-92/tools/aseprite-mcp/build/index.js"],
+      "env": {
+        "ASEPRITE_PATH": "C:/data/apps/Aseprite/aseprite.exe"
+      }
     }
   }
 }
