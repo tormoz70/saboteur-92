@@ -1,7 +1,7 @@
-[gd_scene load_steps=16 format=3 uid="uid://player01scene"]
+[gd_scene load_steps=19 format=3 uid="uid://player01scene"]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur85_player.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur92_player.png" id="2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 42)
@@ -38,27 +38,39 @@ region = Rect2(240, 0, 48, 56)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_j0"]
 atlas = ExtResource("2")
-region = Rect2(288, 0, 48, 56)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_p0"]
-atlas = ExtResource("2")
-region = Rect2(336, 0, 48, 56)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_p1"]
-atlas = ExtResource("2")
 region = Rect2(384, 0, 48, 56)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_c0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_j1"]
 atlas = ExtResource("2")
 region = Rect2(432, 0, 48, 56)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_c1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_p0"]
+atlas = ExtResource("2")
+region = Rect2(288, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_p1"]
+atlas = ExtResource("2")
+region = Rect2(336, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_c0"]
 atlas = ExtResource("2")
 region = Rect2(480, 0, 48, 56)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_d0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_c1"]
 atlas = ExtResource("2")
 region = Rect2(528, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_d0"]
+atlas = ExtResource("2")
+region = Rect2(0, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u0"]
+atlas = ExtResource("2")
+region = Rect2(576, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u1"]
+atlas = ExtResource("2")
+region = Rect2(624, 0, 48, 56)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_player"]
 animations = [{
@@ -71,6 +83,11 @@ animations = [{
 "loop": true,
 "name": &"jump",
 "speed": 1.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_j1")}],
+"loop": false,
+"name": &"jump_kick",
+"speed": 10.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_r0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r3")}],
 "loop": true,
@@ -86,6 +103,11 @@ animations = [{
 "loop": true,
 "name": &"climb",
 "speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_u0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_u1")}],
+"loop": true,
+"name": &"crouch",
+"speed": 4.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_d0")}],
 "loop": false,
