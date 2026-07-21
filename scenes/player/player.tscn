@@ -1,7 +1,7 @@
 [gd_scene load_steps=19 format=3 uid="uid://player01scene"]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur92_player.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player.png" id="2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 42)
@@ -62,7 +62,7 @@ region = Rect2(528, 0, 48, 56)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_d0"]
 atlas = ExtResource("2")
-region = Rect2(0, 0, 48, 56)
+region = Rect2(576, 0, 48, 56)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_u0"]
 atlas = ExtResource("2")
