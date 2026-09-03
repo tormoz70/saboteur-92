@@ -15,6 +15,7 @@ enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
 @export var iframe_time: float = 0.55
 @export var regen_delay: float = 1.25
 @export var regen_per_second: float = 20.0
+@export var spawn_point: Vector2 = Vector2(48, 184)
 
 const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
@@ -292,4 +293,4 @@ func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
 		return
 	await get_tree().create_timer(0.5).timeout
-	respawn(Vector2(48, 184))
+	respawn(spawn_point)

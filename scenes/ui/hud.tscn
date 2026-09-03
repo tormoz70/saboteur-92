@@ -1,62 +1,60 @@
-[gd_scene load_steps=2 format=3 uid="uid://hud01scene"]
+[gd_scene load_steps=3 format=3 uid="uid://hud01scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/energy_dial.gd" id="2"]
 
 [node name="HUD" type="CanvasLayer"]
 layer = 5
 script = ExtResource("1")
 
 [node name="Margin" type="MarginContainer" parent="."]
-anchors_preset = 10
-anchor_right = 1.0
-offset_bottom = 120.0
-grow_horizontal = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
+anchors_preset = 0
+offset_right = 280.0
+offset_bottom = 160.0
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 8
 
-[node name="VBox" type="VBoxContainer" parent="Margin"]
+[node name="HBox" type="HBoxContainer" parent="Margin"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
-[node name="LivesLabel" type="Label" parent="Margin/VBox"]
+[node name="EnergyDial" type="Control" parent="Margin/HBox"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+size_flags_vertical = 0
+script = ExtResource("2")
+
+[node name="VBox" type="VBoxContainer" parent="Margin/HBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="LivesLabel" type="Label" parent="Margin/HBox/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "Lives: 3"
 
-[node name="ScoreLabel" type="Label" parent="Margin/VBox"]
+[node name="ScoreLabel" type="Label" parent="Margin/HBox/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "Score: 0"
 
-[node name="InventoryLabel" type="Label" parent="Margin/VBox"]
+[node name="InventoryLabel" type="Label" parent="Margin/HBox/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.5, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "Items: -"
 
-[node name="EnergyLabel" type="Label" parent="Margin/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.35, 0.35, 1)
-theme_override_font_sizes/font_size = 18
-text = "Energy"
-
-[node name="EnergyBar" type="ProgressBar" parent="Margin/VBox"]
-custom_minimum_size = Vector2(240, 14)
-layout_mode = 2
-max_value = 100.0
-value = 100.0
-show_percentage = false
-
-[node name="BombTimerLabel" type="Label" parent="Margin/VBox"]
+[node name="BombTimerLabel" type="Label" parent="Margin/HBox/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 22
 text = ""
 
-[node name="StatusLabel" type="Label" parent="Margin/VBox"]
+[node name="StatusLabel" type="Label" parent="Margin/HBox/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 1, 0.6, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 22
 text = ""

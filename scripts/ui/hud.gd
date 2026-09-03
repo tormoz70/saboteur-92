@@ -1,12 +1,11 @@
 extends CanvasLayer
 
-@onready var lives_label: Label = $Margin/VBox/LivesLabel
-@onready var score_label: Label = $Margin/VBox/ScoreLabel
-@onready var inventory_label: Label = $Margin/VBox/InventoryLabel
-@onready var energy_label: Label = $Margin/VBox/EnergyLabel
-@onready var energy_bar: ProgressBar = $Margin/VBox/EnergyBar
-@onready var status_label: Label = $Margin/VBox/StatusLabel
-@onready var bomb_timer_label: Label = $Margin/VBox/BombTimerLabel
+@onready var lives_label: Label = $Margin/HBox/VBox/LivesLabel
+@onready var score_label: Label = $Margin/HBox/VBox/ScoreLabel
+@onready var inventory_label: Label = $Margin/HBox/VBox/InventoryLabel
+@onready var energy_dial: Control = $Margin/HBox/EnergyDial
+@onready var status_label: Label = $Margin/HBox/VBox/StatusLabel
+@onready var bomb_timer_label: Label = $Margin/HBox/VBox/BombTimerLabel
 
 
 func _ready() -> void:
@@ -16,19 +15,7 @@ func _ready() -> void:
 	EventBus.mission_complete.connect(_on_mission_complete)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.connect(_on_energy_changed)
-	_style_energy_bar()
 	_refresh()
-
-
-func _style_energy_bar() -> void:
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.12, 0.08, 0.1, 0.9)
-	bg.set_border_width_all(1)
-	bg.border_color = Color(0.55, 0.15, 0.15)
-	energy_bar.add_theme_stylebox_override("background", bg)
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.82, 0.12, 0.12)
-	energy_bar.add_theme_stylebox_override("fill", fill)
 
 
 func _process(_delta: float) -> void:
@@ -65,9 +52,8 @@ func _on_score_changed(new_score: int) -> void:
 
 
 func _on_energy_changed(current: int, max_energy: int) -> void:
-	energy_bar.max_value = max_energy
-	energy_bar.value = current
-	energy_label.text = "Energy"
+	if energy_dial and energy_dial.has_method("set_energy"):
+		energy_dial.set_energy(current, max_energy)
 
 
 func _on_item_collected(_item_type: String) -> void:
