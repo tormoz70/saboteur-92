@@ -77,32 +77,37 @@ animations = [{
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_i0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_i1")}],
 "loop": true,
 "name": &"idle",
-"speed": 4.0
+"speed": 2.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j0")}],
 "loop": true,
 "name": &"jump",
 "speed": 1.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_j1")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j1")}],
 "loop": false,
 "name": &"jump_kick",
-"speed": 10.0
+"speed": 1.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p1")}],
+"loop": false,
+"name": &"kick",
+"speed": 1.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_r0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r3")}],
 "loop": true,
 "name": &"run",
-"speed": 8.0
+"speed": 7.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_p1")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p0")}],
 "loop": false,
 "name": &"punch",
-"speed": 10.0
+"speed": 1.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_c0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_c1")}],
 "loop": true,
 "name": &"climb",
-"speed": 6.0
+"speed": 4.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_u0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_u1")}],
 "loop": true,

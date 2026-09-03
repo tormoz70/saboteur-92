@@ -3,6 +3,8 @@ extends CanvasLayer
 @onready var lives_label: Label = $Margin/VBox/LivesLabel
 @onready var score_label: Label = $Margin/VBox/ScoreLabel
 @onready var inventory_label: Label = $Margin/VBox/InventoryLabel
+@onready var energy_label: Label = $Margin/VBox/EnergyLabel
+@onready var energy_bar: ProgressBar = $Margin/VBox/EnergyBar
 @onready var status_label: Label = $Margin/VBox/StatusLabel
 @onready var bomb_timer_label: Label = $Margin/VBox/BombTimerLabel
 
@@ -13,7 +15,20 @@ func _ready() -> void:
 	EventBus.bomb_planted.connect(_on_bomb_planted)
 	EventBus.mission_complete.connect(_on_mission_complete)
 	EventBus.player_died.connect(_on_player_died)
+	EventBus.energy_changed.connect(_on_energy_changed)
+	_style_energy_bar()
 	_refresh()
+
+
+func _style_energy_bar() -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.12, 0.08, 0.1, 0.9)
+	bg.set_border_width_all(1)
+	bg.border_color = Color(0.55, 0.15, 0.15)
+	energy_bar.add_theme_stylebox_override("background", bg)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.82, 0.12, 0.12)
+	energy_bar.add_theme_stylebox_override("fill", fill)
 
 
 func _process(_delta: float) -> void:
@@ -29,6 +44,9 @@ func _refresh() -> void:
 	score_label.text = "Score: %d" % GameManager.score
 	_update_inventory()
 	status_label.text = ""
+	var player := get_tree().get_first_node_in_group("player")
+	if player and "energy" in player:
+		_on_energy_changed(player.energy, player.max_energy)
 
 
 func _update_inventory() -> void:
@@ -44,6 +62,12 @@ func _update_inventory() -> void:
 
 func _on_score_changed(new_score: int) -> void:
 	score_label.text = "Score: %d" % new_score
+
+
+func _on_energy_changed(current: int, max_energy: int) -> void:
+	energy_bar.max_value = max_energy
+	energy_bar.value = current
+	energy_label.text = "Energy"
 
 
 func _on_item_collected(_item_type: String) -> void:

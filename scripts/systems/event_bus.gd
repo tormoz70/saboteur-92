@@ -6,3 +6,4 @@ signal bomb_planted
 signal player_died
 signal mission_complete
 signal score_changed(new_score: int)
+signal energy_changed(current: int, max_energy: int)

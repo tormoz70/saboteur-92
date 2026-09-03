@@ -8,6 +8,7 @@ enum AiState { PATROL, CHASE, ATTACK, DEAD }
 @export var sight_range: float = 220.0
 @export var max_health: int = 2
 @export var patrol_distance: float = 120.0
+@export var attack_damage: int = 12
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var sight: Area2D = $SightArea
@@ -93,7 +94,7 @@ func _attack(_delta: float) -> void:
 		attack_cooldown = 1.0
 		if global_position.distance_to(target.global_position) <= attack_range + 10.0:
 			if target.has_method("take_damage"):
-				target.take_damage()
+				target.take_damage(attack_damage)
 
 
 func take_damage(amount: int = 1) -> void:
@@ -131,5 +132,7 @@ func _update_anim() -> void:
 
 
 func _on_punch_area_body_entered(body: Node2D) -> void:
+	if ai_state != AiState.ATTACK:
+		return
 	if body.is_in_group("player") and body.has_method("take_damage"):
-		body.take_damage()
+		body.take_damage(attack_damage)

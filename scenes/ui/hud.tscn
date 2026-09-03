@@ -36,6 +36,19 @@ theme_override_colors/font_color = Color(0.9, 0.9, 0.5, 1)
 theme_override_font_sizes/font_size = 22
 text = "Items: -"
 
+[node name="EnergyLabel" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.35, 0.35, 1)
+theme_override_font_sizes/font_size = 18
+text = "Energy"
+
+[node name="EnergyBar" type="ProgressBar" parent="Margin/VBox"]
+custom_minimum_size = Vector2(240, 14)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
 [node name="BombTimerLabel" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
