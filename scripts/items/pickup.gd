@@ -4,9 +4,9 @@ extends Area2D
 @export var required_item: String = ""
 
 const ITEM_REGIONS := {
-	"key": Rect2(0, 0, 24, 24),
-	"document": Rect2(24, 0, 24, 24),
-	"bomb": Rect2(48, 0, 24, 24),
+	"key": Rect2(0, 0, 32, 16),
+	"document": Rect2(32, 0, 32, 16),
+	"bomb": Rect2(64, 0, 32, 16),
 }
 
 

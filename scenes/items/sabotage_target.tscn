@@ -5,12 +5,13 @@
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_bomb"]
 atlas = ExtResource("2")
-region = Rect2(48, 0, 24, 24)
+region = Rect2(64, 0, 32, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_target"]
 size = Vector2(32, 32)
 
 [node name="SabotageTarget" type="Area2D"]
+z_index = 2
 collision_layer = 8
 collision_mask = 1
 script = ExtResource("1")
@@ -19,8 +20,7 @@ script = ExtResource("1")
 shape = SubResource("RectangleShape2D_target")
 
 [node name="Sprite" type="Sprite2D" parent="."]
-modulate = Color(1, 0.5, 0.5, 1)
 texture_filter = 0
-scale = Vector2(2, 2)
+scale = Vector2(1, 1)
 texture = SubResource("AtlasTexture_bomb")
 centered = true

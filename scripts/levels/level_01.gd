@@ -19,8 +19,8 @@ const SURFACE_GROUND_Y := 15 * TILE_SIZE
 const SURFACE_UPPER_Y := 8 * TILE_SIZE
 const SURFACE_CRATE_Y := 14 * TILE_SIZE
 const CHAR_HEIGHT := 56.0
-const PICKUP_HALF_HEIGHT := 18.0
-const SABOTAGE_HALF_HEIGHT := 24.0
+const PICKUP_HALF_HEIGHT := 8.0
+const SABOTAGE_HALF_HEIGHT := 8.0
 
 
 const CRATE_TILES := [
@@ -61,21 +61,29 @@ func _place_tile(x: int, y: int, tile: Vector2i) -> void:
 
 func _align_entities() -> void:
 	_snap_character(player, SURFACE_GROUND_Y)
-	_snap_character($Guards/Guard1, SURFACE_GROUND_Y)
-	_snap_character($Guards/Guard2, SURFACE_GROUND_Y)
-	_snap_character($Guards/Guard3, SURFACE_UPPER_Y)
-	_snap_pickup($Items/Key, SURFACE_GROUND_Y)
-	_snap_pickup($Items/Document, SURFACE_UPPER_Y)
-	_snap_pickup($Items/Bomb, SURFACE_CRATE_Y)
-	$SabotageTarget.global_position.y = SURFACE_UPPER_Y - SABOTAGE_HALF_HEIGHT
-	$ExitZone.global_position.y = SURFACE_GROUND_Y - 40.0
+	_snap_character(get_node_or_null("Guards/Guard1"), SURFACE_GROUND_Y)
+	_snap_character(get_node_or_null("Guards/Guard2"), SURFACE_GROUND_Y)
+	_snap_character(get_node_or_null("Guards/Guard3"), SURFACE_UPPER_Y)
+	_snap_pickup(get_node_or_null("Items/Key"), SURFACE_GROUND_Y)
+	_snap_pickup(get_node_or_null("Items/Document"), SURFACE_UPPER_Y)
+	_snap_pickup(get_node_or_null("Items/Bomb"), SURFACE_CRATE_Y)
+	var sabotage := get_node_or_null("SabotageTarget")
+	if sabotage:
+		sabotage.global_position.y = SURFACE_UPPER_Y - SABOTAGE_HALF_HEIGHT
+	var exit_zone := get_node_or_null("ExitZone")
+	if exit_zone:
+		exit_zone.global_position.y = SURFACE_GROUND_Y - 40.0
 
 
-func _snap_character(body: CharacterBody2D, surface_y: float) -> void:
+func _snap_character(body: Node2D, surface_y: float) -> void:
+	if body == null:
+		return
 	body.global_position.y = surface_y - CHAR_HEIGHT
 
 
 func _snap_pickup(pickup: Node2D, surface_y: float) -> void:
+	if pickup == null:
+		return
 	pickup.global_position.y = surface_y - PICKUP_HALF_HEIGHT
 
 
@@ -139,7 +147,11 @@ func _spawn_crate_collisions() -> void:
 
 
 func _connect_punch_areas() -> void:
-	var punch_area: Area2D = player.get_node("PunchArea")
+	if player == null:
+		return
+	var punch_area: Area2D = player.get_node_or_null("PunchArea")
+	if punch_area == null:
+		return
 	if not punch_area.body_entered.is_connected(_on_player_punch_hit):
 		punch_area.body_entered.connect(_on_player_punch_hit)
 

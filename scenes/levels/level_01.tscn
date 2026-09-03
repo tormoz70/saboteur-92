@@ -32,6 +32,7 @@ limit_bottom = 256
 zoom = Vector2(2, 2)
 
 [node name="TileMapLayer" type="TileMapLayer" parent="."]
+texture_filter = 0
 tile_set = ExtResource("2")
 
 [node name="World" type="Node2D" parent="."]
