@@ -78,6 +78,7 @@ def build() -> Image.Image:
 
     # Second idle: one-pixel bob; second crouch: tiny shift
     frames[1] = nudge_frame(frames[0], dy=1)
+    frames[11] = frames[10].transpose(Image.FLIP_LEFT_RIGHT)
     frames[13] = nudge_frame(frames[12], dy=1)
 
     sheet = Image.new("RGBA", (FW * len(frames), FH), (0, 0, 0, 0))

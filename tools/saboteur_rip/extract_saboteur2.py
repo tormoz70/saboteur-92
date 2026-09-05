@@ -360,7 +360,8 @@ def main() -> None:
     player_frames[1] = nudge(player_frames[0], 1)
     # Slot 7 is standing high kick (UP+HIT); flying yoko-geri stays on slot 9 (kick2).
     player_frames[7] = by_name["kick"]
-    player_frames[11] = nudge(by_name["ladder"], 0)
+    # Opposite limbs; vertical travel is the climb step, not a sprite nudge.
+    player_frames[11] = ImageOps.mirror(by_name["ladder"])
     player_frames[13] = nudge(by_name["crouch"], 1)
     player_sheet = sheet_of(player_frames)
     save_png(SPRITES / "saboteur2_player.png", player_sheet)

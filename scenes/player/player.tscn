@@ -10,7 +10,7 @@ size = Vector2(14, 42)
 size = Vector2(11, 11)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ladder"]
-size = Vector2(13, 42)
+size = Vector2(14, 36)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_i0"]
 atlas = ExtResource("2")
@@ -107,7 +107,7 @@ animations = [{
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_c0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_c1")}],
 "loop": true,
 "name": &"climb",
-"speed": 4.0
+"speed": 3.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_u0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_u1")}],
 "loop": true,
@@ -150,5 +150,5 @@ collision_layer = 0
 collision_mask = 16
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="LadderDetector"]
-position = Vector2(24, 35)
+position = Vector2(24, 40)
 shape = SubResource("RectangleShape2D_ladder")

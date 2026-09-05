@@ -16,6 +16,7 @@ enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
 @export var regen_delay: float = 1.25
 @export var regen_per_second: float = 20.0
 @export var spawn_point: Vector2 = Vector2(48, 184)
+@export var max_fall_speed: float = 420.0
 
 const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
@@ -38,11 +39,18 @@ var energy: int = 100
 var _iframe: float = 0.0
 var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
+var _climb_step_timer: float = 0.0
+var _climb_frame: int = 0
+
+# One rung = one mosaic cell (8px) at world scale 2. Pose swaps on that same tick.
+const CLIMB_STEP_PX := 16.0
 
 
 func _ready() -> void:
 	punch_area.monitoring = false
 	energy = max_energy
+	floor_snap_length = 16.0
+	safe_margin = 0.25
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.emit(energy, max_energy)
 
@@ -59,14 +67,17 @@ func _physics_process(delta: float) -> void:
 	_time_since_hit += delta
 	_tick_regen(delta)
 
-	can_climb = ladder_detector.get_overlapping_areas().size() > 0
-	on_ladder = can_climb and abs(Input.get_axis("move_up", "move_down")) > 0.0
+	can_climb = _ladder_overlaps()
+	var climb_axis := _climb_axis()
+	_update_ladder_state(climb_axis)
+	floor_snap_length = 0.0 if on_ladder else 16.0
+	collision_mask = 0 if on_ladder else 4
 
 	_tick_attack(delta)
 	_handle_attack_input()
 
 	if on_ladder:
-		_process_climb(delta)
+		_process_climb(delta, climb_axis)
 	elif current_state == State.PUNCH or current_state == State.KICK:
 		velocity.x = 0.0
 		if not is_on_floor():
@@ -82,6 +93,8 @@ func _physics_process(delta: float) -> void:
 	else:
 		_process_platformer(delta)
 
+	if not on_ladder:
+		velocity.y = minf(velocity.y, max_fall_speed)
 	_update_animation()
 	move_and_slide()
 	_try_unstuck()
@@ -104,6 +117,8 @@ func _tick_attack(delta: float) -> void:
 
 
 func _handle_attack_input() -> void:
+	if on_ladder:
+		return
 	if current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK:
 		return
 
@@ -123,6 +138,8 @@ func _handle_attack_input() -> void:
 		)
 		if stand_kick:
 			_start_stand_kick()
+		elif can_climb and (jump_tap or up_tap):
+			pass
 		elif jump_tap and punch_pressed:
 			velocity.y = jump_velocity
 			_start_jump_kick()
@@ -177,10 +194,289 @@ func _try_unstuck() -> void:
 		global_position += escape
 
 
-func _process_climb(_delta: float) -> void:
-	velocity.x = 0.0
-	velocity.y = Input.get_axis("move_up", "move_down") * climb_speed
+func _climb_axis() -> float:
+	var axis := Input.get_axis("move_up", "move_down")
+	if absf(axis) > 0.1:
+		return axis
+	# Space has no Up on some pads; treat held jump as climb-up while on a ladder.
+	if (can_climb or on_ladder) and Input.is_action_pressed("jump"):
+		return -1.0
+	return 0.0
+
+
+func _ladder_overlaps() -> bool:
+	var col := ladder_detector.get_child(0) as CollisionShape2D
+	if col == null or col.shape == null:
+		return false
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = col.shape
+	q.transform = col.global_transform
+	q.collision_mask = ladder_detector.collision_mask
+	q.collide_with_areas = true
+	q.collide_with_bodies = false
+	q.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+
+
+func _update_ladder_state(climb_axis: float) -> void:
+	var h_axis := Input.get_axis("move_left", "move_right")
+	var want_climb := absf(climb_axis) > 0.0
+	var running_jump := (
+		not on_ladder
+		and is_on_floor()
+		and absf(h_axis) > 0.0
+		and Input.is_action_pressed("move_up")
+	)
+	if on_ladder:
+		if not can_climb:
+			_leave_ladder()
+			return
+		if absf(h_axis) > 0.0 and not want_climb:
+			_leave_ladder()
+			return
+		return
+	if running_jump or not can_climb or not want_climb:
+		return
+	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.
+	if climb_axis > 0.0 and _ladder_below_feet():
+		_enter_ladder()
+		_climb_take_step(climb_axis)
+	elif climb_axis < 0.0 and _ladder_above_feet():
+		_enter_ladder()
+		_climb_take_step(climb_axis)
+
+
+func _enter_ladder() -> void:
+	on_ladder = true
+	collision_mask = 0
+	floor_snap_length = 0.0
+	velocity = Vector2.ZERO
+	_climb_step_timer = 0.0
+	_snap_to_ladder()
+
+
+func _leave_ladder() -> void:
+	on_ladder = false
+	collision_mask = 4
+	floor_snap_length = 16.0
+	velocity = Vector2.ZERO
+	_snap_onto_support()
+
+
+func _snap_to_ladder() -> void:
+	var areas := ladder_detector.get_overlapping_areas()
+	if areas.is_empty():
+		return
+	var col := areas[0].get_child(0) as CollisionShape2D
+	if col == null:
+		return
+	global_position.x = col.global_position.x - BODY_STAND_POS.x * scale.x
+
+
+func _snap_onto_support() -> void:
+	var space := get_world_2d().direct_space_state
+	var cx := global_position.x + BODY_STAND_POS.x * scale.x
+	var from := Vector2(cx, global_position.y + 4.0)
+	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 96.0))
+	q.collision_mask = 4
+	q.exclude = [get_rid()]
+	var hit := space.intersect_ray(q)
+	if hit.is_empty():
+		return
+	var n: Vector2 = hit.normal
+	if n.y > -0.5:
+		return
+	var feet_off := (BODY_STAND_POS.y + BODY_STAND_SIZE.y * 0.5) * scale.y
+	global_position.y = hit.position.y - feet_off
+
+
+func _process_climb(delta: float, axis: float) -> void:
+	velocity = Vector2.ZERO
 	current_state = State.CLIMB
+	_snap_to_ladder()
+	if absf(axis) < 0.1:
+		_climb_step_timer = 0.0
+		return
+	var step_time := CLIMB_STEP_PX / maxf(climb_speed, 1.0)
+	_climb_step_timer += delta
+	while _climb_step_timer >= step_time and on_ladder:
+		if not _climb_take_step(axis):
+			_climb_step_timer = 0.0
+			break
+		_climb_step_timer -= step_time
+
+
+func _climb_take_step(axis: float) -> bool:
+	var step := Vector2(0.0, signf(axis) * CLIMB_STEP_PX)
+	var dest := global_position + step
+	if not _ladder_overlaps_at(dest):
+		# Ladder ended: stand on a close floor, otherwise hang on the last rung.
+		if axis > 0.0:
+			_dismount_if_close_floor()
+		else:
+			_dismount_if_landing()
+		return false
+	if axis > 0.0:
+		var floor_y := _blocking_floor_y(step.y)
+		if floor_y < INF:
+			_dismount_to_y(floor_y)
+			return false
+	else:
+		var ceil_y := _blocking_ceiling_y(step.y)
+		if ceil_y < INF:
+			# Climbing up: y decreases. Dismount when feet rise to the lid.
+			if _feet_y() + step.y <= ceil_y + 2.0:
+				_dismount_to_y(ceil_y)
+			else:
+				_dismount_if_landing()
+			return false
+	move_and_collide(step)
+	_sync_climb_pose()
+	return true
+
+
+func _sync_climb_pose() -> void:
+	# Original flips the same sprite every tile; lock the pose to world Y so
+	# up and down stay on the same rungs instead of skipping every other frame.
+	_climb_frame = int(floor(global_position.y / CLIMB_STEP_PX)) & 1
+
+
+func _ladder_overlaps_at(origin: Vector2) -> bool:
+	var col := ladder_detector.get_child(0) as CollisionShape2D
+	if col == null or col.shape == null:
+		return false
+	var xf := col.global_transform
+	xf.origin += origin - global_position
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = col.shape
+	q.transform = xf
+	q.collision_mask = ladder_detector.collision_mask
+	q.collide_with_areas = true
+	q.collide_with_bodies = false
+	q.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+
+
+func _feet_y() -> float:
+	return global_position.y + (BODY_STAND_POS.y + BODY_STAND_SIZE.y * 0.5) * scale.y
+
+
+func _body_cx() -> float:
+	return global_position.x + BODY_STAND_POS.x * scale.x
+
+
+func _ladder_at_world(point: Vector2) -> bool:
+	var probe := RectangleShape2D.new()
+	probe.size = Vector2(8.0, 8.0)
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = probe
+	q.transform = Transform2D(0.0, point)
+	q.collision_mask = ladder_detector.collision_mask
+	q.collide_with_areas = true
+	q.collide_with_bodies = false
+	q.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+
+
+func _ladder_above_feet() -> bool:
+	return _ladder_probe(Vector2(BODY_STAND_POS.x, 16.0) * scale, Vector2(12.0, 20.0) * scale)
+
+
+func _ladder_below_feet() -> bool:
+	# Entirely under the soles so a dead-end floor with rungs at foot height
+	# does not count as a hatch.
+	return _ladder_probe(Vector2(BODY_STAND_POS.x * scale.x, _feet_y() - global_position.y + 24.0), Vector2(10.0, 16.0))
+
+
+func _ladder_probe(local_center: Vector2, size: Vector2) -> bool:
+	var probe := RectangleShape2D.new()
+	probe.size = size
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = probe
+	q.transform = Transform2D(0.0, global_position + local_center)
+	q.collision_mask = ladder_detector.collision_mask
+	q.collide_with_areas = true
+	q.collide_with_bodies = false
+	q.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+
+
+func _blocking_floor_y(dy: float) -> float:
+	var hit := _vertical_solid(_feet_y() - 1.0, _feet_y() + dy + 2.0)
+	if hit.is_empty():
+		return INF
+	var fy: float = hit.position.y
+	# Hatch: rungs continue under the lid, so the floor is walkable but climbable-through.
+	if _ladder_at_world(Vector2(_body_cx(), fy + 32.0)):
+		return INF
+	return fy
+
+
+func _blocking_ceiling_y(dy: float) -> float:
+	var head := global_position.y + 2.0
+	var hit := _vertical_solid(head, head + dy - 2.0)
+	if hit.is_empty():
+		return INF
+	var cy: float = hit.position.y
+	# Shaft continues through the lid — keep climbing.
+	if _ladder_at_world(Vector2(_body_cx(), cy - 32.0)):
+		return INF
+	# Landing lid (ladder ends here): keep climbing through until feet reach it.
+	if _ladder_at_world(Vector2(_body_cx(), cy + 2.0)) and _feet_y() + dy > cy + 2.0:
+		return INF
+	return cy
+
+
+func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
+	var space := get_world_2d().direct_space_state
+	var cx := _body_cx()
+	var q := PhysicsRayQueryParameters2D.create(Vector2(cx, from_y), Vector2(cx, to_y))
+	q.collision_mask = 4
+	q.exclude = [get_rid()]
+	return space.intersect_ray(q)
+
+
+func _dismount_to_y(floor_y: float) -> void:
+	var feet_off := (BODY_STAND_POS.y + BODY_STAND_SIZE.y * 0.5) * scale.y
+	on_ladder = false
+	collision_mask = 4
+	floor_snap_length = 16.0
+	velocity = Vector2.ZERO
+	global_position.y = floor_y - feet_off
+	current_state = State.IDLE
+
+
+func _dismount_if_close_floor() -> void:
+	var hit := _vertical_solid(_feet_y() - 2.0, _feet_y() + 24.0)
+	if hit.is_empty():
+		return
+	var n: Vector2 = hit.normal
+	if n.y > -0.5:
+		return
+	_dismount_to_y(hit.position.y)
+
+
+func _dismount_if_landing() -> bool:
+	var space := get_world_2d().direct_space_state
+	var feet := _feet_y()
+	var cx := _body_cx()
+	for side in [-48.0, 48.0, -72.0, 72.0]:
+		var from := Vector2(cx + side, feet - 12.0)
+		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 28.0))
+		q.collision_mask = 4
+		q.exclude = [get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		var n: Vector2 = hit.normal
+		if n.y > -0.5:
+			continue
+		var fy: float = hit.position.y
+		if absf(fy - feet) > 20.0:
+			continue
+		_dismount_to_y(fy)
+		return true
+	return false
 
 
 func _start_punch() -> void:
@@ -209,7 +505,12 @@ func _update_animation() -> void:
 	_set_body_crouch(current_state == State.CROUCH)
 	match current_state:
 		State.CLIMB:
-			_play_anim(&"climb")
+			_sync_climb_pose()
+			anim.flip_h = false
+			if anim.animation != &"climb":
+				anim.play(&"climb")
+			anim.speed_scale = 0.0
+			anim.set_frame_and_progress(_climb_frame, 0.0)
 		State.PUNCH:
 			_play_anim(&"punch")
 		State.KICK:
@@ -229,6 +530,7 @@ func _update_animation() -> void:
 
 
 func _play_anim(anim_name: StringName) -> void:
+	anim.speed_scale = 1.0
 	if anim.animation != anim_name:
 		anim.play(anim_name)
 
@@ -244,6 +546,9 @@ func _set_body_crouch(crouching: bool) -> void:
 
 
 func _tick_regen(delta: float) -> void:
+	if on_ladder:
+		_regen_accum = 0.0
+		return
 	if energy >= max_energy:
 		_regen_accum = 0.0
 		return
@@ -278,6 +583,9 @@ func take_damage(amount: int = 12) -> void:
 func respawn(spawn_point: Vector2) -> void:
 	is_dead = false
 	current_state = State.IDLE
+	on_ladder = false
+	can_climb = false
+	collision_mask = 4
 	_kick_left_ground = false
 	_iframe = 0.0
 	_time_since_hit = 10.0

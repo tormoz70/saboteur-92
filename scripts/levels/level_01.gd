@@ -76,6 +76,8 @@ func _load_original_world() -> void:
 		var area := Area2D.new()
 		area.collision_layer = 16
 		area.collision_mask = 0
+		area.monitorable = true
+		area.monitoring = false
 		var col := CollisionShape2D.new()
 		var shape := RectangleShape2D.new()
 		var size := Vector2(float(rect[2]), float(rect[3])) * _scale
@@ -85,11 +87,11 @@ func _load_original_world() -> void:
 		area.add_child(col)
 		ladders.add_child(area)
 
-	camera.limit_left = 0
-	camera.limit_top = 0
-	camera.limit_right = int(_world_size.x * _scale)
-	camera.limit_bottom = int(_world_size.y * _scale)
-	camera.zoom = Vector2(1.875, 1.875)
+	# Vertical view is exactly one 192px Spectrum screen (384 world px at
+	# zoom 720/384). Horizontal view is wider; the letterbox hides the extra.
+	camera.limit_smoothed = false
+	camera.position_smoothing_enabled = false
+	camera.zoom = Vector2(720.0 / (_screen.y * _scale), 720.0 / (_screen.y * _scale))
 
 
 func _add_map_sprite(node_name: String, path: String, z: int) -> void:
@@ -125,15 +127,46 @@ func _snap_camera(force: bool) -> void:
 		return
 	var sw := _screen.x * _scale
 	var sh := _screen.y * _scale
+	var sprite_h := CHAR_HEIGHT * _scale
+	var max_rx := int(_world_size.x / _screen.x) - 1
+	var max_ry := int(_world_size.y / _screen.y) - 1
 	var px := player.global_position.x + 24.0 * _scale
-	var py := player.global_position.y + 28.0 * _scale
-	var room := Vector2i(int(floor(px / sw)), int(floor(py / sh)))
-	room.x = clampi(room.x, 0, int(_world_size.x / _screen.x) - 1)
-	room.y = clampi(room.y, 0, int(_world_size.y / _screen.y) - 1)
-	if not force and room == _room:
+	var origin_y := player.global_position.y
+	var rx := clampi(int(floor(px / sw)), 0, max_rx)
+	var ry := _room.y
+	if ry < 0:
+		ry = clampi(int(floor(origin_y / sh)), 0, max_ry)
+	# Original flip-screen (S1 LC604/LC623, S2 32-column tile rooms): the
+	# ninja stays fully inside one screen. The next step off the bottom
+	# loads the room below with Y at the top; off the top loads the room
+	# above with the sprite planted on that screen's bottom. Never draw a
+	# sprite that straddles the seam — that is the half-Nina glitch.
+	var top := float(ry) * sh
+	var max_origin := top + sh - sprite_h
+	var wrapped := false
+	if origin_y > max_origin + 1.0 and ry < max_ry:
+		ry += 1
+		player.global_position.y = float(ry) * sh
+		wrapped = true
+	elif origin_y < top - 1.0 and ry > 0:
+		ry -= 1
+		player.global_position.y = float(ry + 1) * sh - sprite_h
+		wrapped = true
+	if wrapped:
+		player.velocity.y = 0.0
+		player.reset_physics_interpolation()
+		if player.has_method("_sync_climb_pose"):
+			player._sync_climb_pose()
+	var room := Vector2i(rx, ry)
+	if not force and not wrapped and room == _room:
 		return
 	_room = room
 	camera.global_position = Vector2((float(room.x) + 0.5) * sw, (float(room.y) + 0.5) * sh)
+	camera.limit_left = int(room.x * sw)
+	camera.limit_right = int((room.x + 1) * sw)
+	camera.limit_top = int(room.y * sh)
+	camera.limit_bottom = int((room.y + 1) * sh)
+	camera.reset_physics_interpolation()
 
 
 func _add_letterbox() -> void:
