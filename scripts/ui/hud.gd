@@ -6,6 +6,9 @@ extends CanvasLayer
 @onready var energy_dial: Control = $Margin/HBox/EnergyDial
 @onready var status_label: Label = $Margin/HBox/VBox/StatusLabel
 @onready var bomb_timer_label: Label = $Margin/HBox/VBox/BombTimerLabel
+@onready var result_overlay: Control = $ResultOverlay
+@onready var result_title: Label = $ResultOverlay/Panel/Title
+@onready var restart_button: Button = $ResultOverlay/Panel/RestartButton
 
 
 func _ready() -> void:
@@ -15,7 +18,16 @@ func _ready() -> void:
 	EventBus.mission_complete.connect(_on_mission_complete)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.connect(_on_energy_changed)
+	restart_button.pressed.connect(_on_restart_pressed)
 	_refresh()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not result_overlay.visible:
+		return
+	if event.is_action_pressed("ui_accept"):
+		_on_restart_pressed()
+		get_viewport().set_input_as_handled()
 
 
 func _process(_delta: float) -> void:
@@ -65,14 +77,30 @@ func _on_bomb_planted() -> void:
 
 
 func _on_mission_complete() -> void:
-	status_label.text = "Mission complete!"
+	status_label.text = ""
+	_show_result("Mission complete!", "Play again")
 
 
 func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
-		status_label.text = "Game Over"
+		status_label.text = ""
+		_show_result("Game Over", "Restart")
 	else:
 		status_label.text = "You died!"
 		await get_tree().create_timer(1.0).timeout
 		status_label.text = ""
 		_refresh()
+
+
+func _show_result(title: String, button_text: String) -> void:
+	result_title.text = title
+	restart_button.text = button_text
+	result_overlay.visible = true
+	restart_button.grab_focus()
+
+
+func _on_restart_pressed() -> void:
+	if not result_overlay.visible:
+		return
+	result_overlay.visible = false
+	GameManager.restart_mission()
