@@ -60,6 +60,8 @@ region = Rect2(480, 0, 48, 56)
 atlas = ExtResource("2")
 region = Rect2(528, 0, 48, 56)
 
+; death uses the first crouch cell as a stub until a dedicated frame exists
+; (docs/art_saboteur93.md). Same Rect2 as AtlasTexture_u0 is intentional.
 [sub_resource type="AtlasTexture" id="AtlasTexture_d0"]
 atlas = ExtResource("2")
 region = Rect2(576, 0, 48, 56)

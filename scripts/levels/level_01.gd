@@ -413,7 +413,7 @@ func _player_center() -> Vector2:
 
 func _player_is_moving() -> bool:
 	if player.on_ladder:
-		return absf(player._climb_axis()) > 0.1
+		return absf(player.get_climb_axis()) > 0.1
 	if player.on_lift and player.is_riding_lift():
 		return true
 	return absf(player.velocity.x) > 18.0 or absf(player.velocity.y) > 36.0

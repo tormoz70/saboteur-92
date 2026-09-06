@@ -33,7 +33,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
-	_update_inventory()
+	# Fuse ticks in GameManager._process; the label has to follow it.
+	# Inventory is signal-driven (item_collected / bomb_planted / _refresh).
 	if GameManager.bomb_planted and GameManager.state == GameManager.GameState.PLAYING:
 		bomb_timer_label.text = "Bomb: %ds" % ceili(GameManager.bomb_timer)
 	else:
@@ -76,6 +77,7 @@ func _on_item_collected(_item_type: String) -> void:
 
 func _on_bomb_planted() -> void:
 	status_label.text = "Bomb planted! Escape!"
+	_update_inventory()
 
 
 func _on_mission_complete() -> void:

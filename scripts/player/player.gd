@@ -74,7 +74,7 @@ func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
 
 	can_climb = _ladder_overlaps()
-	var climb_axis := _climb_axis()
+	var climb_axis := get_climb_axis()
 	_update_ladder_state(climb_axis)
 	_update_lift_state()
 	floor_snap_length = 0.0 if on_ladder else 16.0
@@ -281,7 +281,7 @@ func _try_unstuck() -> void:
 		global_position += escape
 
 
-func _climb_axis() -> float:
+func get_climb_axis() -> float:
 	return Input.get_axis("move_up", "move_down")
 
 
@@ -649,7 +649,7 @@ func take_damage(amount: int = 12) -> void:
 	GameManager.lose_mission()
 
 
-func respawn(spawn_point: Vector2) -> void:
+func respawn(to_position: Vector2) -> void:
 	is_dead = false
 	current_state = State.IDLE
 	on_ladder = false
@@ -663,7 +663,7 @@ func respawn(spawn_point: Vector2) -> void:
 	_regen_accum = 0.0
 	energy = max_energy
 	anim.modulate = Color.WHITE
-	global_position = spawn_point
+	global_position = to_position
 	velocity = Vector2.ZERO
 	EventBus.energy_changed.emit(energy, max_energy)
 
