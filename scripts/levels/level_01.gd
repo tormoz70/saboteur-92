@@ -3,10 +3,13 @@ extends Node2D
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var world: Node2D = $World
+@onready var visual_layer: TileMapLayer = $Visual
+@onready var fg_layer: TileMapLayer = $Foreground
 
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
-const WORLD_TEX_PATH := "res://assets/world/saboteur2_world.png"
-const WORLD_FG_PATH := "res://assets/world/saboteur2_fg.png"
+const TILES_PATH := "res://assets/world/s2_world_tiles.json"
+const WORLD_TILESET_PATH := "res://assets/tilesets/s2_world_tileset.tres"
+const FG_TILESET_PATH := "res://assets/tilesets/s2_fg_tileset.tres"
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const LETTERBOX_PX := 160.0
@@ -64,8 +67,7 @@ func _load_original_world() -> void:
 	var sp: Array = data.get("spawn", [4480, 1640])
 	_spawn = Vector2(float(sp[0]), float(sp[1]))
 
-	_add_map_sprite("OriginalMap", WORLD_TEX_PATH, -20)
-	_add_map_sprite("Foreground", WORLD_FG_PATH, 12)
+	_add_map_layers()
 
 	_bookcases.clear()
 	for rect in data.get("bookcases", []):
@@ -120,23 +122,107 @@ func _load_original_world() -> void:
 	camera.zoom = Vector2(720.0 / (_screen.y * _scale), 720.0 / (_screen.y * _scale))
 
 
-func _add_map_sprite(node_name: String, path: String, z: int) -> void:
-	if not ResourceLoader.exists(path):
-		push_error("Missing world texture %s" % path)
+func _add_map_layers() -> void:
+	if not FileAccess.file_exists(TILES_PATH):
+		push_error("Missing %s — run tools/saboteur_rip/build_s2_world.py" % TILES_PATH)
 		return
-	var sprite := Sprite2D.new()
-	sprite.name = node_name
-	sprite.centered = false
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	sprite.scale = Vector2(_scale, _scale)
-	sprite.z_index = z
-	var tex := load(path) as Texture2D
-	if tex == null:
-		push_error("Could not load world texture %s" % path)
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(TILES_PATH))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		push_error("Could not parse %s" % TILES_PATH)
 		return
-	sprite.texture = tex
-	add_child(sprite)
-	move_child(sprite, 0)
+	var tiles: Dictionary = parsed
+	_fill_visual_layer(visual_layer, WORLD_TILESET_PATH, tiles, tiles.get("world", {}), -20)
+	_fill_visual_layer(fg_layer, FG_TILESET_PATH, tiles, tiles.get("fg", {}), 12)
+
+
+func _fill_visual_layer(
+	layer: TileMapLayer, tileset_path: String, tiles: Dictionary, spec: Dictionary, z: int
+) -> void:
+	if layer == null:
+		push_error("Missing TileMapLayer for %s" % tileset_path)
+		return
+	if spec.is_empty():
+		push_error("Missing tile layer data for %s" % tileset_path)
+		return
+	if not ResourceLoader.exists(tileset_path):
+		push_error("Missing tileset %s" % tileset_path)
+		return
+	var tileset := load(tileset_path) as TileSet
+	if tileset == null:
+		push_error("Could not load tileset %s" % tileset_path)
+		return
+	# Visual layer only — passability stays in s2_collision.json. Identical
+	# pictures can still collide differently (fill_cave_earth, thicken_floors).
+	layer.tile_set = tileset
+	layer.collision_enabled = false
+	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	layer.scale = Vector2(_scale, _scale)
+	layer.z_index = z
+	var src := tileset.get_source(0) as TileSetAtlasSource
+	if src:
+		src.use_texture_padding = true
+		src.texture_region_size = Vector2i(int(tiles.get("cell", 8)), int(tiles.get("cell", 8)))
+		_ensure_atlas_tiles(src, spec)
+	layer.tile_map_data = _rle_to_tile_map_data(spec, int(tiles["grid"][0]))
+
+
+func _rle_to_tile_map_data(spec: Dictionary, cw: int) -> PackedByteArray:
+	# Godot 4.6 TileMapLayer.tile_map_data: uint16 format, then 12-byte cells
+	# (int16 x, int16 y, uint16 source, int16 atlas_x, int16 atlas_y, uint16 alt).
+	var atlas_cols := int(spec["atlas_tiles"][0])
+	var empty_var: Variant = spec.get("empty", null)
+	var has_empty := empty_var != null
+	var empty_id := int(empty_var) if has_empty else -1
+	var rle: Array = spec["rle"]
+	var used := 0
+	var i := 0
+	var rle_n: int = rle.size()
+	while i < rle_n:
+		var tid := int(rle[i])
+		var count := int(rle[i + 1])
+		i += 2
+		if not (has_empty and tid == empty_id):
+			used += count
+	var data := PackedByteArray()
+	data.resize(2 + used * 12)
+	data.encode_u16(0, 0)
+	var off := 2
+	var cell_i := 0
+	i = 0
+	while i < rle_n:
+		var tid := int(rle[i])
+		var count := int(rle[i + 1])
+		i += 2
+		if has_empty and tid == empty_id:
+			cell_i += count
+			continue
+		var ax := tid % atlas_cols
+		var ay: int = tid / atlas_cols
+		for _n in count:
+			data.encode_s16(off, cell_i % cw)
+			data.encode_s16(off + 2, cell_i / cw)
+			data.encode_u16(off + 4, 0)
+			data.encode_s16(off + 6, ax)
+			data.encode_s16(off + 8, ay)
+			data.encode_u16(off + 10, 0)
+			off += 12
+			cell_i += 1
+	return data
+
+
+func _ensure_atlas_tiles(src: TileSetAtlasSource, spec: Dictionary) -> void:
+	var cols := int(spec["atlas_tiles"][0])
+	var rows := int(spec["atlas_tiles"][1])
+	var n := int(spec["tile_count"])
+	var i := 0
+	for y in rows:
+		for x in cols:
+			if i >= n:
+				return
+			var coords := Vector2i(x, y)
+			if not src.has_tile(coords):
+				src.create_tile(coords)
+			i += 1
 
 
 func _add_lifts(data: Dictionary) -> void:
@@ -280,7 +366,7 @@ func _add_letterbox() -> void:
 
 
 func _hide_demo_entities() -> void:
-	for path in ["Guards", "Items", "SabotageTarget", "ExitZone", "TileMapLayer"]:
+	for path in ["Guards", "Items", "SabotageTarget", "ExitZone"]:
 		var node := get_node_or_null(path)
 		if node:
 			node.visible = false

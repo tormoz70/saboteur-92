@@ -1,7 +1,6 @@
-[gd_scene load_steps=11 format=3 uid="uid://level01scene"]
+[gd_scene load_steps=10 format=3 uid="uid://level01scene"]
 
 [ext_resource type="Script" path="res://scripts/levels/level_01.gd" id="1"]
-[ext_resource type="TileSet" path="res://assets/tilesets/saboteur85_tileset.tres" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/guard.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/items/pickup.tscn" id="5"]
@@ -27,9 +26,15 @@ script = ExtResource("1")
 position_smoothing_enabled = false
 zoom = Vector2(1.875, 1.875)
 
-[node name="TileMapLayer" type="TileMapLayer" parent="."]
-texture_filter = 0
-tile_set = ExtResource("2")
+[node name="Visual" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = -20
+collision_enabled = false
+
+[node name="Foreground" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = 12
+collision_enabled = false
 
 [node name="World" type="Node2D" parent="."]
 

@@ -20,9 +20,38 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 WORLD = ROOT / "assets" / "world" / "saboteur2_world.png"
+TILES = ROOT / "assets" / "world" / "s2_world_tiles.json"
+ATLAS = ROOT / "assets" / "tilesets" / "s2_world_tileset.png"
 DATA = ROOT / "assets" / "world" / "s2_collision.json"
 CELL = 8
 SCREEN_W, SCREEN_H = 256, 192
+
+
+def rle_decode(runs: list[int]) -> list[int]:
+    out: list[int] = []
+    for i in range(0, len(runs), 2):
+        out.extend([runs[i]] * runs[i + 1])
+    return out
+
+
+def load_world_image() -> Image.Image:
+    """Prefer the mosaic PNG; otherwise rebuild it from the visual tileset."""
+    if WORLD.exists():
+        return Image.open(WORLD).convert("RGB")
+    if not TILES.exists() or not ATLAS.exists():
+        raise SystemExit("need saboteur2_world.png or s2_world_tiles.json + s2_world_tileset.png")
+    spec = json.loads(TILES.read_text())
+    world = spec["world"]
+    ids = rle_decode(world["rle"])
+    cw, ch = spec["grid"]
+    atlas_cols = world["atlas_tiles"][0]
+    atlas = Image.open(ATLAS).convert("RGB")
+    out = Image.new("RGB", (cw * CELL, ch * CELL))
+    for i, tid in enumerate(ids):
+        ax, ay = (tid % atlas_cols) * CELL, (tid // atlas_cols) * CELL
+        cx, cy = i % cw, i // cw
+        out.paste(atlas.crop((ax, ay, ax + CELL, ay + CELL)), (cx * CELL, cy * CELL))
+    return out
 
 
 def ink(r: int, g: int, b: int) -> str:
@@ -56,7 +85,7 @@ def is_red_brick(c: Counter) -> bool:
 
 class World:
     def __init__(self) -> None:
-        self.im = Image.open(WORLD).convert("RGB")
+        self.im = load_world_image()
         self.px = self.im.load()
         self.w, self.h = self.im.size
         self.cw, self.ch = self.w // CELL, self.h // CELL
@@ -109,7 +138,7 @@ class World:
 
 def report(world: World) -> None:
     print("=" * 78)
-    print("АУДИТ ПРОХОДИМОСТИ: s2_collision.json против saboteur2_world.png")
+    print("АУДИТ ПРОХОДИМОСТИ: s2_collision.json против визуала мира")
     print("=" * 78)
     print(
         f"сетка {world.cw}x{world.ch} ячеек, биомы {dict(Counter(world.biomes))}"
@@ -261,8 +290,10 @@ def main() -> None:
     ap.add_argument("--png", help="сохранить наложение коллизии для --screen")
     args = ap.parse_args()
 
-    if not WORLD.exists() or not DATA.exists():
-        raise SystemExit("нет assets/world/ — сначала запусти build_s2_world.py")
+    if not DATA.exists():
+        raise SystemExit("нет assets/world/s2_collision.json — сначала запусти build_s2_world.py")
+    if not WORLD.exists() and not (TILES.exists() and ATLAS.exists()):
+        raise SystemExit("нет мозаики и нет тайлсета — сначала запусти build_s2_world.py")
 
     world = World()
     if args.screen:
