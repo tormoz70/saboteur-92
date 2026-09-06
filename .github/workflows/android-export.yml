@@ -2,9 +2,9 @@ name: Android Export
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   export:
@@ -29,10 +29,42 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Configure Godot editor settings
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          test -n "${SDK}"
+          test -n "${JAVA_HOME}"
+          mkdir -p ~/.config/godot
+          {
+            echo '[gd_resource type="EditorSettings" format=3]'
+            echo
+            echo '[resource]'
+            echo "export/android/android_sdk_path = \"${SDK}\""
+            echo "export/android/java_sdk_path = \"${JAVA_HOME}\""
+          } > ~/.config/godot/editor_settings-4.6.tres
+          echo "android_sdk_path=${SDK}"
+          echo "java_sdk_path=${JAVA_HOME}"
+
+      - name: Smoke run
+        run: |
+          set -euo pipefail
+          godot --headless --import
+          godot --headless --quit-after 300 2>&1 | tee run.log
+          if grep -q "ERROR:" run.log; then
+            echo "Smoke run logged ERROR"
+            exit 1
+          fi
+
       - name: Export debug APK
         run: |
+          set -euo pipefail
           mkdir -p exports
-          godot --headless --path . --export-debug "Android" exports/saboteur92.apk
+          godot --headless --import
+          godot --headless --path . \
+            --install-android-build-template \
+            --export-debug "Android" exports/saboteur92.apk
+          test -s exports/saboteur92.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
