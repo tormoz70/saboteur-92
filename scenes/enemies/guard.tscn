@@ -79,6 +79,7 @@ collision_layer = 0
 collision_mask = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="SightArea"]
+position = Vector2(24, 28)
 shape = SubResource("RectangleShape2D_sight")
 
 [node name="AttackArea" type="Area2D" parent="."]

@@ -12,7 +12,12 @@ var bomb_planted: bool = false
 var bomb_timer: float = 0.0
 var demo_mode: bool = false
 
-const BOMB_FUSE_TIME := 10.0
+# Escape run after planting, measured on the Stage 2 layout in s2_entities.json.
+# Path: sabotage (3480, 832) PNG → exit (1800, 808) PNG along the spawn hall.
+# Horizontal 1680 PNG = 3360 world px / 110 px/s ≈ 31 s of sprinting.
+# Plus turn-around and ladder-snap slack ≈ 19 s. Standing still for the full
+# fuse is a loss; the only win is the green exit.
+const BOMB_FUSE_TIME := 50.0
 
 
 func _ready() -> void:
@@ -28,8 +33,11 @@ func _process(delta: float) -> void:
 	if bomb_planted and state == GameState.PLAYING:
 		bomb_timer -= delta
 		if bomb_timer <= 0.0:
-			add_score(500)
-			win_mission()
+			bomb_timer = 0.0
+			# Fuse burnt out: mission failed, not a single life. Items are already
+			# gone so a mid-run respawn would be unwinnable.
+			lives = 1
+			lose_mission()
 
 
 func reset_inventory() -> void:

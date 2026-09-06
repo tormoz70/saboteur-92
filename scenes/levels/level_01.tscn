@@ -1,23 +1,7 @@
-[gd_scene load_steps=10 format=3 uid="uid://level01scene"]
+[gd_scene load_steps=3 format=3 uid="uid://level01scene"]
 
 [ext_resource type="Script" path="res://scripts/levels/level_01.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="3"]
-[ext_resource type="PackedScene" path="res://scenes/enemies/guard.tscn" id="4"]
-[ext_resource type="PackedScene" path="res://scenes/items/pickup.tscn" id="5"]
-[ext_resource type="PackedScene" path="res://scenes/items/sabotage_target.tscn" id="6"]
-[ext_resource type="PackedScene" path="res://scenes/items/exit_zone.tscn" id="7"]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
-size = Vector2(640, 16)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
-size = Vector2(160, 16)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
-size = Vector2(16, 240)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_ladder"]
-size = Vector2(16, 80)
 
 [node name="Level01" type="Node2D"]
 script = ExtResource("1")
@@ -38,76 +22,5 @@ collision_enabled = false
 
 [node name="World" type="Node2D" parent="."]
 
-[node name="Ground" type="StaticBody2D" parent="World"]
-collision_layer = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Ground"]
-position = Vector2(320, 248)
-shape = SubResource("RectangleShape2D_floor")
-
-[node name="UpperFloor" type="StaticBody2D" parent="World"]
-collision_layer = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/UpperFloor"]
-position = Vector2(368, 136)
-shape = SubResource("RectangleShape2D_platform")
-
-[node name="LeftWall" type="StaticBody2D" parent="World"]
-collision_layer = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/LeftWall"]
-position = Vector2(8, 128)
-shape = SubResource("RectangleShape2D_wall")
-
-[node name="RightWall" type="StaticBody2D" parent="World"]
-collision_layer = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/RightWall"]
-position = Vector2(632, 128)
-shape = SubResource("RectangleShape2D_wall")
-
-[node name="Ladder" type="Area2D" parent="World"]
-collision_layer = 16
-collision_mask = 0
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Ladder"]
-position = Vector2(600, 184)
-shape = SubResource("RectangleShape2D_ladder")
-
 [node name="Player" parent="." instance=ExtResource("3")]
-position = Vector2(48, 184)
-
-[node name="Guards" type="Node2D" parent="."]
-
-[node name="Guard1" parent="Guards" instance=ExtResource("4")]
-position = Vector2(200, 192)
-
-[node name="Guard2" parent="Guards" instance=ExtResource("4")]
-position = Vector2(420, 192)
-patrol_distance = 64.0
-
-[node name="Guard3" parent="Guards" instance=ExtResource("4")]
-position = Vector2(400, 80)
-patrol_distance = 48.0
-
-[node name="Items" type="Node2D" parent="."]
-
-[node name="Key" parent="Items" instance=ExtResource("5")]
-position = Vector2(120, 222)
-item_type = "key"
-
-[node name="Document" parent="Items" instance=ExtResource("5")]
-position = Vector2(360, 110)
-item_type = "document"
-required_item = "key"
-
-[node name="Bomb" parent="Items" instance=ExtResource("5")]
-position = Vector2(392, 206)
-item_type = "bomb"
-required_item = "document"
-
-[node name="SabotageTarget" parent="." instance=ExtResource("6")]
-position = Vector2(432, 104)
-
-[node name="ExitZone" parent="." instance=ExtResource("7")]
-position = Vector2(56, 200)
+position = Vector2(4480, 1584)

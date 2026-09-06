@@ -7,11 +7,16 @@ extends Node2D
 @onready var fg_layer: TileMapLayer = $Foreground
 
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
+const ENTITIES_PATH := "res://assets/world/s2_entities.json"
 const TILES_PATH := "res://assets/world/s2_world_tiles.json"
 const WORLD_TILESET_PATH := "res://assets/tilesets/s2_world_tileset.tres"
 const FG_TILESET_PATH := "res://assets/tilesets/s2_fg_tileset.tres"
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
+const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
+const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
+const SABOTAGE_SCENE := preload("res://scenes/items/sabotage_target.tscn")
+const EXIT_SCENE := preload("res://scenes/items/exit_zone.tscn")
 const LETTERBOX_PX := 160.0
 # Camera stays put while Nina is more than this fraction of the playfield away
 # from any edge. Crossing that band pushes the view; standing still recenters.
@@ -30,7 +35,7 @@ var _ink_material: ShaderMaterial = null
 
 func _ready() -> void:
 	_load_original_world()
-	_hide_demo_entities()
+	_add_entities()
 	_add_letterbox()
 	if player:
 		# Mosaic is SCALE× original pixels; S2 sprites are already 48×56.
@@ -64,8 +69,10 @@ func _load_original_world() -> void:
 	_screen = Vector2(float(scr[0]), float(scr[1]))
 	var sz: Array = data.get("size", [8192, 4608])
 	_world_size = Vector2(float(sz[0]), float(sz[1]))
-	var sp: Array = data.get("spawn", [4480, 1640])
-	_spawn = Vector2(float(sp[0]), float(sp[1]))
+	# Spawn is PNG pixels, same as solids/ladders/lifts. Older files stored it
+	# already multiplied by scale; s2_entities.json is the source of truth.
+	var sp: Array = data.get("spawn", [2240, 792])
+	_spawn = _png_to_world(float(sp[0]), float(sp[1]))
 
 	_add_map_layers()
 
@@ -267,6 +274,70 @@ func _add_lifts(data: Dictionary) -> void:
 		lift.setup(float(spec["top"]) * _scale, float(spec["bottom"]) * _scale, size.x)
 
 
+func _png_to_world(x: float, y: float) -> Vector2:
+	return Vector2(x, y) * _scale
+
+
+func _load_json(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		push_error("Missing %s" % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		push_error("Could not parse %s" % path)
+		return {}
+	return parsed
+
+
+func _add_entities() -> void:
+	var data := _load_json(ENTITIES_PATH)
+	if data.is_empty():
+		push_error("Mission entities missing — cannot spawn objectives")
+		return
+	var sp: Array = data.get("spawn", [2240, 792])
+	_spawn = _png_to_world(float(sp[0]), float(sp[1]))
+
+	var items_root := Node2D.new()
+	items_root.name = "Items"
+	add_child(items_root)
+	for spec in data.get("items", []):
+		var item: Area2D = PICKUP_SCENE.instantiate()
+		item.name = str(spec.get("id", spec.get("type", "item"))).capitalize()
+		item.item_type = str(spec.get("type", "key"))
+		item.required_item = str(spec.get("required", ""))
+		item.scale = Vector2(_scale, _scale)
+		items_root.add_child(item)
+		item.global_position = _png_to_world(float(spec["x"]), float(spec["y"]))
+
+	var sabotage: Area2D = SABOTAGE_SCENE.instantiate()
+	sabotage.name = "SabotageTarget"
+	sabotage.scale = Vector2(_scale, _scale)
+	add_child(sabotage)
+	var sab: Dictionary = data.get("sabotage", {})
+	sabotage.global_position = _png_to_world(float(sab.get("x", 0)), float(sab.get("y", 0)))
+
+	var exit_zone: Area2D = EXIT_SCENE.instantiate()
+	exit_zone.name = "ExitZone"
+	exit_zone.scale = Vector2(_scale, _scale)
+	add_child(exit_zone)
+	var ex: Dictionary = data.get("exit", {})
+	exit_zone.global_position = _png_to_world(float(ex.get("x", 0)), float(ex.get("y", 0)))
+
+	var guards_root := Node2D.new()
+	guards_root.name = "Guards"
+	add_child(guards_root)
+	var gi := 1
+	for spec in data.get("guards", []):
+		var guard: CharacterBody2D = GUARD_SCENE.instantiate()
+		guard.name = str(spec.get("id", "Guard%d" % gi)).capitalize()
+		guard.scale = Vector2(_scale, _scale)
+		# patrol is PNG pixels; AI compares against global (world) X.
+		guard.patrol_distance = float(spec.get("patrol", 40)) * _scale
+		guards_root.add_child(guard)
+		guard.global_position = _png_to_world(float(spec["x"]), float(spec["y"]))
+		gi += 1
+
+
 func _add_rect_shape(body: StaticBody2D, rect: Array, _layer: int) -> void:
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
@@ -363,14 +434,6 @@ func _add_letterbox() -> void:
 	layer.add_child(left)
 	layer.add_child(right)
 	add_child(layer)
-
-
-func _hide_demo_entities() -> void:
-	for path in ["Guards", "Items", "SabotageTarget", "ExitZone"]:
-		var node := get_node_or_null(path)
-		if node:
-			node.visible = false
-			node.process_mode = Node.PROCESS_MODE_DISABLED
 
 
 func _start_demo_if_requested() -> void:
