@@ -86,6 +86,7 @@ func _on_mission_complete() -> void:
 func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
 		status_label.text = ""
+		_refresh()
 		_show_result("Game Over", "Restart")
 	else:
 		status_label.text = "You died!"
