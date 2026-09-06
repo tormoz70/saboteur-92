@@ -78,12 +78,15 @@ $buildDir = Join-Path $AsepriteRoot "build"
 Ensure-Dir $buildDir
 
 Write-Host "Configuring CMake..."
+# Quote path -D values: default prefix is under %LOCALAPPDATA%, which often has spaces.
+$skiaLibDir = Join-Path $SkiaDir "out\Release-x64"
+$skiaLib = Join-Path $skiaLibDir "skia.lib"
 $cmakeArgs = @(
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
     "-DLAF_BACKEND=skia",
-    "-DSKIA_DIR=$SkiaDir",
-    "-DSKIA_LIBRARY_DIR=$(Join-Path $SkiaDir 'out\Release-x64')",
-    "-DSKIA_LIBRARY=$(Join-Path $SkiaDir 'out\Release-x64\skia.lib')",
+    "-DSKIA_DIR=`"$SkiaDir`"",
+    "-DSKIA_LIBRARY_DIR=`"$skiaLibDir`"",
+    "-DSKIA_LIBRARY=`"$skiaLib`"",
     "-G", "Ninja",
     ".."
 )
