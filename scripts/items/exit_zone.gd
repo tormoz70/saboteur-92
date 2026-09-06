@@ -7,5 +7,7 @@ func _ready() -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if not body.is_in_group("player"):
 		return
+	if body.get("is_dead"):
+		return
 	if GameManager.bomb_planted:
 		GameManager.win_mission()

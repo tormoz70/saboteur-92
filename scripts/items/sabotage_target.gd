@@ -12,6 +12,8 @@ func _ready() -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if not body.is_in_group("player"):
 		return
+	if body.get("is_dead"):
+		return
 	if requires_key and not GameManager.has_key:
 		return
 	if requires_document and not GameManager.has_document:

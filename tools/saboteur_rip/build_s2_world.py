@@ -472,7 +472,19 @@ def greedy_rects(grid: list[list[int]]) -> list[list[int]]:
     return rects
 
 
-def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], spawn: list[int]) -> Image.Image:
+def load_mission_spawn() -> list[int]:
+    """Player spawn lives in hand-authored s2_entities.json, not this generator."""
+    data = json.loads((OUT_DIR / "s2_entities.json").read_text(encoding="utf-8"))
+    spawn = data["spawn"]
+    return [int(spawn[0]), int(spawn[1])]
+
+
+def preview(
+    im: Image.Image,
+    solid: list[list[int]],
+    ladders: list[list[int]],
+    spawn: list[int] | None = None,
+) -> Image.Image:
     overlay = im.copy().convert("RGBA")
     draw = ImageDraw.Draw(overlay, "RGBA")
     ch = len(solid)
@@ -484,7 +496,10 @@ def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], s
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(255, 40, 40, 110))
             if ladders[cy][cx]:
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(40, 220, 255, 140))
-    # spawn is PNG pixels (sprite top-left); marker sits on the feet.
+    # PNG pixels, same space as solids/ladders/lifts. World = spawn * SCALE.
+    # Marker sits on the feet.
+    if spawn is None:
+        spawn = load_mission_spawn()
     sx, sy = spawn[0], spawn[1] + 56
     draw.rectangle((sx - 4, sy - 28, sx + 12, sy), outline=(255, 255, 0, 255))
     return overlay.resize((im.width // 4, im.height // 4), Image.NEAREST)
@@ -775,9 +790,6 @@ def main() -> None:
         # Keep the hit box close to the 8–16px rails so windows and wallpaper
         # next to a shaft are not climbable.
         ladder_rects.append([x - 4, y, w + 8, h])
-    # PNG pixels, same space as solids/ladders/lifts. World = spawn * SCALE.
-    # Hand-picked hideout floor (not the unused rooftop heuristic).
-    spawn = [2240, 792]
     w, h = im.size
     pad = CELL * 2
     solids.extend(
@@ -817,7 +829,6 @@ def main() -> None:
         "cell": CELL,
         "screen": [SCREEN_W, SCREEN_H],
         "size": [im.width, im.height],
-        "spawn": spawn,
         "solids": solids,
         "ladders": ladder_rects,
         "lifts": lifts,

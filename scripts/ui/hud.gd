@@ -87,7 +87,10 @@ func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
 		status_label.text = ""
 		_refresh()
-		_show_result("Game Over", "Restart")
+		var title := GameManager.fail_reason
+		if title.is_empty():
+			title = "Game Over"
+		_show_result(title, "Restart")
 	else:
 		status_label.text = "You died!"
 		await get_tree().create_timer(1.0).timeout
