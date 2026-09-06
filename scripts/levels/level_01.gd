@@ -91,18 +91,18 @@ func _load_original_world() -> void:
 
 	var body := StaticBody2D.new()
 	body.name = "Solids"
-	body.collision_layer = 4
+	body.collision_layer = CollisionLayers.LAYER_WORLD
 	body.collision_mask = 0
 	world.add_child(body)
 	for rect in data.get("solids", []):
-		_add_rect_shape(body, rect, 4)
+		_add_rect_shape(body, rect, CollisionLayers.LAYER_WORLD)
 
 	var ladders := Node2D.new()
 	ladders.name = "Ladders"
 	world.add_child(ladders)
 	for rect in data.get("ladders", []):
 		var area := Area2D.new()
-		area.collision_layer = 16
+		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
 		area.collision_mask = 0
 		area.monitorable = true
 		area.monitoring = false

@@ -43,6 +43,7 @@ var _climb_frame: int = 0
 var _lift: LiftPlatform = null
 var _probe_shape := RectangleShape2D.new()
 var _probe_query := PhysicsShapeQueryParameters2D.new()
+var _world_mask: int = CollisionLayers.LAYER_WORLD
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -55,6 +56,7 @@ func _ready() -> void:
 	energy = max_energy
 	floor_snap_length = 16.0
 	safe_margin = 0.25
+	_world_mask = collision_mask
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.emit(energy, max_energy)
 
@@ -76,7 +78,7 @@ func _physics_process(delta: float) -> void:
 	_update_ladder_state(climb_axis)
 	_update_lift_state()
 	floor_snap_length = 0.0 if on_ladder else 16.0
-	collision_mask = 0 if on_ladder else 4
+	collision_mask = 0 if on_ladder else _world_mask
 
 	_tick_attack(delta)
 	if not (on_lift and _lift != null and _lift.dir != 0):
@@ -329,7 +331,7 @@ func _enter_ladder() -> void:
 
 func _leave_ladder() -> void:
 	on_ladder = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	floor_snap_length = 16.0
 	velocity = Vector2.ZERO
 	_snap_onto_support()
@@ -350,7 +352,7 @@ func _snap_onto_support() -> void:
 	var cx := global_position.x + BODY_STAND_POS.x * scale.x
 	var from := Vector2(cx, global_position.y + 4.0)
 	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 96.0))
-	q.collision_mask = 4
+	q.collision_mask = _world_mask
 	q.exclude = [get_rid()]
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
@@ -498,7 +500,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 	var space := get_world_2d().direct_space_state
 	var cx := _body_cx()
 	var q := PhysicsRayQueryParameters2D.create(Vector2(cx, from_y), Vector2(cx, to_y))
-	q.collision_mask = 4
+	q.collision_mask = _world_mask
 	q.exclude = [get_rid()]
 	return space.intersect_ray(q)
 
@@ -506,7 +508,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 func _dismount_to_y(floor_y: float) -> void:
 	var feet_off := (BODY_STAND_POS.y + BODY_STAND_SIZE.y * 0.5) * scale.y
 	on_ladder = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	floor_snap_length = 16.0
 	velocity = Vector2.ZERO
 	global_position.y = floor_y - feet_off
@@ -530,7 +532,7 @@ func _dismount_if_landing() -> bool:
 	for side in [-48.0, 48.0, -72.0, 72.0]:
 		var from := Vector2(cx + side, feet - 12.0)
 		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 28.0))
-		q.collision_mask = 4
+		q.collision_mask = _world_mask
 		q.exclude = [get_rid()]
 		var hit := space.intersect_ray(q)
 		if hit.is_empty():
@@ -654,7 +656,7 @@ func respawn(spawn_point: Vector2) -> void:
 	on_lift = false
 	_lift = null
 	can_climb = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	_kick_left_ground = false
 	_iframe = 0.0
 	_time_since_hit = 10.0
