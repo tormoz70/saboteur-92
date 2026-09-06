@@ -110,7 +110,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_attack(delta: float) -> void:
-	if current_state != State.PUNCH and current_state != State.KICK and current_state != State.JUMP_KICK:
+	if (
+		current_state != State.PUNCH
+		and current_state != State.KICK
+		and current_state != State.JUMP_KICK
+	):
 		return
 	punch_timer -= delta
 	if punch_timer > 0.0:
@@ -174,7 +178,9 @@ func _process_platformer(delta: float) -> void:
 		current_state = State.IDLE
 
 	var direction := Input.get_axis("move_left", "move_right")
-	if Input.is_action_pressed("move_down") and not (on_lift and _lift != null and _lift.is_centered(self)):
+	if Input.is_action_pressed("move_down") and not (
+		on_lift and _lift != null and _lift.is_centered(self)
+	):
 		if direction:
 			velocity.x = direction * crouch_speed
 			facing = int(sign(direction))
@@ -254,7 +260,15 @@ func _process_lift() -> void:
 
 
 func _try_unstuck() -> void:
-	if not is_on_floor() or current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK or current_state == State.CROUCH or on_ladder or on_lift:
+	if (
+		not is_on_floor()
+		or current_state == State.PUNCH
+		or current_state == State.KICK
+		or current_state == State.JUMP_KICK
+		or current_state == State.CROUCH
+		or on_ladder
+		or on_lift
+	):
 		return
 	var direction := Input.get_axis("move_left", "move_right")
 	if direction == 0.0 or absf(velocity.x) > 8.0:
@@ -449,7 +463,10 @@ func _ladder_above_feet() -> bool:
 func _ladder_below_feet() -> bool:
 	# Entirely under the soles so a dead-end floor with rungs at foot height
 	# does not count as a hatch.
-	return _ladder_probe(Vector2(BODY_STAND_POS.x * scale.x, _feet_y() - global_position.y + 24.0), Vector2(10.0, 16.0))
+	return _ladder_probe(
+		Vector2(BODY_STAND_POS.x * scale.x, _feet_y() - global_position.y + 24.0),
+		Vector2(10.0, 16.0)
+	)
 
 
 func _ladder_probe(local_center: Vector2, size: Vector2) -> bool:

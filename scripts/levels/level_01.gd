@@ -1,11 +1,5 @@
 extends Node2D
 
-@onready var player: CharacterBody2D = $Player
-@onready var camera: Camera2D = $Camera2D
-@onready var world: Node2D = $World
-@onready var visual_layer: TileMapLayer = $Visual
-@onready var fg_layer: TileMapLayer = $Foreground
-
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
 const TILES_PATH := "res://assets/world/s2_world_tiles.json"
@@ -31,6 +25,12 @@ var _spawn := Vector2.ZERO
 var _cam_still := 0.0
 var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
+
+@onready var player: CharacterBody2D = $Player
+@onready var camera: Camera2D = $Camera2D
+@onready var world: Node2D = $World
+@onready var visual_layer: TileMapLayer = $Visual
+@onready var fg_layer: TileMapLayer = $Foreground
 
 
 func _ready() -> void:

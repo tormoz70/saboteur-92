@@ -13,6 +13,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Lint GDScript
+        run: |
+          set -euo pipefail
+          pip3 install --user gdtoolkit==4.5.0
+          export PATH="$HOME/.local/bin:$PATH"
+          gdlint scripts/
+
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:

@@ -10,16 +10,16 @@ enum AiState { PATROL, CHASE, ATTACK, DEAD }
 @export var patrol_distance: float = 120.0
 @export var attack_damage: int = 12
 
-@onready var anim: AnimatedSprite2D = $AnimatedSprite2D
-@onready var sight: Area2D = $SightArea
-@onready var attack_area: Area2D = $AttackArea
-
 var health: int
 var ai_state: AiState = AiState.PATROL
 var patrol_origin: float
 var patrol_dir: int = 1
 var target: Node2D = null
 var attack_cooldown: float = 0.0
+
+@onready var anim: AnimatedSprite2D = $AnimatedSprite2D
+@onready var sight: Area2D = $SightArea
+@onready var attack_area: Area2D = $AttackArea
 
 
 func _ready() -> void:

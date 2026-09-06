@@ -147,21 +147,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if not _ready_to_drive:
 		return
-
-	if GameManager.state == GameManager.GameState.WON:
-		if _fuse_only:
-			_fail("fuse test won instead of losing")
-			return
-		_succeed()
-		return
-	if GameManager.state == GameManager.GameState.LOST:
-		if _fuse_only:
-			_succeed_fuse_loss()
-			return
-		_fail("mission lost during %s" % Step.keys()[_step])
-		return
-	if GameManager.state != GameManager.GameState.PLAYING:
-		_fail("unexpected state %d during %s" % [int(GameManager.state), Step.keys()[_step]])
+	if _check_mission_state():
 		return
 
 	_drive()
@@ -182,6 +168,25 @@ func _physics_process(delta: float) -> void:
 		return
 	if _elapsed > TIME_LIMIT:
 		_fail("global timeout at %.1fs" % _elapsed)
+
+
+func _check_mission_state() -> bool:
+	if GameManager.state == GameManager.GameState.WON:
+		if _fuse_only:
+			_fail("fuse test won instead of losing")
+		else:
+			_succeed()
+		return true
+	if GameManager.state == GameManager.GameState.LOST:
+		if _fuse_only:
+			_succeed_fuse_loss()
+		else:
+			_fail("mission lost during %s" % Step.keys()[_step])
+		return true
+	if GameManager.state != GameManager.GameState.PLAYING:
+		_fail("unexpected state %d during %s" % [int(GameManager.state), Step.keys()[_step]])
+		return true
+	return false
 
 
 func _drive() -> void:
@@ -343,18 +348,21 @@ func _log_step() -> void:
 
 func _log_progress() -> void:
 	print(
-		"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s key=%s doc=%s bomb=%s planted=%s timer=%.1f lives=%d energy=%s"
-		% [
-			_player.global_position.x,
-			_player.global_position.y,
-			_player.is_on_floor(),
-			_player.on_ladder,
-			GameManager.has_key,
-			GameManager.has_document,
-			GameManager.has_bomb,
-			GameManager.bomb_planted,
-			GameManager.bomb_timer,
-			GameManager.lives,
-			_player.get("energy"),
-		]
+		(
+			"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s key=%s doc=%s bomb=%s planted=%s"
+			% [
+				_player.global_position.x,
+				_player.global_position.y,
+				_player.is_on_floor(),
+				_player.on_ladder,
+				GameManager.has_key,
+				GameManager.has_document,
+				GameManager.has_bomb,
+				GameManager.bomb_planted,
+			]
+		)
+		+ (
+			" timer=%.1f lives=%d energy=%s"
+			% [GameManager.bomb_timer, GameManager.lives, _player.get("energy")]
+		)
 	)
