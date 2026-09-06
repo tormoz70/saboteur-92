@@ -59,15 +59,25 @@ jobs:
             exit 1
           fi
 
+      - name: Audit world collision
+        run: |
+          set -euo pipefail
+          pip3 install --user Pillow
+          python3 tools/saboteur_rip/audit_collision.py | tee collision-audit.log
+          python3 -c "import re,sys; t=open('collision-audit.log').read(); m=re.search(r'\[грунт \(speckled\)\].*?interior\s+всего\s+\d+, дыр\s+(\d+)', t, re.S); assert m and int(m.group(1))==0, 'interior speckled-earth holes are not zero'"
+
       - name: Export debug APK
         run: |
           set -euo pipefail
           mkdir -p exports
-          godot --headless --import
           godot --headless --path . \
             --install-android-build-template \
             --export-debug "Android" exports/saboteur92.apk
           test -s exports/saboteur92.apk
+          unzip -t exports/saboteur92.apk
+          unzip -l exports/saboteur92.apk | tee apk-list.txt
+          grep -q "classes.dex" apk-list.txt
+          grep -q "assets/" apk-list.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
