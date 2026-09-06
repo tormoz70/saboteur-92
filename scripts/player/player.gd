@@ -22,6 +22,7 @@ const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
 const BODY_CROUCH_SIZE := Vector2(14, 24)
 const BODY_CROUCH_POS := Vector2(24, 44)
+const LiftPlatform := preload("res://scripts/world/lift.gd")
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -32,6 +33,7 @@ var current_state: State = State.IDLE
 var facing: int = 1
 var punch_timer: float = 0.0
 var on_ladder: bool = false
+var on_lift: bool = false
 var can_climb: bool = false
 var is_dead: bool = false
 var _kick_left_ground: bool = false
@@ -41,6 +43,7 @@ var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
 var _climb_step_timer: float = 0.0
 var _climb_frame: int = 0
+var _lift: LiftPlatform = null
 
 # One rung = one mosaic cell (8px) at world scale 2. Pose swaps on that same tick.
 const CLIMB_STEP_PX := 16.0
@@ -70,14 +73,18 @@ func _physics_process(delta: float) -> void:
 	can_climb = _ladder_overlaps()
 	var climb_axis := _climb_axis()
 	_update_ladder_state(climb_axis)
+	_update_lift_state()
 	floor_snap_length = 0.0 if on_ladder else 16.0
 	collision_mask = 0 if on_ladder else 4
 
 	_tick_attack(delta)
-	_handle_attack_input()
+	if not (on_lift and _lift != null and _lift.dir != 0):
+		_handle_attack_input()
 
 	if on_ladder:
 		_process_climb(delta, climb_axis)
+	elif on_lift:
+		_process_lift()
 	elif current_state == State.PUNCH or current_state == State.KICK:
 		velocity.x = 0.0
 		if not is_on_floor():
@@ -96,6 +103,8 @@ func _physics_process(delta: float) -> void:
 	if not on_ladder:
 		velocity.y = minf(velocity.y, max_fall_speed)
 	_update_animation()
+	if on_lift and _lift != null and _lift.dir != 0:
+		return
 	move_and_slide()
 	_try_unstuck()
 
@@ -130,7 +139,8 @@ func _handle_attack_input() -> void:
 	var up_tap := Input.is_action_just_pressed("move_up")
 
 	if is_on_floor():
-		var stand_kick := (not can_climb) and (
+		var on_lift_center := on_lift and _lift != null and _lift.is_centered(self)
+		var stand_kick := (not can_climb) and (not on_lift_center) and (
 			(punch_tap and up_held)
 			or (up_tap and punch_pressed)
 			or (up_tap and not moving)
@@ -164,7 +174,7 @@ func _process_platformer(delta: float) -> void:
 		current_state = State.IDLE
 
 	var direction := Input.get_axis("move_left", "move_right")
-	if Input.is_action_pressed("move_down"):
+	if Input.is_action_pressed("move_down") and not (on_lift and _lift != null and _lift.is_centered(self)):
 		if direction:
 			velocity.x = direction * crouch_speed
 			facing = int(sign(direction))
@@ -183,8 +193,68 @@ func _process_platformer(delta: float) -> void:
 		current_state = State.IDLE
 
 
+func _update_lift_state() -> void:
+	if on_ladder:
+		_leave_lift()
+		return
+	var found: LiftPlatform = null
+	for i in range(get_slide_collision_count()):
+		var col := get_slide_collision(i)
+		var n := col.get_collider() as LiftPlatform
+		if n != null:
+			found = n
+			break
+	if found == null:
+		if on_lift and _lift != null and _lift.dir != 0:
+			return
+		_leave_lift()
+		return
+	on_lift = true
+	_lift = found
+
+
+func is_riding_lift() -> bool:
+	return on_lift and _lift != null and _lift.dir != 0
+
+
+func _leave_lift() -> void:
+	if _lift != null and _lift.rider == self:
+		_lift.stop_ride()
+	on_lift = false
+	_lift = null
+
+
+func _process_lift() -> void:
+	current_state = State.IDLE
+	if _lift == null:
+		return
+	if _lift.dir != 0:
+		if Input.is_action_pressed("move_up") and _lift.dir > 0:
+			_lift.dir = -1
+		elif Input.is_action_pressed("move_down") and _lift.dir < 0:
+			_lift.dir = 1
+		velocity = Vector2.ZERO
+		return
+	var want := 0
+	if Input.is_action_pressed("move_up"):
+		want = -1
+	elif Input.is_action_pressed("move_down"):
+		want = 1
+	if want != 0 and _lift.start_ride(self, want):
+		velocity = Vector2.ZERO
+		return
+	var direction := Input.get_axis("move_left", "move_right")
+	if direction:
+		velocity.x = direction * speed
+		facing = int(sign(direction))
+		anim.flip_h = facing < 0
+		current_state = State.RUN
+	else:
+		velocity.x = move_toward(velocity.x, 0.0, speed)
+
+
 func _try_unstuck() -> void:
-	if not is_on_floor() or current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK or current_state == State.CROUCH or on_ladder:
+	if not is_on_floor() or current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK or current_state == State.CROUCH or on_ladder or on_lift:
 		return
 	var direction := Input.get_axis("move_left", "move_right")
 	if direction == 0.0 or absf(velocity.x) > 8.0:
@@ -584,6 +654,8 @@ func respawn(spawn_point: Vector2) -> void:
 	is_dead = false
 	current_state = State.IDLE
 	on_ladder = false
+	on_lift = false
+	_lift = null
 	can_climb = false
 	collision_mask = 4
 	_kick_left_ground = false

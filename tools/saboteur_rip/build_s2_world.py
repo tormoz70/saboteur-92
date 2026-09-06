@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Build a playable Saboteur II world from the screenshot mosaic.
 
-Floors are brick strips; cave earth and skyline black walls are solid. Green
-wallpaper, furniture and interior black air stay empty. Ladders are the
-original rail tiles (interior green pair, outdoor white X-lattice). Yellow
-crates are foreground-only.
+Floors are brick strips; cave earth (black with blue specks) is solid. Blue
+brick is room wallpaper — a lift shaft stays walkable. Green wallpaper,
+furniture and interior black air stay empty. Ladders are the original rail
+tiles (interior green pair, outdoor white X-lattice). Yellow crates and
+interior bookcases are foreground-only.
 """
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -96,7 +96,123 @@ def _is_x_lattice_tile(rows: list[list[str]]) -> bool:
     return 16 <= bright <= 48
 
 
-def classify_cells(im: Image.Image) -> tuple[list[list[int]], list[list[int]], list[str]]:
+def cell_is_crate(counts: dict[str, int]) -> bool:
+    # Wooden crates are yellow on black, not yellow books on blue paper.
+    return counts["y"] >= 12 and counts["r"] < 10 and counts["k"] >= 16 and counts["b"] < 10
+
+
+# The bookcase is built from three fixed shelf-plank characters: a left end, a
+# repeated middle, and a right end. Books above them are random attributes, so
+# the planks are the only reliable fingerprint of a cabinet.
+PLANK_TILES = {
+    "L": (
+        "kkkkkkkk",
+        "kkkkkkkk",
+        "kkgggggg",
+        "kgkgggkg",
+        "ggkkkgkg",
+        "ggggggkg",
+        "gkkkkkkg",
+        "gggggggg",
+    ),
+    "M": (
+        "kkkkkkkk",
+        "kkkkkkkk",
+        "gggggggg",
+        "kgkgggkg",
+        "kgkkkgkg",
+        "kgggggkg",
+        "kkkkkkkg",
+        "gggggggg",
+    ),
+    "R": (
+        "kkkkkkkk",
+        "kkkkkkkk",
+        "ggggggkk",
+        "kgkggggk",
+        "kgkkkggk",
+        "kgggggkg",
+        "kkkkkkkg",
+        "gggggggg",
+    ),
+}
+# One shelf is a books row followed by a plank row.
+SHELF_PITCH = 2
+
+
+def plank_kind(px, cx: int, cy: int) -> str:
+    x0, y0 = cx * CELL, cy * CELL
+    if _col(*px[x0, y0]) != "k" or _col(*px[x0 + 7, y0]) != "k":
+        return ""
+    if _col(*px[x0, y0 + 7]) != "g" or _col(*px[x0 + 7, y0 + 7]) != "g":
+        return ""
+    rows = tuple("".join(_col(*px[x0 + x, y0 + y]) for x in range(CELL)) for y in range(CELL))
+    for kind, tile in PLANK_TILES.items():
+        if rows == tile:
+            return kind
+    return ""
+
+
+def find_bookcases(im: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Cell rects of every bookcase: a stack of shelves, books row on top."""
+    px = im.load()
+    cw, ch = im.width // CELL, im.height // CELL
+    kind = [["" for _ in range(cw)] for _ in range(ch)]
+    for cy in range(ch):
+        for cx in range(cw):
+            kind[cy][cx] = plank_kind(px, cx, cy)
+
+    runs: dict[tuple[int, int], list[int]] = {}
+    for cy in range(ch):
+        cx = 0
+        while cx < cw:
+            if kind[cy][cx] != "L":
+                cx += 1
+                continue
+            x1 = cx + 1
+            while x1 < cw and kind[cy][x1] == "M":
+                x1 += 1
+            if x1 > cx + 1 and x1 < cw and kind[cy][x1] == "R":
+                runs.setdefault((cx, x1), []).append(cy)
+                cx = x1 + 1
+            else:
+                cx += 1
+
+    cases: list[tuple[int, int, int, int]] = []
+    for (x0, x1), rows in runs.items():
+        rows.sort()
+        i = 0
+        while i < len(rows):
+            j = i
+            while j + 1 < len(rows) and rows[j + 1] - rows[j] == SHELF_PITCH:
+                j += 1
+            first, last = rows[i], rows[j]
+            # Guard sprites baked into the map rip cover the middle of some
+            # shelves, but the plank ends survive — follow those.
+            while first - SHELF_PITCH > 0 and plank_ends(kind, x0, x1, first - SHELF_PITCH):
+                first -= SHELF_PITCH
+            while last + SHELF_PITCH < ch and plank_ends(kind, x0, x1, last + SHELF_PITCH):
+                last += SHELF_PITCH
+            top = first - 1
+            cases.append((x0, top, x1 - x0 + 1, last - top + 1))
+            i = j + 1
+    return sorted(cases)
+
+
+def plank_ends(kind: list[list[str]], x0: int, x1: int, cy: int) -> bool:
+    return kind[cy][x0] == "L" and kind[cy][x1] == "R"
+
+
+def classify_cells(
+    im: Image.Image,
+) -> tuple[
+    list[list[int]],
+    list[list[int]],
+    list[list[int]],
+    list[list[int]],
+    list[tuple[int, int, int, int]],
+    list[str],
+]:
     px = im.load()
     w, h = im.size
     cw, ch = w // CELL, h // CELL
@@ -122,9 +238,16 @@ def classify_cells(im: Image.Image) -> tuple[list[list[int]], list[list[int]], l
             else:
                 biomes.append("cave")
 
+    cases = find_bookcases(im)
+    bookcase = [[0] * cw for _ in range(ch)]
+    for x0, y0, bw, bh in cases:
+        for cy in range(y0, y0 + bh):
+            for cx in range(x0, x0 + bw):
+                bookcase[cy][cx] = 1
+
     solid = [[0] * cw for _ in range(ch)]
     ladder = [[0] * cw for _ in range(ch)]
-    crates = [[0] * cw for _ in range(ch)]
+    fg = [[0] * cw for _ in range(ch)]
     for cy in range(ch):
         sy = (cy * CELL) // SCREEN_H
         for cx in range(cw):
@@ -135,22 +258,27 @@ def classify_cells(im: Image.Image) -> tuple[list[list[int]], list[list[int]], l
             for y in range(y0, y0 + CELL):
                 for x in range(x0, x0 + CELL):
                     counts[_col(*px[x, y])] += 1
-            # Yellow crates sit in the foreground and are never collision.
-            if counts["y"] >= 12 and counts["r"] < 10:
-                crates[cy][cx] = 1
+            # Crates and bookcases sit in the foreground and are never collision.
+            if cell_is_crate(counts) or bookcase[cy][cx]:
+                fg[cy][cx] = 1
+            if fg[cy][cx]:
+                if cell_is_ladder(px, cx, cy):
+                    ladder[cy][cx] = 1
+                continue
             red_brick = counts["r"] >= 10 and counts["k"] >= 4
-            # Interior blue is windows on the back wall, not a floor.
-            blue_brick = (
-                biome == "cave"
-                and counts["b"] >= 10
-                and counts["k"] >= 6
-                and counts["b"] < 48
+            # Black field with sparse blue dots is impermeable cave earth.
+            speckled_earth = (
+                counts["k"] >= 48
+                and 1 <= counts["b"] <= 8
+                and counts["g"] < 8
+                and counts["r"] < 8
+                and counts["c"] < 8
             )
             black_wall = counts["k"] >= 40 and counts["g"] < 20
             if biome == "sky":
                 if counts["b"] >= 40:
                     pass
-                elif red_brick or black_wall:
+                elif red_brick or black_wall or speckled_earth:
                     solid[cy][cx] = 1
             elif biome == "interior":
                 if red_brick:
@@ -158,7 +286,8 @@ def classify_cells(im: Image.Image) -> tuple[list[list[int]], list[list[int]], l
                 elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
                     solid[cy][cx] = 1
             else:
-                if red_brick or blue_brick:
+                # Blue brick is a room (lift shaft, cave hall), not a wall.
+                if red_brick or speckled_earth:
                     solid[cy][cx] = 1
             if cell_is_ladder(px, cx, cy):
                 ladder[cy][cx] = 1
@@ -186,7 +315,11 @@ def classify_cells(im: Image.Image) -> tuple[list[list[int]], list[list[int]], l
     thicken_floors(solid, 3)
     punch_ladder_shafts(solid, keep)
     cap_ladder_hatches(solid, keep)
-    return solid, keep, crates, biomes
+    for cy in range(ch):
+        for cx in range(cw):
+            if fg[cy][cx]:
+                solid[cy][cx] = 0
+    return solid, keep, fg, bookcase, cases, biomes
 
 
 def _biome_at(biomes: list[str], sx_n: int, cx: int, cy: int) -> str:
@@ -369,26 +502,282 @@ def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], s
     return overlay.resize((im.width // 4, im.height // 4), Image.NEAREST)
 
 
-def crate_overlay(im: Image.Image, crates: list[list[int]]) -> Image.Image:
+def crate_overlay(
+    im: Image.Image,
+    fg: list[list[int]],
+    bookcase: list[list[int]],
+    cases: list[tuple[int, int, int, int]],
+) -> Image.Image:
+    """Foreground art Nina walks behind.
+
+    Black is the empty space of the cabinet, so it stays transparent and Nina
+    shows through the gaps between the shelves. Crates keep their own pixels.
+    """
     w, h = im.size
     src = im.convert("RGBA")
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sp, op = src.load(), out.load()
-    ch, cw = len(crates), len(crates[0])
+    ch, cw = len(fg), len(fg[0])
     for cy in range(ch):
         for cx in range(cw):
-            if not crates[cy][cx]:
+            if not fg[cy][cx] or bookcase[cy][cx]:
                 continue
-            for y in range(cy * CELL, (cy + 1) * CELL):
-                for x in range(cx * CELL, (cx + 1) * CELL):
-                    op[x, y] = sp[x, y]
+            _blit_ink(sp, op, cx, cy)
+    for x0, y0, bw, bh in cases:
+        _blit_bookcase(sp, op, x0, y0, bw, bh)
     return out
+
+
+def _blit_ink(sp, op, cx: int, cy: int) -> None:
+    x0, y0 = cx * CELL, cy * CELL
+    for y in range(y0, y0 + CELL):
+        for x in range(x0, x0 + CELL):
+            pix = sp[x, y]
+            if pix[0] < 20 and pix[1] < 20 and pix[2] < 20:
+                continue
+            op[x, y] = pix
+
+
+def _blit_bookcase(sp, op, x0: int, y0: int, bw: int, bh: int) -> None:
+    """Redraw the cabinet from its own parts, dropping the map rip's guards.
+
+    Shelf rows are the three known plank characters; book rows keep every
+    column that is one solid bar top to bottom.
+    """
+    green = _cabinet_green(sp, x0, y0, bw, bh)
+    for cy in range(y0, y0 + bh):
+        if (cy - y0) % SHELF_PITCH:
+            for cx in range(x0, x0 + bw):
+                tile = (
+                    PLANK_TILES["L"]
+                    if cx == x0
+                    else PLANK_TILES["R"] if cx == x0 + bw - 1 else PLANK_TILES["M"]
+                )
+                px0, py0 = cx * CELL, cy * CELL
+                for y in range(CELL):
+                    for x in range(CELL):
+                        if tile[y][x] == "g":
+                            op[px0 + x, py0 + y] = green
+            continue
+        for x in range(x0 * CELL, (x0 + bw) * CELL):
+            _blit_book_column(sp, op, x, cy * CELL)
+
+
+def _cabinet_green(sp, x0: int, y0: int, bw: int, bh: int) -> tuple[int, int, int, int]:
+    for y in range((y0 + 1) * CELL, (y0 + bh) * CELL):
+        for x in range(x0 * CELL, (x0 + bw) * CELL):
+            pix = sp[x, y]
+            if _col(*pix[:3]) == "g":
+                return pix
+    return (0, 255, 0, 255)
+
+
+def _blit_book_column(sp, op, x: int, y0: int) -> None:
+    """A book is a full-height coloured bar; green or black is cabinet air.
+
+    Guards baked into the map rip break the bar, so their columns drop out.
+    """
+    counts: dict[tuple, int] = {}
+    for y in range(y0, y0 + CELL):
+        pix = sp[x, y]
+        counts[pix] = counts.get(pix, 0) + 1
+    pix, n = max(counts.items(), key=lambda kv: kv[1])
+    if n < CELL - 2 or _col(*pix[:3]) in "kg":
+        return
+    for y in range(y0, y0 + CELL):
+        op[x, y] = sp[x, y]
+
+
+def cell_is_lift_car(counts: dict[str, int]) -> bool:
+    """Cyan lift platform tile — not a crate, window, or blue brick."""
+    return (
+        counts["c"] >= 18
+        and counts["k"] >= 4
+        and counts["r"] < 8
+        and counts["g"] < 12
+        and counts["y"] < 20
+        and counts["b"] < 24
+    )
+
+
+def find_lifts(
+    im: Image.Image, solid: list[list[int]]
+) -> tuple[list[dict], Image.Image, list[tuple[int, int, int, int]]]:
+    """Locate original 6-tile cyan cars in vertical shafts.
+
+    UP/DOWN while standing in the centre starts the car; it travels the
+    shaft and stops at the far end (S2CORE LIFTU/LIFTD).
+    """
+    px = im.load()
+    ch, cw = len(solid), len(solid[0])
+    cars: list[tuple[int, int, int]] = []
+    cy = 1
+    while cy < ch - 1:
+        cx = 0
+        while cx < cw:
+            counts = _cell_counts(px, cx, cy)
+            if not cell_is_lift_car(counts):
+                cx += 1
+                continue
+            x0 = cx
+            while cx < cw and cell_is_lift_car(_cell_counts(px, cx, cy)):
+                cx += 1
+            run = cx - x0
+            if run < 6 or run > 8:
+                continue
+            above = sum(
+                1 for i in range(run) if cell_is_lift_car(_cell_counts(px, x0 + i, cy - 1))
+            )
+            below = sum(
+                1 for i in range(run) if cell_is_lift_car(_cell_counts(px, x0 + i, cy + 1))
+            )
+            if above >= 3 or below >= 3:
+                continue
+            mid = x0 + run // 2
+            up = 0
+            y = cy - 1
+            while y >= 0 and not solid[y][mid] and up < 400:
+                up += 1
+                y -= 1
+            down = 0
+            y = cy + 1
+            while y < ch and not solid[y][mid] and down < 400:
+                down += 1
+                y += 1
+            if up + down < 48:
+                continue
+            cars.append((x0, cy, run))
+        cy += 1
+
+    lifts: list[dict] = []
+    car_rows: list[tuple[int, int, int, int]] = []
+    car_img = Image.new("RGB", (6 * CELL, CELL), (0, 255, 255))
+    got_sprite = False
+    for x0, cy, run in cars:
+        mid = x0 + run // 2
+        top = cy
+        while top > 0 and not solid[top - 1][mid]:
+            top -= 1
+        bot = cy
+        while bot + 1 < ch and not solid[bot + 1][mid]:
+            bot += 1
+        spec = {
+            "x": x0 * CELL,
+            "y": cy * CELL,
+            "w": run * CELL,
+            "h": CELL,
+            "top": top * CELL,
+            "bottom": bot * CELL,
+        }
+        car_rows.append((x0 * CELL, cy * CELL, run * CELL, CELL))
+        merged = False
+        for prev in lifts:
+            same_x = abs(prev["x"] - spec["x"]) <= CELL * 2
+            overlap = not (spec["bottom"] < prev["top"] or spec["top"] > prev["bottom"])
+            if same_x and overlap:
+                prev["top"] = min(prev["top"], spec["top"])
+                prev["bottom"] = max(prev["bottom"], spec["bottom"])
+                prev["w"] = min(prev["w"], spec["w"])
+                merged = True
+                break
+        if not merged:
+            lifts.append(spec)
+        if not got_sprite and run >= 6:
+            car_img = im.crop((x0 * CELL, cy * CELL, (x0 + 6) * CELL, (cy + 1) * CELL))
+            got_sprite = True
+    for spec in lifts:
+        x0 = spec["x"] // CELL
+        run = max(spec["w"] // CELL, 6)
+        cy = spec["y"] // CELL
+        ceil = spec["top"] // CELL
+        pit = spec["bottom"] // CELL
+        top_y, bot_y = _shaft_stops(solid, x0, run, cy, ceil, pit)
+        spec["top"] = top_y * CELL
+        spec["bottom"] = bot_y * CELL
+        spec["w"] = min(spec["w"], 6 * CELL)
+    return lifts, car_img, car_rows
+
+
+def _is_floor_ledge(solid: list[list[int]], y: int, x: int) -> bool:
+    if x < 0 or x >= len(solid[0]) or y < 0 or y >= len(solid):
+        return False
+    return bool(solid[y][x]) and (y == 0 or not solid[y - 1][x])
+
+
+def _shaft_landings(
+    solid: list[list[int]], x0: int, run: int, y0: int, y1: int, reach: int
+) -> list[int]:
+    mid = min(max(x0 + run // 2, 0), len(solid[0]) - 1)
+    found: list[int] = []
+    for y in range(max(0, y0), min(len(solid), y1 + 1)):
+        if solid[y][mid]:
+            continue
+        ledge = False
+        for dx in range(1, reach + 1):
+            if _is_floor_ledge(solid, y, x0 - dx) or _is_floor_ledge(solid, y, x0 + run + dx - 1):
+                ledge = True
+                break
+        if ledge:
+            found.append(y)
+    return found
+
+
+def _shaft_stops(
+    solid: list[list[int]], x0: int, run: int, cy: int, ceil: int, pit: int
+) -> tuple[int, int]:
+    """Far-end floors, not the ceiling/pit of the open column.
+
+    Original cars travel the whole shaft and stop where you can walk off
+    (S2CORE LIFTU/LIFTD). Intermediate ledges are skipped.
+    """
+    near = _shaft_landings(solid, x0, run, ceil, pit, 8)
+    if cy not in near:
+        near.append(cy)
+    near.sort()
+    return near[0], near[-1]
+
+
+def _cell_counts(px, cx: int, cy: int) -> dict[str, int]:
+    counts = {k: 0 for k in "kbgrcywmo"}
+    x0, y0 = cx * CELL, cy * CELL
+    for y in range(y0, y0 + CELL):
+        for x in range(x0, x0 + CELL):
+            counts[_col(*px[x, y])] += 1
+    return counts
+
+
+def paint_lift_cars(world: Image.Image, car_rows: list[tuple[int, int, int, int]]) -> None:
+    """Erase baked cars so the moving sprite is the only platform."""
+    wp = world.load()
+    for x, y, w, h in car_rows:
+        src_y = y - CELL if y >= CELL else y + h
+        for dy in range(h):
+            for dx in range(w):
+                pix = wp[x + dx, y + dy]
+                ink = _col(*pix[:3])
+                if ink != "c":
+                    continue
+                wp[x + dx, y + dy] = wp[x + dx, src_y + dy]
+
+
+def paint_cabinet_backs(world: Image.Image, bookcase: list[list[int]]) -> None:
+    """Black out bookcase cells so FG books sit on a dark cabinet, not wallpaper."""
+    wp = world.load()
+    ch, cw = len(bookcase), len(bookcase[0])
+    for cy in range(ch):
+        for cx in range(cw):
+            if not bookcase[cy][cx]:
+                continue
+            x0, y0 = cx * CELL, cy * CELL
+            for y in range(y0, y0 + CELL):
+                for x in range(x0, x0 + CELL):
+                    wp[x, y] = (0, 0, 0)
 
 
 def main() -> None:
     im = Image.open(SRC).convert("RGB")
     print(f"mosaic {im.size}")
-    solid, ladders, crates, biomes = classify_cells(im)
+    solid, ladders, fg, bookcase, cases, biomes = classify_cells(im)
     solids = greedy_rects(solid)
     raw_ladders = greedy_rects(ladders)
     ladder_rects: list[list[int]] = []
@@ -409,18 +798,27 @@ def main() -> None:
             [w, 0, pad, h],
         ]
     )
+    lifts, car_img, car_rows = find_lifts(im, solid)
     n_solid = sum(sum(row) for row in solid)
     n_lad = sum(sum(row) for row in ladders)
-    n_crate = sum(sum(row) for row in crates)
+    n_fg = sum(sum(row) for row in fg)
+    n_case = sum(sum(row) for row in bookcase)
     print(f"solid cells {n_solid} -> {len(solids)} rects")
     print(f"ladder cells {n_lad} -> {len(ladder_rects)} rects")
-    print(f"crate cells {n_crate}")
+    print(f"foreground cells {n_fg} (bookcase {n_case} in {len(cases)} cabinets)")
+    print(f"lifts {len(lifts)}")
+    for spec in lifts:
+        print(f"  car ({spec['x']},{spec['y']}) {spec['w']}x{spec['h']} shaft {spec['top']}..{spec['bottom']}")
     from collections import Counter
     print("biomes", Counter(biomes))
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(SRC, OUT_DIR / "saboteur2_world.png")
-    crate_overlay(im, crates).save(OUT_DIR / "saboteur2_fg.png")
+    world = im.copy()
+    paint_cabinet_backs(world, bookcase)
+    paint_lift_cars(world, car_rows)
+    world.save(OUT_DIR / "saboteur2_world.png")
+    crate_overlay(im, fg, bookcase, cases).save(OUT_DIR / "saboteur2_fg.png")
+    car_img.save(OUT_DIR / "s2_lift.png")
     payload = {
         "source": "Saboteur2_speccy.png",
         "scale": SCALE,
@@ -430,6 +828,8 @@ def main() -> None:
         "spawn": spawn,
         "solids": solids,
         "ladders": ladder_rects,
+        "lifts": lifts,
+        "bookcases": [[x * CELL, y * CELL, bw * CELL, bh * CELL] for x, y, bw, bh in cases],
     }
     (OUT_DIR / "s2_collision.json").write_text(json.dumps(payload), encoding="utf-8")
     print(f"wrote {OUT_DIR}")
