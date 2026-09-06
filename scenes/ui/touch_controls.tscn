@@ -28,15 +28,18 @@ grow_vertical = 0
 mouse_filter = 2
 
 [node name="btnUp" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(80, 0)
+position = Vector2(120, 40)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 passby_press = true
 action = "move_up"
 
 [node name="Label" type="Label" parent="Root/LeftPad/btnUp"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "▲"
@@ -44,15 +47,18 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="btnLeft" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(0, 80)
+position = Vector2(40, 120)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 passby_press = true
 action = "move_left"
 
 [node name="Label" type="Label" parent="Root/LeftPad/btnLeft"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "◀"
@@ -60,15 +66,18 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="btnRight" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(160, 80)
+position = Vector2(200, 120)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 passby_press = true
 action = "move_right"
 
 [node name="Label" type="Label" parent="Root/LeftPad/btnRight"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "▶"
@@ -76,15 +85,18 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="btnDown" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(80, 160)
+position = Vector2(120, 200)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 passby_press = true
 action = "move_down"
 
 [node name="Label" type="Label" parent="Root/LeftPad/btnDown"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "▼"
@@ -107,14 +119,17 @@ grow_vertical = 0
 mouse_filter = 2
 
 [node name="btnPunch" type="TouchScreenButton" parent="Root/RightPad"]
-position = Vector2(0, 8)
+position = Vector2(40, 48)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 action = "punch"
 
 [node name="Label" type="Label" parent="Root/RightPad/btnPunch"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 26
 text = "HIT"
@@ -122,14 +137,17 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="btnJump" type="TouchScreenButton" parent="Root/RightPad"]
-position = Vector2(160, 8)
+position = Vector2(200, 48)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 action = "jump"
 
 [node name="Label" type="Label" parent="Root/RightPad/btnJump"]
-offset_right = 80.0
-offset_bottom = 80.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 28
 text = "JMP"
