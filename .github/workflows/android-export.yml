@@ -59,6 +59,21 @@ jobs:
             exit 1
           fi
 
+      - name: Mission playthrough
+        run: |
+          set -euo pipefail
+          # Autopilot in scripts/demo/mission_demo.gd. Game-time cap is 180s;
+          # wall-clock timeout is a safety net if quit() never runs. Do not use
+          # --quit-after here: headless FPS is uncapped, so a frame cap fires
+          # before the ~85s spawn-to-exit walk finishes.
+          timeout --signal=KILL 240 godot --headless -- --demo 2>&1 | tee mission-demo.log
+          grep -q "\\[Demo\\] Mission complete" mission-demo.log
+          if grep "ERROR:" mission-demo.log | grep -q "res://"; then
+            echo "Mission playthrough logged a project ERROR"
+            grep "ERROR:" mission-demo.log || true
+            exit 1
+          fi
+
       - name: Audit world collision
         run: |
           set -euo pipefail
