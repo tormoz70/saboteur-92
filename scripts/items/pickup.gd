@@ -23,6 +23,8 @@ func _ready() -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if not body.is_in_group("player"):
 		return
+	if body.get("is_dead"):
+		return
 	if required_item != "" and not _player_has(required_item):
 		return
 	EventBus.item_collected.emit(item_type)

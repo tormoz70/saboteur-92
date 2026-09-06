@@ -27,7 +27,7 @@ const CAMERA_STILL_DELAY := 0.12
 var _scale: float = 2.0
 var _screen := Vector2(256, 192)
 var _world_size := Vector2(8192, 4608)
-var _spawn := Vector2(4480, 1584)
+var _spawn := Vector2.ZERO
 var _cam_still := 0.0
 var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
@@ -39,6 +39,7 @@ func _ready() -> void:
 	_add_letterbox()
 	if player:
 		# Mosaic is SCALE× original pixels; S2 sprites are already 48×56.
+		# Scene-file Player.position is a placeholder; spawn comes from JSON.
 		player.scale = Vector2(_scale, _scale)
 		player.spawn_point = _spawn
 		player.global_position = _spawn
@@ -48,6 +49,8 @@ func _ready() -> void:
 	camera.make_current()
 	_update_camera(0.0, true)
 	_connect_punch_areas()
+	if not EventBus.player_died.is_connected(_on_player_died):
+		EventBus.player_died.connect(_on_player_died)
 	_start_demo_if_requested()
 
 
@@ -60,19 +63,16 @@ func _process(delta: float) -> void:
 
 
 func _load_original_world() -> void:
-	if not FileAccess.file_exists(COLLISION_PATH):
+	var data := _load_json(COLLISION_PATH)
+	if data.is_empty():
 		push_error("Missing %s — run tools/saboteur_rip/build_s2_world.py" % COLLISION_PATH)
 		return
-	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(COLLISION_PATH))
 	_scale = float(data.get("scale", 2))
 	var scr: Array = data.get("screen", [256, 192])
 	_screen = Vector2(float(scr[0]), float(scr[1]))
 	var sz: Array = data.get("size", [8192, 4608])
 	_world_size = Vector2(float(sz[0]), float(sz[1]))
-	# Spawn is PNG pixels, same as solids/ladders/lifts. Older files stored it
-	# already multiplied by scale; s2_entities.json is the source of truth.
-	var sp: Array = data.get("spawn", [2240, 792])
-	_spawn = _png_to_world(float(sp[0]), float(sp[1]))
+	# Spawn is not in this file — s2_entities.json is the source of truth.
 
 	_add_map_layers()
 
@@ -130,14 +130,9 @@ func _load_original_world() -> void:
 
 
 func _add_map_layers() -> void:
-	if not FileAccess.file_exists(TILES_PATH):
-		push_error("Missing %s — run tools/saboteur_rip/build_s2_world.py" % TILES_PATH)
+	var tiles := _load_json(TILES_PATH)
+	if tiles.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(TILES_PATH))
-	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("Could not parse %s" % TILES_PATH)
-		return
-	var tiles: Dictionary = parsed
 	_fill_visual_layer(visual_layer, WORLD_TILESET_PATH, tiles, tiles.get("world", {}), -20)
 	_fill_visual_layer(fg_layer, FG_TILESET_PATH, tiles, tiles.get("fg", {}), 12)
 
@@ -289,13 +284,25 @@ func _load_json(path: String) -> Dictionary:
 	return parsed
 
 
+func _xy_world(spec: Dictionary, what: String) -> Vector2:
+	if not spec.has("x") or not spec.has("y"):
+		push_error("s2_entities.json: %s without coordinates" % what)
+		return Vector2.ZERO
+	return _png_to_world(float(spec["x"]), float(spec["y"]))
+
+
 func _add_entities() -> void:
 	var data := _load_json(ENTITIES_PATH)
 	if data.is_empty():
 		push_error("Mission entities missing — cannot spawn objectives")
 		return
-	var sp: Array = data.get("spawn", [2240, 792])
+	var sp: Variant = data.get("spawn", null)
+	if typeof(sp) != TYPE_ARRAY or sp.size() < 2:
+		push_error("s2_entities.json: spawn missing")
+		return
 	_spawn = _png_to_world(float(sp[0]), float(sp[1]))
+	if data.has("fuse"):
+		GameManager.bomb_fuse_time = float(data["fuse"])
 
 	var items_root := Node2D.new()
 	items_root.name = "Items"
@@ -306,22 +313,22 @@ func _add_entities() -> void:
 		item.item_type = str(spec.get("type", "key"))
 		item.required_item = str(spec.get("required", ""))
 		item.scale = Vector2(_scale, _scale)
+		item.position = _xy_world(spec, str(spec.get("id", "item")))
 		items_root.add_child(item)
-		item.global_position = _png_to_world(float(spec["x"]), float(spec["y"]))
 
+	var sab: Dictionary = data.get("sabotage", {})
 	var sabotage: Area2D = SABOTAGE_SCENE.instantiate()
 	sabotage.name = "SabotageTarget"
 	sabotage.scale = Vector2(_scale, _scale)
+	sabotage.position = _xy_world(sab, "sabotage")
 	add_child(sabotage)
-	var sab: Dictionary = data.get("sabotage", {})
-	sabotage.global_position = _png_to_world(float(sab.get("x", 0)), float(sab.get("y", 0)))
 
+	var ex: Dictionary = data.get("exit", {})
 	var exit_zone: Area2D = EXIT_SCENE.instantiate()
 	exit_zone.name = "ExitZone"
 	exit_zone.scale = Vector2(_scale, _scale)
+	exit_zone.position = _xy_world(ex, "exit")
 	add_child(exit_zone)
-	var ex: Dictionary = data.get("exit", {})
-	exit_zone.global_position = _png_to_world(float(ex.get("x", 0)), float(ex.get("y", 0)))
 
 	var guards_root := Node2D.new()
 	guards_root.name = "Guards"
@@ -329,13 +336,40 @@ func _add_entities() -> void:
 	var gi := 1
 	for spec in data.get("guards", []):
 		var guard: CharacterBody2D = GUARD_SCENE.instantiate()
-		guard.name = str(spec.get("id", "Guard%d" % gi)).capitalize()
+		var gid := str(spec.get("id", str(gi)))
+		guard.name = "Guard%s" % gid.capitalize()
 		guard.scale = Vector2(_scale, _scale)
 		# patrol is PNG pixels; AI compares against global (world) X.
 		guard.patrol_distance = float(spec.get("patrol", 40)) * _scale
+		# Position before add_child: guard._ready() snapshots patrol_origin.
+		guard.position = _xy_world(spec, "guard %s" % gid)
 		guards_root.add_child(guard)
-		guard.global_position = _png_to_world(float(spec["x"]), float(spec["y"]))
 		gi += 1
+
+
+func _on_player_died() -> void:
+	if GameManager.state == GameManager.GameState.LOST:
+		return
+	# Pickups and the bomb are queue_free'd on collect/plant. A mid-run death
+	# resets inventory, so the world must get those nodes back or the attempt
+	# is unwinnable. Deferred so we are not freeing during the death signal.
+	call_deferred("_reset_mission_entities")
+
+
+func _reset_mission_entities() -> void:
+	# Move Nina off the corpse tile before pickups come back, otherwise a dead
+	# body still overlapping the restored key collects it again.
+	if player:
+		player.spawn_point = _spawn
+		player.global_position = _spawn
+		player.velocity = Vector2.ZERO
+	for node_name in ["Items", "Guards", "SabotageTarget", "ExitZone"]:
+		var node := get_node_or_null(node_name)
+		if node == null:
+			continue
+		remove_child(node)
+		node.free()
+	_add_entities()
 
 
 func _add_rect_shape(body: StaticBody2D, rect: Array, _layer: int) -> void:

@@ -1,8 +1,8 @@
 {
   "coord_space": "png",
-  "coord_space_note": "Every x/y in this file is mosaic/PNG pixels (0..8192 × 0..4608), the same space as solids/ladders/lifts in s2_collision.json. Runtime multiplies by scale (currently 2) to get world pixels (16384 × 9216). Do not mix in pre-scaled world coordinates — that is how spawn used to sit at half the intended place. Player and guard origins are sprite top-left (48×56). Pickup, sabotage and exit origins are Area2D centres.",
-  "scale": 2,
+  "coord_space_note": "Every x/y in this file is mosaic/PNG pixels (0..8192 × 0..4608), the same space as solids/ladders/lifts in s2_collision.json. Runtime multiplies by the scale from s2_collision.json (currently 2) to get world pixels (16384 × 9216). Do not mix in pre-scaled world coordinates — that is how spawn used to sit at half the intended place. Player and guard origins are sprite top-left (48×56). Pickup, sabotage and exit origins are Area2D centres. This file is hand-authored; s2_collision.json is generated.",
   "spawn": [2240, 792],
+  "fuse": 50,
   "items": [
     {
       "id": "key",
