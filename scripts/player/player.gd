@@ -41,6 +41,8 @@ var _regen_accum: float = 0.0
 var _climb_step_timer: float = 0.0
 var _climb_frame: int = 0
 var _lift: LiftPlatform = null
+var _probe_shape := RectangleShape2D.new()
+var _probe_query := PhysicsShapeQueryParameters2D.new()
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -285,14 +287,7 @@ func _ladder_overlaps() -> bool:
 	var col := ladder_detector.get_child(0) as CollisionShape2D
 	if col == null or col.shape == null:
 		return false
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = col.shape
-	q.transform = col.global_transform
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_query(col.shape, col.global_transform)
 
 
 func _update_ladder_state(climb_axis: float) -> void:
@@ -424,14 +419,7 @@ func _ladder_overlaps_at(origin: Vector2) -> bool:
 		return false
 	var xf := col.global_transform
 	xf.origin += origin - global_position
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = col.shape
-	q.transform = xf
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_query(col.shape, xf)
 
 
 func _feet_y() -> float:
@@ -443,16 +431,7 @@ func _body_cx() -> float:
 
 
 func _ladder_at_world(point: Vector2) -> bool:
-	var probe := RectangleShape2D.new()
-	probe.size = Vector2(8.0, 8.0)
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = probe
-	q.transform = Transform2D(0.0, point)
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_hits(point, Vector2(8.0, 8.0))
 
 
 func _ladder_above_feet() -> bool:
@@ -469,16 +448,24 @@ func _ladder_below_feet() -> bool:
 
 
 func _ladder_probe(local_center: Vector2, size: Vector2) -> bool:
-	var probe := RectangleShape2D.new()
-	probe.size = size
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = probe
-	q.transform = Transform2D(0.0, global_position + local_center)
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_hits(global_position + local_center, size)
+
+
+func _ladder_hits(center: Vector2, size: Vector2) -> bool:
+	_probe_shape.size = size
+	return _ladder_query(_probe_shape, Transform2D(0.0, center))
+
+
+func _ladder_query(shape: Shape2D, xf: Transform2D) -> bool:
+	# Reused query keeps leftover fields. Set every field the four old
+	# functions wrote, every call, or a prior detector/probe leaks in.
+	_probe_query.shape = shape
+	_probe_query.transform = xf
+	_probe_query.collision_mask = ladder_detector.collision_mask
+	_probe_query.collide_with_areas = true
+	_probe_query.collide_with_bodies = false
+	_probe_query.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(_probe_query, 1).size() > 0
 
 
 func _blocking_floor_y(dy: float) -> float:
