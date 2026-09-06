@@ -4,9 +4,10 @@ Mobile remake of **Saboteur** (1985) built with **Godot 4.6**.
 
 ## Requirements
 
-- [Godot 4.6](https://godotengine.org/) with Mobile export support
+- [Godot 4.6](https://godotengine.org/) with Mobile export support (`4.6.stable` / 4.6.0 — the version CI installs; `project.godot` `config/features` is `4.6`)
 - Android SDK + JDK 17 (for Android builds)
 - Android export templates installed in Godot
+- Python 3.10+ and `pip install -r tools/requirements.txt` if you run the asset tools
 
 ## Project structure
 
@@ -22,6 +23,7 @@ exports/         Built APK/AAB output (gitignored)
 Pixel art is generated programmatically to approximate the ZX Spectrum original:
 
 ```bash
+pip install -r tools/requirements.txt
 python tools/generate_saboteur85_assets.py
 ```
 
