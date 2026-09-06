@@ -22,7 +22,6 @@ func _ready() -> void:
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.item_collected.connect(_on_item_collected)
 	EventBus.bomb_planted.connect(_on_bomb_planted)
-	EventBus.player_died.connect(_on_player_died)
 
 
 func _process(delta: float) -> void:
@@ -51,6 +50,16 @@ func win_mission() -> void:
 		return
 	state = GameState.WON
 	EventBus.mission_complete.emit()
+
+
+func restart_mission() -> void:
+	# Autoload survives scene reload — reset everything explicitly.
+	state = GameState.PLAYING
+	lives = 3
+	score = 0
+	demo_mode = false
+	reset_inventory()
+	get_tree().reload_current_scene()
 
 
 func lose_mission() -> void:
@@ -85,7 +94,3 @@ func _on_bomb_planted() -> void:
 	bomb_planted = true
 	has_bomb = false
 	bomb_timer = BOMB_FUSE_TIME
-
-
-func _on_player_died() -> void:
-	pass

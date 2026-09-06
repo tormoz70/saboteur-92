@@ -265,13 +265,7 @@ func _try_unstuck() -> void:
 
 
 func _climb_axis() -> float:
-	var axis := Input.get_axis("move_up", "move_down")
-	if absf(axis) > 0.1:
-		return axis
-	# Space has no Up on some pads; treat held jump as climb-up while on a ladder.
-	if (can_climb or on_ladder) and Input.is_action_pressed("jump"):
-		return -1.0
-	return 0.0
+	return Input.get_axis("move_up", "move_down")
 
 
 func _ladder_overlaps() -> bool:
