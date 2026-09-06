@@ -954,7 +954,7 @@ def _write_tileset_tres(
         "[sub_resource type=\"TileSetAtlasSource\" id=\"TileSetAtlasSource_1\"]",
         "texture = ExtResource(\"1\")",
         "texture_region_size = Vector2i(8, 8)",
-        "use_texture_padding = false",
+        "use_texture_padding = true",
     ]
     written = 0
     for y in range(atlas_rows):
@@ -992,7 +992,7 @@ def export_visual_tilesets(world: Image.Image, fg: Image.Image) -> dict:
             "mode": "RGB",
             "atlas_name": "s2_world_tileset.png",
             "tres_name": "s2_world_tileset.tres",
-            "texture_uid": "uid://s2worldatlas8",
+            "texture_uid": "uid://dma7fdoakrrr6",
         },
         "fg": {
             "image": fg,

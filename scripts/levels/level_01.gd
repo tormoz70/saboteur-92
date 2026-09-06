@@ -160,7 +160,7 @@ func _fill_visual_layer(
 	layer.z_index = z
 	var src := tileset.get_source(0) as TileSetAtlasSource
 	if src:
-		src.use_texture_padding = false
+		src.use_texture_padding = true
 		src.texture_region_size = Vector2i(int(tiles.get("cell", 8)), int(tiles.get("cell", 8)))
 		_ensure_atlas_tiles(src, spec)
 	layer.tile_map_data = _rle_to_tile_map_data(spec, int(tiles["grid"][0]))

@@ -60,10 +60,18 @@ func _prepare_scene() -> void:
 		quit()
 		return
 	_camera = _level.get_node("Camera2D") as Camera2D
-	_hide(main.get_node_or_null("HUD"))
-	_hide(main.get_node_or_null("TouchControls"))
 	_hide(_level.get_node_or_null("Player"))
-	_hide(_level.get_node_or_null("Letterbox"))
+	# Stop the follow-cam so later viewpoints are not pulled back to spawn.
+	_level.set_process(false)
+	_level.set_physics_process(false)
+	# Integer 2× mosaic pixels when the user arg is "2x":
+	# tile 8 × layer scale 2 × zoom 1. Game zoom (1.875) is the default.
+	var integer_2x := _out_dir.ends_with("2x") or _out_dir.contains("2x")
+	if integer_2x:
+		_hide(main.get_node_or_null("HUD"))
+		_hide(main.get_node_or_null("TouchControls"))
+		_hide(_level.get_node_or_null("Letterbox"))
+		_camera.zoom = Vector2.ONE
 	_idx = 0
 	_camera.global_position = POINTS[_idx]["pos"]
 	_camera.reset_physics_interpolation()

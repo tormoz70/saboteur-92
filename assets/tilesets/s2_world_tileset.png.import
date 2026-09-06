@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://s2worldatlas8"
-path="res://.godot/imported/s2_world_tileset.png-tiles.ctex"
+uid="uid://dma7fdoakrrr6"
+path="res://.godot/imported/s2_world_tileset.png-92771ea7e9cd98909c5fb0604da2cf38.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/tilesets/s2_world_tileset.png"
-dest_files=["res://.godot/imported/s2_world_tileset.png-tiles.ctex"]
+dest_files=["res://.godot/imported/s2_world_tileset.png-92771ea7e9cd98909c5fb0604da2cf38.ctex"]
 
 [params]
 
