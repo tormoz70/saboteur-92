@@ -6,62 +6,132 @@ size = Vector2(80, 80)
 [node name="TouchControls" type="CanvasLayer"]
 layer = 10
 
-[node name="btnLeft" type="TouchScreenButton" parent="."]
-position = Vector2(32, 600)
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="LeftPad" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 176.0
+offset_top = -248.0
+offset_right = 416.0
+offset_bottom = -16.0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="btnUp" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(80, 0)
 shape = SubResource("RectangleShape2D_btn")
+shape_centered = false
+passby_press = true
+action = "move_up"
+
+[node name="Label" type="Label" parent="Root/LeftPad/btnUp"]
+offset_right = 80.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 36
+text = "▲"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btnLeft" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(0, 80)
+shape = SubResource("RectangleShape2D_btn")
+shape_centered = false
+passby_press = true
 action = "move_left"
 
-[node name="Label" type="Label" parent="btnLeft"]
-offset_left = 20.0
-offset_top = 22.0
-offset_right = 60.0
-offset_bottom = 58.0
+[node name="Label" type="Label" parent="Root/LeftPad/btnLeft"]
+offset_right = 80.0
+offset_bottom = 80.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "◀"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="btnRight" type="TouchScreenButton" parent="."]
-position = Vector2(128, 600)
+[node name="btnRight" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(160, 80)
 shape = SubResource("RectangleShape2D_btn")
+shape_centered = false
+passby_press = true
 action = "move_right"
 
-[node name="Label" type="Label" parent="btnRight"]
-offset_left = 20.0
-offset_top = 22.0
-offset_right = 60.0
-offset_bottom = 58.0
+[node name="Label" type="Label" parent="Root/LeftPad/btnRight"]
+offset_right = 80.0
+offset_bottom = 80.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 36
 text = "▶"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="btnJump" type="TouchScreenButton" parent="."]
-position = Vector2(1120, 588)
+[node name="btnDown" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(80, 160)
 shape = SubResource("RectangleShape2D_btn")
-action = "jump"
+shape_centered = false
+passby_press = true
+action = "move_down"
 
-[node name="Label" type="Label" parent="btnJump"]
-offset_left = 14.0
-offset_top = 18.0
-offset_right = 66.0
-offset_bottom = 62.0
+[node name="Label" type="Label" parent="Root/LeftPad/btnDown"]
+offset_right = 80.0
+offset_bottom = 80.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_font_sizes/font_size = 28
-text = "JMP"
+theme_override_font_sizes/font_size = 36
+text = "▼"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="btnPunch" type="TouchScreenButton" parent="."]
-position = Vector2(1000, 600)
+[node name="RightPad" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -416.0
+offset_top = -112.0
+offset_right = -176.0
+offset_bottom = -16.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="btnPunch" type="TouchScreenButton" parent="Root/RightPad"]
+position = Vector2(0, 8)
 shape = SubResource("RectangleShape2D_btn")
+shape_centered = false
 action = "punch"
 
-[node name="Label" type="Label" parent="btnPunch"]
-offset_left = 14.0
-offset_top = 22.0
-offset_right = 66.0
-offset_bottom = 58.0
+[node name="Label" type="Label" parent="Root/RightPad/btnPunch"]
+offset_right = 80.0
+offset_bottom = 80.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.95)
 theme_override_font_sizes/font_size = 26
 text = "HIT"
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btnJump" type="TouchScreenButton" parent="Root/RightPad"]
+position = Vector2(160, 8)
+shape = SubResource("RectangleShape2D_btn")
+shape_centered = false
+action = "jump"
+
+[node name="Label" type="Label" parent="Root/RightPad/btnJump"]
+offset_right = 80.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 28
+text = "JMP"
+horizontal_alignment = 1
+vertical_alignment = 1
