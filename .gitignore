@@ -4,7 +4,6 @@
 *.zip
 *.pck
 *.export_template
-mcp_bridge.gd
 
 # Original game rips — dev reference only, do not ship
 assets/reference/
@@ -27,4 +26,3 @@ Thumbs.db
 .mcp/
 .idea/
 .tmp/
-/mcp_bridge.gd.uid
