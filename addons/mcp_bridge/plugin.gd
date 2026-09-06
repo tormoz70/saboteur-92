@@ -3,12 +3,13 @@ extends EditorPlugin
 
 ## Editor-only host for the local Godot MCP bridge.
 ##
-## The real bridge (`res://mcp_bridge.gd`) is a developer-machine tool and is
-## not part of the game. Loading it from an EditorPlugin — never from
-## [autoload] in project.godot — means it cannot break a fresh clone or an
-## exported build. `add_autoload_singleton()` is intentionally not used: that
-## call writes back into project.godot, which is how the autoload reappeared
-## after fc581f2 and 6741401.
+## The real bridge (`res://mcp_bridge.gd`) is a developer-machine tool.
+## Loading it from an EditorPlugin — never from [autoload] in project.godot —
+## means a missing file cannot break a fresh clone or a game run. Editor
+## plugins are not instantiated outside the editor; `export_presets.cfg`
+## also excludes `addons/*` from packs. `add_autoload_singleton()` is
+## intentionally not used: that call writes back into project.godot, which
+## is how the autoload reappeared after fc581f2 and 6741401.
 const LOCAL_BRIDGE_PATH := "res://mcp_bridge.gd"
 
 var _bridge: Node
@@ -28,5 +29,6 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	if _bridge == null:
 		return
+	remove_child(_bridge)
 	_bridge.queue_free()
 	_bridge = null

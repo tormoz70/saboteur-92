@@ -51,8 +51,11 @@ jobs:
           set -euo pipefail
           godot --headless --import
           godot --headless --quit-after 300 2>&1 | tee run.log
-          if grep -q "ERROR:" run.log; then
-            echo "Smoke run logged ERROR"
+          # Engine ERROR: lines from res:// are project bugs (missing autoload,
+          # failed texture load). Driver/environment noise (ALSA, adb) is not.
+          if grep "ERROR:" run.log | grep -q "res://"; then
+            echo "Smoke run logged a project ERROR"
+            grep "ERROR:" run.log || true
             exit 1
           fi
 

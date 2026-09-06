@@ -130,7 +130,11 @@ func _add_map_sprite(node_name: String, path: String, z: int) -> void:
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.scale = Vector2(_scale, _scale)
 	sprite.z_index = z
-	sprite.texture = load(path)
+	var tex := load(path) as Texture2D
+	if tex == null:
+		push_error("Could not load world texture %s" % path)
+		return
+	sprite.texture = tex
 	add_child(sprite)
 	move_child(sprite, 0)
 
@@ -143,7 +147,9 @@ func _add_lifts(data: Dictionary) -> void:
 	if not ResourceLoader.exists(LIFT_TEX_PATH):
 		push_error("Missing world texture %s" % LIFT_TEX_PATH)
 	else:
-		tex = load(LIFT_TEX_PATH)
+		tex = load(LIFT_TEX_PATH) as Texture2D
+		if tex == null:
+			push_error("Could not load world texture %s" % LIFT_TEX_PATH)
 	var script := load("res://scripts/world/lift.gd")
 	for spec in data.get("lifts", []):
 		var lift := AnimatableBody2D.new()
