@@ -1,7 +1,20 @@
 -- Build saboteur92_player.aseprite + PNG from saboteur85_player.png via Aseprite.
 -- Animations: idle×2, run×4, punch×2, jump_kick×2, climb×2, crouch×2
+-- Repo root is two levels above this file (tools/aseprite/).
 
-local ROOT = "C:/data/prjs/saboteur-92"
+local function repo_root()
+  local src = debug.getinfo(1, "S").source
+  if src:sub(1, 1) == "@" then
+    src = src:sub(2)
+  end
+  local root = src:match("^(.*)[/\\]tools[/\\]aseprite[/\\][^/\\]+$")
+  if not root or root == "" then
+    error("Could not resolve repo root from script path: " .. src)
+  end
+  return root
+end
+
+local ROOT = repo_root()
 local SRC85 = ROOT .. "/assets/sprites/saboteur85_player.png"
 local SIT = ROOT .. "/assets/reference/original/ripped/ninja_sitting.png"
 local OUT_ASE = ROOT .. "/assets/sprites/saboteur92_player.aseprite"

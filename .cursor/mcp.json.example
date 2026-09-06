@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "godot": {
+      "command": "npx",
+      "args": ["-y", "godot-mcp-runtime"],
+      "env": {
+        "GODOT_PATH": "godot"
+      }
+    },
+    "aseprite": {
+      "command": "node",
+      "args": ["tools/aseprite-mcp/build/index.js"],
+      "env": {
+        "ASEPRITE_PATH": "aseprite"
+      }
+    }
+  }
+}

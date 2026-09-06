@@ -33,3 +33,7 @@ Thumbs.db
 # Python bytecode (was committed under tools/saboteur_rip/__pycache__/)
 __pycache__/
 *.py[cod]
+
+# Machine-local MCP servers (absolute editor/tool paths). Copy
+# .cursor/mcp.json.example and point GODOT_PATH / ASEPRITE_PATH at this machine.
+.cursor/mcp.json
