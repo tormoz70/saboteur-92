@@ -472,29 +472,19 @@ def greedy_rects(grid: list[list[int]]) -> list[list[int]]:
     return rects
 
 
-def find_spawn(solid: list[list[int]]) -> list[int]:
-    ch = len(solid)
-    cw = len(solid[0])
-    # Prefer an early rooftop / tower floor with air above.
-    for cy in range(4, ch - 2):
-        run = 0
-        run_x = 0
-        for cx in range(8, min(cw, 40 * 4)):
-            air = cy >= 3 and not solid[cy - 1][cx] and not solid[cy - 2][cx]
-            if solid[cy][cx] and air:
-                if run == 0:
-                    run_x = cx
-                run += 1
-                if run >= 6:
-                    px = (run_x + 2) * CELL * SCALE
-                    py = cy * CELL * SCALE - 56 * SCALE
-                    return [px, py]
-            else:
-                run = 0
-    return [64, 200]
+def load_mission_spawn() -> list[int]:
+    """Player spawn lives in hand-authored s2_entities.json, not this generator."""
+    data = json.loads((OUT_DIR / "s2_entities.json").read_text(encoding="utf-8"))
+    spawn = data["spawn"]
+    return [int(spawn[0]), int(spawn[1])]
 
 
-def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], spawn: list[int]) -> Image.Image:
+def preview(
+    im: Image.Image,
+    solid: list[list[int]],
+    ladders: list[list[int]],
+    spawn: list[int] | None = None,
+) -> Image.Image:
     overlay = im.copy().convert("RGBA")
     draw = ImageDraw.Draw(overlay, "RGBA")
     ch = len(solid)
@@ -506,7 +496,11 @@ def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], s
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(255, 40, 40, 110))
             if ladders[cy][cx]:
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(40, 220, 255, 140))
-    sx, sy = spawn[0] // SCALE, (spawn[1] + 56) // SCALE
+    # PNG pixels, same space as solids/ladders/lifts. World = spawn * SCALE.
+    # Marker sits on the feet.
+    if spawn is None:
+        spawn = load_mission_spawn()
+    sx, sy = spawn[0], spawn[1] + 56
     draw.rectangle((sx - 4, sy - 28, sx + 12, sy), outline=(255, 255, 0, 255))
     return overlay.resize((im.width // 4, im.height // 4), Image.NEAREST)
 
@@ -796,7 +790,6 @@ def main() -> None:
         # Keep the hit box close to the 8–16px rails so windows and wallpaper
         # next to a shaft are not climbable.
         ladder_rects.append([x - 4, y, w + 8, h])
-    spawn = [4480, 1584]
     w, h = im.size
     pad = CELL * 2
     solids.extend(
@@ -836,7 +829,6 @@ def main() -> None:
         "cell": CELL,
         "screen": [SCREEN_W, SCREEN_H],
         "size": [im.width, im.height],
-        "spawn": spawn,
         "solids": solids,
         "ladders": ladder_rects,
         "lifts": lifts,
