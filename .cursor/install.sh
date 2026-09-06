@@ -51,21 +51,6 @@ log "Python dependencies for pixel-art asset tools"
 python3 -c "import PIL, numpy" >/dev/null 2>&1 || \
   pip3 install --break-system-packages --quiet Pillow numpy
 
-log "Local mcp_bridge.gd autoload stub"
-# project.godot autoloads res://mcp_bridge.gd, but that file is a
-# developer-machine MCP tool that is gitignored, so a fresh checkout lacks it.
-# Without a stub the project fails to boot ("Failed to instantiate an autoload").
-if [ ! -f mcp_bridge.gd ]; then
-  cat > mcp_bridge.gd <<'EOF'
-extends Node
-
-# No-op stub for the local Godot MCP bridge autoload referenced by project.godot.
-# The real bridge is a developer-machine tool (see .cursor/mcp.json) and is
-# gitignored; this stub keeps the project bootable in headless/CI/Cloud Agent
-# environments without any side effects.
-EOF
-fi
-
 log "Import project resources (headless)"
 godot --headless --import --path . >/dev/null 2>&1 || \
   godot --headless --import --path .

@@ -2,9 +2,9 @@ name: Android Export
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   export:
@@ -29,10 +29,55 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Configure Godot editor settings
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          test -n "${SDK}"
+          test -n "${JAVA_HOME}"
+          mkdir -p ~/.config/godot
+          {
+            echo '[gd_resource type="EditorSettings" format=3]'
+            echo
+            echo '[resource]'
+            echo "export/android/android_sdk_path = \"${SDK}\""
+            echo "export/android/java_sdk_path = \"${JAVA_HOME}\""
+          } > ~/.config/godot/editor_settings-4.6.tres
+          echo "android_sdk_path=${SDK}"
+          echo "java_sdk_path=${JAVA_HOME}"
+
+      - name: Smoke run
+        run: |
+          set -euo pipefail
+          godot --headless --import
+          godot --headless --quit-after 300 2>&1 | tee run.log
+          # Engine ERROR: lines from res:// are project bugs (missing autoload,
+          # failed texture load). Driver/environment noise (ALSA, adb) is not.
+          if grep "ERROR:" run.log | grep -q "res://"; then
+            echo "Smoke run logged a project ERROR"
+            grep "ERROR:" run.log || true
+            exit 1
+          fi
+
+      - name: Audit world collision
+        run: |
+          set -euo pipefail
+          pip3 install --user Pillow
+          python3 tools/saboteur_rip/audit_collision.py | tee collision-audit.log
+          python3 -c "import re,sys; t=open('collision-audit.log').read(); m=re.search(r'\[грунт \(speckled\)\].*?interior\s+всего\s+\d+, дыр\s+(\d+)', t, re.S); assert m and int(m.group(1))==0, 'interior speckled-earth holes are not zero'"
+
       - name: Export debug APK
         run: |
+          set -euo pipefail
           mkdir -p exports
-          godot --headless --path . --export-debug "Android" exports/saboteur92.apk
+          godot --headless --path . \
+            --install-android-build-template \
+            --export-debug "Android" exports/saboteur92.apk
+          test -s exports/saboteur92.apk
+          unzip -t exports/saboteur92.apk
+          unzip -l exports/saboteur92.apk | tee apk-list.txt
+          grep -q "classes.dex" apk-list.txt
+          grep -q "assets/" apk-list.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

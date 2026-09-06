@@ -283,7 +283,14 @@ def classify_cells(
             elif biome == "interior":
                 if red_brick:
                     solid[cy][cx] = 1
+                elif speckled_earth:
+                    # Biome is per flip-screen, so interior rooms still contain
+                    # cave earth. Sky/cave already mark it solid; this branch did not.
+                    solid[cy][cx] = 1
                 elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
+                    # cw/ch are the mosaic, so this is the world border, not
+                    # each 256×192 screen edge. Per-screen walls would solidify
+                    # black interior floors along every flip-screen seam.
                     solid[cy][cx] = 1
             else:
                 # Blue brick is a room (lift shaft, cave hall), not a wall.

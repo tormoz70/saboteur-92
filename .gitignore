@@ -1,10 +1,12 @@
 # Godot 4
 .godot/
-*.import
 *.zip
 *.pck
 *.export_template
+# Local developer MCP bridge. The editor plugin still loads this path when
+# the file exists; ignoring it is what stops `git add -A` from shipping it.
 mcp_bridge.gd
+/mcp_bridge.gd.uid
 
 # Original game rips — dev reference only, do not ship
 assets/reference/
@@ -27,4 +29,7 @@ Thumbs.db
 .mcp/
 .idea/
 .tmp/
-/mcp_bridge.gd.uid
+
+# Python bytecode (was committed under tools/saboteur_rip/__pycache__/)
+__pycache__/
+*.py[cod]
