@@ -69,7 +69,7 @@ Release signing uses a local keystore configured in Godot export settings. **Do 
 
 ## CI
 
-GitHub Actions workflow `.github/workflows/android-export.yml` exports a debug APK on push/PR and uploads it as an artifact.
+GitHub Actions workflow `.github/workflows/android-export.yml` on push/PR: smoke run, mission playthrough (`--demo`), fuse-loss probe (`--demo-fuse`), collision audit, then a debug APK artifact.
 
 ## License
 
