@@ -1,7 +1,8 @@
-[gd_scene load_steps=19 format=3 uid="uid://player01scene"]
+[gd_scene load_steps=29 format=3 uid="uid://player01scene"]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player_moves.png" id="3"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 42)
@@ -74,6 +75,44 @@ region = Rect2(576, 0, 48, 56)
 atlas = ExtResource("2")
 region = Rect2(624, 0, 48, 56)
 
+; saboteur93_player_moves.png: crouch punch, then eight somersault spin cells
+; (tools/sprites/build_player_moves.py).
+[sub_resource type="AtlasTexture" id="AtlasTexture_cp0"]
+atlas = ExtResource("3")
+region = Rect2(0, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s0"]
+atlas = ExtResource("3")
+region = Rect2(48, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s1"]
+atlas = ExtResource("3")
+region = Rect2(96, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s2"]
+atlas = ExtResource("3")
+region = Rect2(144, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s3"]
+atlas = ExtResource("3")
+region = Rect2(192, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s4"]
+atlas = ExtResource("3")
+region = Rect2(240, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s5"]
+atlas = ExtResource("3")
+region = Rect2(288, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s6"]
+atlas = ExtResource("3")
+region = Rect2(336, 0, 48, 56)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s7"]
+atlas = ExtResource("3")
+region = Rect2(384, 0, 48, 56)
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_player"]
 animations = [{
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_i0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_i1")}],
@@ -116,6 +155,16 @@ animations = [{
 "name": &"crouch",
 "speed": 4.0
 }, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_cp0")}],
+"loop": false,
+"name": &"crouch_punch",
+"speed": 1.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
+"loop": true,
+"name": &"somersault",
+"speed": 14.0
+}, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_d0")}],
 "loop": false,
 "name": &"death",
@@ -143,8 +192,9 @@ collision_layer = 0
 collision_mask = 2
 monitoring = false
 
+; Placement is player.gd's job: it moves PunchArea itself per strike and per
+; facing, so this shape stays on the area's own origin.
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PunchArea"]
-position = Vector2(36, 19)
 shape = SubResource("RectangleShape2D_punch")
 
 [node name="LadderDetector" type="Area2D" parent="."]

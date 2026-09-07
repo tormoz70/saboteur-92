@@ -1,7 +1,19 @@
 class_name Player
 extends CharacterBody2D
 
-enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
+enum State {
+	IDLE,
+	RUN,
+	JUMP,
+	JUMP_KICK,
+	KICK,
+	CLIMB,
+	CROUCH,
+	CROUCH_PUNCH,
+	PUNCH,
+	SOMERSAULT,
+	DEAD,
+}
 
 # Tuned to Saboteur II feel, still using CharacterBody2D physics.
 # Original logic is ~5.5 ticks/s and 1 tile/tick; our tiles are 16px.
@@ -9,6 +21,18 @@ const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
 const BODY_CROUCH_SIZE := Vector2(14, 24)
 const BODY_CROUCH_POS := Vector2(24, 44)
+# Strike hitboxes, as reach in front of the body centre and height in the
+# 48x56 sprite cell. PunchArea's own shape sits on its origin, so these are the
+# whole placement: mirroring x around BODY_STAND_POS.x is what makes a punch to
+# the left reach as far as the same punch to the right.
+const PUNCH_HIT := Vector2(19.0, 19.0)
+const KICK_HIT := Vector2(21.0, 11.0)
+const JUMP_KICK_HIT := Vector2(22.0, 20.0)
+const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
+# Touchscreen taps never land on the same frame, and JMP and HIT sit far
+# enough apart that a thumb needs a moment to roll between them, so the two
+# count as one gesture while they are this close together.
+const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
 @export var crouch_speed: float = 40.0
@@ -17,6 +41,9 @@ const BODY_CROUCH_POS := Vector2(24, 44)
 @export var climb_speed: float = 56.0
 @export var punch_duration: float = 0.32
 @export var kick_duration: float = 0.42
+## Long jump with a somersault: run, then JMP + HIT together.
+@export var somersault_speed_scale: float = 1.7
+@export var somersault_jump_scale: float = 1.0
 @export var max_energy: int = 100
 @export var iframe_time: float = 0.55
 @export var regen_delay: float = 1.25
@@ -33,6 +60,9 @@ var can_climb: bool = false
 var is_dead: bool = false
 var energy: int = 100
 var _kick_left_ground: bool = false
+var _flip_left_ground: bool = false
+var _air_time: float = 0.0
+var _strike_age: float = 0.0
 var _iframe: float = 0.0
 var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
@@ -68,6 +98,7 @@ func _physics_process(delta: float) -> void:
 	if _iframe <= 0.0:
 		anim.modulate = Color.WHITE
 	_time_since_hit += delta
+	_air_time = 0.0 if is_on_floor() else _air_time + delta
 	_tick_regen(delta)
 
 	can_climb = _ladder.overlaps()
@@ -85,7 +116,7 @@ func _physics_process(delta: float) -> void:
 		_ladder.process_climb(delta, climb_axis)
 	elif on_lift:
 		_lifts.process()
-	elif current_state == State.PUNCH or current_state == State.KICK:
+	elif _is_planted_strike():
 		velocity.x = 0.0
 		if not is_on_floor():
 			velocity.y += gravity * delta
@@ -97,6 +128,8 @@ func _physics_process(delta: float) -> void:
 		if _kick_left_ground and is_on_floor():
 			punch_area.monitoring = false
 			current_state = State.IDLE
+	elif current_state == State.SOMERSAULT:
+		_process_somersault(delta)
 	else:
 		_process_platformer(delta)
 
@@ -110,12 +143,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_attack(delta: float) -> void:
-	if (
-		current_state != State.PUNCH
-		and current_state != State.KICK
-		and current_state != State.JUMP_KICK
-	):
+	if not _is_striking():
 		return
+	_strike_age += delta
 	punch_timer -= delta
 	if punch_timer > 0.0:
 		return
@@ -123,47 +153,74 @@ func _tick_attack(delta: float) -> void:
 	if current_state == State.JUMP_KICK:
 		# Keep the yoko-geri pose until landing; only the hitbox turns off.
 		return
-	if is_on_floor():
-		current_state = State.IDLE
-	else:
+	if not is_on_floor():
 		current_state = State.JUMP
+	elif current_state == State.CROUCH_PUNCH and _wants_crouch():
+		# Stay small: standing up under a hatch or lift would wedge the body.
+		current_state = State.CROUCH
+	else:
+		current_state = State.IDLE
 
 
 func _handle_attack_input() -> void:
 	if on_ladder:
 		return
-	if current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK:
+	if _is_striking() or current_state == State.SOMERSAULT:
+		if _flip_upgrade_wanted():
+			_start_somersault()
 		return
 
 	var moving := absf(TiltSteer.move_axis()) > 0.0
 	var punch_pressed := Input.is_action_pressed("punch")
 	var punch_tap := Input.is_action_just_pressed("punch")
+	var jump_pressed := Input.is_action_pressed("jump")
 	var jump_tap := Input.is_action_just_pressed("jump")
 	var up_held := Input.is_action_pressed("move_up")
 	var up_tap := Input.is_action_just_pressed("move_up")
 
-	if is_on_floor():
-		var on_lift_center := _lifts.is_centered()
-		var stand_kick := (not can_climb) and (not on_lift_center) and (
-			(punch_tap and up_held)
-			or (up_tap and punch_pressed)
-			or (up_tap and not moving)
-			or (jump_tap and punch_pressed and not moving)
-		)
-		if stand_kick:
-			_start_stand_kick()
-		elif can_climb and (jump_tap or up_tap):
-			pass
-		elif jump_tap and punch_pressed:
-			velocity.y = jump_velocity
-			_start_jump_kick()
-		elif punch_tap:
-			_start_punch()
-		elif jump_tap:
-			velocity.y = jump_velocity if moving else jump_velocity * 0.82
-			current_state = State.JUMP
-	elif punch_tap:
+	if not is_on_floor():
+		if punch_tap:
+			if moving and _in_early_jump():
+				# HIT lands a frame or two after JMP on a touchscreen, so this
+				# is still the long-jump gesture, not a mid-air kick.
+				_start_somersault()
+			else:
+				_start_jump_kick()
+		return
+
+	var on_lift_center := _lifts.is_centered()
+	var stand_kick := (not can_climb) and (not on_lift_center) and (
+		(punch_tap and up_held)
+		or (up_tap and punch_pressed)
+		or (up_tap and not moving)
+		or (jump_tap and punch_pressed and not moving)
+	)
+	if stand_kick:
+		_start_stand_kick()
+	elif moving and ((jump_tap and punch_pressed) or (punch_tap and jump_pressed)):
+		_start_somersault()
+	elif punch_tap and _wants_crouch():
+		_start_crouch_punch()
+	elif can_climb and (jump_tap or up_tap):
+		pass
+	elif jump_tap and punch_pressed:
+		velocity.y = jump_velocity
 		_start_jump_kick()
+	elif punch_tap:
+		_start_punch()
+	elif jump_tap:
+		velocity.y = jump_velocity if moving else jump_velocity * 0.82
+		current_state = State.JUMP
+
+
+func _process_somersault(delta: float) -> void:
+	velocity.x = float(facing) * speed * somersault_speed_scale
+	if not is_on_floor():
+		_flip_left_ground = true
+		velocity.y += gravity * delta
+		return
+	if _flip_left_ground:
+		current_state = State.IDLE
 
 
 func _process_platformer(delta: float) -> void:
@@ -202,10 +259,9 @@ func is_riding_lift() -> bool:
 func _try_unstuck() -> void:
 	if (
 		not is_on_floor()
-		or current_state == State.PUNCH
-		or current_state == State.KICK
-		or current_state == State.JUMP_KICK
+		or _is_striking()
 		or current_state == State.CROUCH
+		or current_state == State.SOMERSAULT
 		or on_ladder
 		or on_lift
 	):
@@ -238,27 +294,84 @@ func apply_facing(direction: int) -> void:
 func _start_punch() -> void:
 	current_state = State.PUNCH
 	punch_timer = punch_duration
-	punch_area.monitoring = true
-	punch_area.position = Vector2(24.0 * facing + 12.0, 19.0)
+	_aim_strike(PUNCH_HIT)
 
 
 func _start_stand_kick() -> void:
 	current_state = State.KICK
 	punch_timer = kick_duration
-	punch_area.monitoring = true
-	punch_area.position = Vector2(24.0 * facing + 14.0, 8.0)
+	_aim_strike(KICK_HIT)
+
+
+func _start_crouch_punch() -> void:
+	current_state = State.CROUCH_PUNCH
+	punch_timer = punch_duration
+	_aim_strike(CROUCH_PUNCH_HIT)
 
 
 func _start_jump_kick() -> void:
 	current_state = State.JUMP_KICK
 	_kick_left_ground = not is_on_floor()
 	punch_timer = kick_duration
+	_aim_strike(JUMP_KICK_HIT)
+
+
+func _start_somersault() -> void:
+	current_state = State.SOMERSAULT
+	_flip_left_ground = not is_on_floor()
+	punch_area.monitoring = false
+	velocity = Vector2(
+		float(facing) * speed * somersault_speed_scale,
+		jump_velocity * somersault_jump_scale
+	)
+
+
+func _aim_strike(hit: Vector2) -> void:
+	_strike_age = 0.0
 	punch_area.monitoring = true
-	punch_area.position = Vector2(24.0 * facing + 16.0, 16.0)
+	punch_area.position = Vector2(BODY_STAND_POS.x + hit.x * float(facing), hit.y)
+
+
+func _flip_upgrade_wanted() -> bool:
+	# HIT then JMP while running is the same gesture as JMP then HIT, so a
+	# punch that young turns into the long jump instead of standing there.
+	return (
+		current_state == State.PUNCH
+		and is_on_floor()
+		and _strike_age <= COMBO_WINDOW
+		and Input.is_action_just_pressed("jump")
+		and absf(TiltSteer.move_axis()) > 0.0
+	)
+
+
+func _is_striking() -> bool:
+	return (
+		current_state == State.PUNCH
+		or current_state == State.KICK
+		or current_state == State.CROUCH_PUNCH
+		or current_state == State.JUMP_KICK
+	)
+
+
+func _is_planted_strike() -> bool:
+	return (
+		current_state == State.PUNCH
+		or current_state == State.KICK
+		or current_state == State.CROUCH_PUNCH
+	)
+
+
+func _wants_crouch() -> bool:
+	return Input.is_action_pressed("move_down") and not _lifts.is_centered()
+
+
+func _in_early_jump() -> bool:
+	# Rising, and only just: falling off a ledge must still punch, not flip.
+	return current_state == State.JUMP and velocity.y < 0.0 and _air_time <= COMBO_WINDOW
 
 
 func _update_animation() -> void:
-	_set_body_crouch(current_state == State.CROUCH)
+	_set_body_crouch(current_state == State.CROUCH or current_state == State.CROUCH_PUNCH)
 	match current_state:
 		State.CLIMB:
 			_ladder.sync_pose()
@@ -271,6 +384,10 @@ func _update_animation() -> void:
 			_play_anim(&"punch")
 		State.KICK:
 			_play_anim(&"kick")
+		State.CROUCH_PUNCH:
+			_play_anim(&"crouch_punch")
+		State.SOMERSAULT:
+			_play_anim(&"somersault")
 		State.JUMP_KICK:
 			_play_anim(&"jump_kick")
 		State.JUMP:
@@ -346,6 +463,9 @@ func respawn(to_position: Vector2) -> void:
 	can_climb = false
 	apply_world_mask()
 	_kick_left_ground = false
+	_flip_left_ground = false
+	_air_time = 0.0
+	_strike_age = 0.0
 	_iframe = 0.0
 	_time_since_hit = 10.0
 	_regen_accum = 0.0
