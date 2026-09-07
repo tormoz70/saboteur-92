@@ -68,8 +68,7 @@ func process() -> void:
 	var direction := Input.get_axis("move_left", "move_right")
 	if direction:
 		_p.velocity.x = direction * _p.speed
-		_p.facing = int(sign(direction))
-		_p.anim.flip_h = _p.facing < 0
+		_p.apply_facing(int(sign(direction)))
 		_p.current_state = Player.State.RUN
 	else:
 		_p.velocity.x = move_toward(_p.velocity.x, 0.0, _p.speed)

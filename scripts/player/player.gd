@@ -181,15 +181,13 @@ func _process_platformer(delta: float) -> void:
 	if Input.is_action_pressed("move_down") and not _lifts.is_centered():
 		if direction:
 			velocity.x = direction * crouch_speed
-			facing = int(sign(direction))
-			anim.flip_h = facing < 0
+			apply_facing(int(sign(direction)))
 		else:
 			velocity.x = move_toward(velocity.x, 0.0, crouch_speed)
 		current_state = State.CROUCH
 	elif direction:
 		velocity.x = direction * speed
-		facing = int(sign(direction))
-		anim.flip_h = facing < 0
+		apply_facing(int(sign(direction)))
 		if current_state != State.PUNCH and current_state != State.KICK:
 			current_state = State.RUN
 	else:
@@ -222,6 +220,19 @@ func _try_unstuck() -> void:
 
 func get_climb_axis() -> float:
 	return Input.get_axis("move_up", "move_down")
+
+
+func get_world_mask() -> int:
+	return _world_mask
+
+
+func apply_world_mask() -> void:
+	collision_mask = _world_mask
+
+
+func apply_facing(direction: int) -> void:
+	facing = direction
+	anim.flip_h = facing < 0
 
 
 func _start_punch() -> void:
@@ -333,7 +344,7 @@ func respawn(to_position: Vector2) -> void:
 	_ladder.reset()
 	_lifts.reset()
 	can_climb = false
-	collision_mask = _world_mask
+	apply_world_mask()
 	_kick_left_ground = false
 	_iframe = 0.0
 	_time_since_hit = 10.0

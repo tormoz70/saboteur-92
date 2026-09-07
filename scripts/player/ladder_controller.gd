@@ -88,7 +88,7 @@ func _enter() -> void:
 
 func _leave() -> void:
 	_p.on_ladder = false
-	_p.collision_mask = _p._world_mask
+	_p.apply_world_mask()
 	_p.floor_snap_length = 16.0
 	_p.velocity = Vector2.ZERO
 	_snap_onto_support()
@@ -109,7 +109,7 @@ func _snap_onto_support() -> void:
 	var cx := _p.global_position.x + Player.BODY_STAND_POS.x * _p.scale.x
 	var from := Vector2(cx, _p.global_position.y + 4.0)
 	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 96.0))
-	q.collision_mask = _p._world_mask
+	q.collision_mask = _p.get_world_mask()
 	q.exclude = [_p.get_rid()]
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
@@ -238,7 +238,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 	var space := _p.get_world_2d().direct_space_state
 	var cx := _body_cx()
 	var q := PhysicsRayQueryParameters2D.create(Vector2(cx, from_y), Vector2(cx, to_y))
-	q.collision_mask = _p._world_mask
+	q.collision_mask = _p.get_world_mask()
 	q.exclude = [_p.get_rid()]
 	return space.intersect_ray(q)
 
@@ -246,7 +246,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 func _dismount_to_y(floor_y: float) -> void:
 	var feet_off := (Player.BODY_STAND_POS.y + Player.BODY_STAND_SIZE.y * 0.5) * _p.scale.y
 	_p.on_ladder = false
-	_p.collision_mask = _p._world_mask
+	_p.apply_world_mask()
 	_p.floor_snap_length = 16.0
 	_p.velocity = Vector2.ZERO
 	_p.global_position.y = floor_y - feet_off
@@ -270,7 +270,7 @@ func _dismount_if_landing() -> bool:
 	for side in [-48.0, 48.0, -72.0, 72.0]:
 		var from := Vector2(cx + side, feet - 12.0)
 		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 28.0))
-		q.collision_mask = _p._world_mask
+		q.collision_mask = _p.get_world_mask()
 		q.exclude = [_p.get_rid()]
 		var hit := space.intersect_ray(q)
 		if hit.is_empty():
