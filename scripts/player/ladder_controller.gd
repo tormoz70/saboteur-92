@@ -34,7 +34,7 @@ func update_state(climb_axis: float) -> void:
 		not _p.on_ladder
 		and _p.is_on_floor()
 		and absf(h_axis) > 0.0
-		and Input.is_action_pressed("move_up")
+		and SaboteurControls.wants_up()
 	)
 	if _p.on_ladder:
 		if not _p.can_climb:

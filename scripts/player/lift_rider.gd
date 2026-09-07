@@ -51,14 +51,14 @@ func process() -> void:
 	if _lift == null:
 		return
 	if _lift.dir != 0:
-		if Input.is_action_pressed("move_up") and _lift.dir > 0:
+		if SaboteurControls.wants_up() and _lift.dir > 0:
 			_lift.dir = -1
 		elif Input.is_action_pressed("move_down") and _lift.dir < 0:
 			_lift.dir = 1
 		_p.velocity = Vector2.ZERO
 		return
 	var want := 0
-	if Input.is_action_pressed("move_up"):
+	if SaboteurControls.wants_up():
 		want = -1
 	elif Input.is_action_pressed("move_down"):
 		want = 1

@@ -5,13 +5,13 @@ enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
 
 # Tuned to Saboteur II feel, still using CharacterBody2D physics.
 # Original logic is ~5.5 ticks/s and 1 tile/tick; our tiles are 16px.
+# Combat/jump chords match the 1987 inlay (see SaboteurControls).
 const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
 const BODY_CROUCH_SIZE := Vector2(14, 24)
 const BODY_CROUCH_POS := Vector2(24, 44)
 
 @export var speed: float = 110.0
-@export var crouch_speed: float = 40.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0
@@ -134,36 +134,31 @@ func _handle_attack_input() -> void:
 		return
 	if current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK:
 		return
+	if not is_on_floor():
+		return
 
-	var moving := absf(TiltSteer.move_axis()) > 0.0
-	var punch_pressed := Input.is_action_pressed("punch")
-	var punch_tap := Input.is_action_just_pressed("punch")
-	var jump_tap := Input.is_action_just_pressed("jump")
-	var up_held := Input.is_action_pressed("move_up")
-	var up_tap := Input.is_action_just_pressed("move_up")
+	var direction := TiltSteer.move_axis()
+	var moving := absf(direction) > 0.0
+	if moving:
+		apply_facing(int(sign(direction)))
 
-	if is_on_floor():
-		var on_lift_center := _lifts.is_centered()
-		var stand_kick := (not can_climb) and (not on_lift_center) and (
-			(punch_tap and up_held)
-			or (up_tap and punch_pressed)
-			or (up_tap and not moving)
-			or (jump_tap and punch_pressed and not moving)
-		)
-		if stand_kick:
+	match SaboteurControls.resolve_ground(
+		moving,
+		SaboteurControls.just_up(),
+		Input.is_action_just_pressed("punch"),
+		can_climb,
+		_lifts.is_centered()
+	):
+		SaboteurControls.GroundAction.STAND_KICK:
 			_start_stand_kick()
-		elif can_climb and (jump_tap or up_tap):
-			pass
-		elif jump_tap and punch_pressed:
-			velocity.y = jump_velocity
+		SaboteurControls.GroundAction.RUNNING_JUMP:
+			_start_running_jump(direction)
+		SaboteurControls.GroundAction.FLYING_KICK:
 			_start_jump_kick()
-		elif punch_tap:
+		SaboteurControls.GroundAction.PUNCH:
 			_start_punch()
-		elif jump_tap:
-			velocity.y = jump_velocity if moving else jump_velocity * 0.82
-			current_state = State.JUMP
-	elif punch_tap:
-		_start_jump_kick()
+		_:
+			pass
 
 
 func _process_platformer(delta: float) -> void:
@@ -173,17 +168,19 @@ func _process_platformer(delta: float) -> void:
 			current_state = State.JUMP
 		return
 
-	# Still on the floor the takeoff frame; only land when vertical speed has fallen.
-	if current_state == State.JUMP and velocity.y >= 0.0:
+	# Takeoff frame is still on the floor; keep JUMP until vertical speed falls.
+	if current_state == State.JUMP:
+		if velocity.y < 0.0:
+			return
 		current_state = State.IDLE
 
 	var direction := TiltSteer.move_axis()
-	if Input.is_action_pressed("move_down") and not _lifts.is_centered():
-		if direction:
-			velocity.x = direction * crouch_speed
-			apply_facing(int(sign(direction)))
-		else:
-			velocity.x = move_toward(velocity.x, 0.0, crouch_speed)
+	if SaboteurControls.should_crouch(
+		absf(direction) > 0.0,
+		Input.is_action_pressed("move_down"),
+		_lifts.is_centered()
+	):
+		velocity.x = 0.0
 		current_state = State.CROUCH
 	elif direction:
 		velocity.x = direction * speed
@@ -219,7 +216,17 @@ func _try_unstuck() -> void:
 
 
 func get_climb_axis() -> float:
-	return Input.get_axis("move_up", "move_down")
+	return SaboteurControls.climb_axis()
+
+
+func _start_running_jump(direction: float) -> void:
+	if direction != 0.0:
+		velocity.x = direction * speed
+		apply_facing(int(sign(direction)))
+	else:
+		velocity.x = float(facing) * speed
+	velocity.y = jump_velocity
+	current_state = State.JUMP
 
 
 func get_world_mask() -> int:
@@ -236,10 +243,12 @@ func apply_facing(direction: int) -> void:
 
 
 func _start_punch() -> void:
+	var low := current_state == State.CROUCH
 	current_state = State.PUNCH
 	punch_timer = punch_duration
 	punch_area.monitoring = true
-	punch_area.position = Vector2(24.0 * facing + 12.0, 19.0)
+	var hit_y := 28.0 if low else 19.0
+	punch_area.position = Vector2(24.0 * facing + 12.0, hit_y)
 
 
 func _start_stand_kick() -> void:
@@ -252,6 +261,9 @@ func _start_stand_kick() -> void:
 func _start_jump_kick() -> void:
 	current_state = State.JUMP_KICK
 	_kick_left_ground = not is_on_floor()
+	if is_on_floor():
+		velocity.y = jump_velocity
+	velocity.x = float(facing) * speed
 	punch_timer = kick_duration
 	punch_area.monitoring = true
 	punch_area.position = Vector2(24.0 * facing + 16.0, 16.0)

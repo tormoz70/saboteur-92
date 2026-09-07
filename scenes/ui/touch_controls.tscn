@@ -158,7 +158,7 @@ vertical_alignment = 1
 position = Vector2(200, 48)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
-action = "jump"
+action = "move_up"
 
 [node name="Label" type="Label" parent="Root/RightPad/btnJump"]
 offset_left = -40.0
