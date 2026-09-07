@@ -65,7 +65,7 @@ func process() -> void:
 	if want != 0 and _lift.start_ride(_p, want):
 		_p.velocity = Vector2.ZERO
 		return
-	var direction := Input.get_axis("move_left", "move_right")
+	var direction := TiltSteer.move_axis()
 	if direction:
 		_p.velocity.x = direction * _p.speed
 		_p.apply_facing(int(sign(direction)))

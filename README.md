@@ -45,6 +45,8 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
    - Jump: Space / touch JMP
    - Punch: Z or X / touch HIT
    - Climb ladders: W/S or ▲/▼ while on ladder
+   - Optional phone tilt: tap **TILT** (top-right). Lean left/right to walk.
+     ◀ ▶ still override the accelerometer. Off by default; the choice is saved.
 
 ## Mission flow
 

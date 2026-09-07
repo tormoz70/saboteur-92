@@ -28,7 +28,7 @@ func overlaps() -> bool:
 
 
 func update_state(climb_axis: float) -> void:
-	var h_axis := Input.get_axis("move_left", "move_right")
+	var h_axis := TiltSteer.move_axis()
 	var want_climb := absf(climb_axis) > 0.0
 	var running_jump := (
 		not _p.on_ladder

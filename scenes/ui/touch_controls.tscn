@@ -1,10 +1,13 @@
-[gd_scene load_steps=5 format=3 uid="uid://touchcontrols01"]
+[gd_scene load_steps=6 format=3 uid="uid://touchcontrols01"]
+
+[ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_btn"]
 size = Vector2(80, 80)
 
 [node name="TouchControls" type="CanvasLayer"]
 layer = 10
+script = ExtResource("1")
 
 [node name="Root" type="Control" parent="."]
 layout_mode = 3
@@ -14,6 +17,21 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="TiltToggle" type="Button" parent="Root"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -148.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 56.0
+grow_horizontal = 0
+toggle_mode = true
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_font_sizes/font_size = 20
+text = "TILT"
 
 [node name="LeftPad" type="Control" parent="Root"]
 layout_mode = 1
