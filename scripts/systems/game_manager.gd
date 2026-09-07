@@ -2,6 +2,8 @@ extends Node
 
 enum GameState { PLAYING, WON, LOST }
 
+const ESCAPE_BONUS := 500
+
 var state: GameState = GameState.PLAYING
 var lives: int = 3
 var score: int = 0
@@ -16,7 +18,6 @@ var fail_reason: String = ""
 # next to the layout it covers. Default matches the Stage 2 hall: sabotage →
 # exit is 3360 world px / 110 px/s ≈ 31 s of sprinting plus turn-around slack.
 var bomb_fuse_time: float = 50.0
-const ESCAPE_BONUS := 500
 
 
 func _ready() -> void:

@@ -4,6 +4,14 @@ enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
 
 # Tuned to Saboteur II feel, still using CharacterBody2D physics.
 # Original logic is ~5.5 ticks/s and 1 tile/tick; our tiles are 16px.
+const BODY_STAND_SIZE := Vector2(14, 42)
+const BODY_STAND_POS := Vector2(24, 35)
+const BODY_CROUCH_SIZE := Vector2(14, 24)
+const BODY_CROUCH_POS := Vector2(24, 44)
+const LiftPlatform := preload("res://scripts/world/lift.gd")
+# One rung = one mosaic cell (8px) at world scale 2. Pose swaps on that same tick.
+const CLIMB_STEP_PX := 16.0
+
 @export var speed: float = 110.0
 @export var crouch_speed: float = 40.0
 @export var jump_velocity: float = -270.0
@@ -18,17 +26,6 @@ enum State { IDLE, RUN, JUMP, JUMP_KICK, KICK, CLIMB, CROUCH, PUNCH, DEAD }
 @export var spawn_point: Vector2 = Vector2(48, 184)
 @export var max_fall_speed: float = 420.0
 
-const BODY_STAND_SIZE := Vector2(14, 42)
-const BODY_STAND_POS := Vector2(24, 35)
-const BODY_CROUCH_SIZE := Vector2(14, 24)
-const BODY_CROUCH_POS := Vector2(24, 44)
-const LiftPlatform := preload("res://scripts/world/lift.gd")
-
-@onready var anim: AnimatedSprite2D = $AnimatedSprite2D
-@onready var body_collision: CollisionShape2D = $CollisionShape2D
-@onready var punch_area: Area2D = $PunchArea
-@onready var ladder_detector: Area2D = $LadderDetector
-
 var current_state: State = State.IDLE
 var facing: int = 1
 var punch_timer: float = 0.0
@@ -36,8 +33,8 @@ var on_ladder: bool = false
 var on_lift: bool = false
 var can_climb: bool = false
 var is_dead: bool = false
-var _kick_left_ground: bool = false
 var energy: int = 100
+var _kick_left_ground: bool = false
 var _iframe: float = 0.0
 var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
@@ -45,8 +42,10 @@ var _climb_step_timer: float = 0.0
 var _climb_frame: int = 0
 var _lift: LiftPlatform = null
 
-# One rung = one mosaic cell (8px) at world scale 2. Pose swaps on that same tick.
-const CLIMB_STEP_PX := 16.0
+@onready var anim: AnimatedSprite2D = $AnimatedSprite2D
+@onready var body_collision: CollisionShape2D = $CollisionShape2D
+@onready var punch_area: Area2D = $PunchArea
+@onready var ladder_detector: Area2D = $LadderDetector
 
 
 func _ready() -> void:
@@ -110,7 +109,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_attack(delta: float) -> void:
-	if current_state != State.PUNCH and current_state != State.KICK and current_state != State.JUMP_KICK:
+	if (
+		current_state != State.PUNCH
+		and current_state != State.KICK
+		and current_state != State.JUMP_KICK
+	):
 		return
 	punch_timer -= delta
 	if punch_timer > 0.0:
@@ -174,7 +177,9 @@ func _process_platformer(delta: float) -> void:
 		current_state = State.IDLE
 
 	var direction := Input.get_axis("move_left", "move_right")
-	if Input.is_action_pressed("move_down") and not (on_lift and _lift != null and _lift.is_centered(self)):
+	if Input.is_action_pressed("move_down") and not (
+		on_lift and _lift != null and _lift.is_centered(self)
+	):
 		if direction:
 			velocity.x = direction * crouch_speed
 			facing = int(sign(direction))
@@ -254,7 +259,15 @@ func _process_lift() -> void:
 
 
 func _try_unstuck() -> void:
-	if not is_on_floor() or current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK or current_state == State.CROUCH or on_ladder or on_lift:
+	if (
+		not is_on_floor()
+		or current_state == State.PUNCH
+		or current_state == State.KICK
+		or current_state == State.JUMP_KICK
+		or current_state == State.CROUCH
+		or on_ladder
+		or on_lift
+	):
 		return
 	var direction := Input.get_axis("move_left", "move_right")
 	if direction == 0.0 or absf(velocity.x) > 8.0:
@@ -449,7 +462,10 @@ func _ladder_above_feet() -> bool:
 func _ladder_below_feet() -> bool:
 	# Entirely under the soles so a dead-end floor with rungs at foot height
 	# does not count as a hatch.
-	return _ladder_probe(Vector2(BODY_STAND_POS.x * scale.x, _feet_y() - global_position.y + 24.0), Vector2(10.0, 16.0))
+	return _ladder_probe(
+		Vector2(BODY_STAND_POS.x * scale.x, _feet_y() - global_position.y + 24.0),
+		Vector2(10.0, 16.0)
+	)
 
 
 func _ladder_probe(local_center: Vector2, size: Vector2) -> bool:
