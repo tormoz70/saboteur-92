@@ -7,6 +7,9 @@ var climb_frame: int = 0
 
 var _p: Player
 var _step_timer: float = 0.0
+# UP held at the moment the player leaves the floor is spent until release.
+var _up_spent_on_jump: bool = false
+var _was_on_floor: bool = false
 var _probe_shape := RectangleShape2D.new()
 var _probe_query := PhysicsShapeQueryParameters2D.new()
 
@@ -18,6 +21,8 @@ func setup(player: Player) -> void:
 func reset() -> void:
 	_step_timer = 0.0
 	climb_frame = 0
+	_up_spent_on_jump = false
+	_was_on_floor = false
 
 
 func overlaps() -> bool:
@@ -34,8 +39,14 @@ func update_state(climb_axis: float) -> void:
 		not _p.on_ladder
 		and _p.is_on_floor()
 		and absf(h_axis) > 0.0
-		and Input.is_action_pressed("move_up")
+		and SaboteurControls.wants_up()
 	)
+	var on_floor := _p.is_on_floor()
+	if not SaboteurControls.wants_up():
+		_up_spent_on_jump = false
+	elif _was_on_floor and not on_floor:
+		_up_spent_on_jump = true
+	_was_on_floor = on_floor
 	if _p.on_ladder:
 		if not _p.can_climb:
 			_leave()
@@ -44,7 +55,14 @@ func update_state(climb_axis: float) -> void:
 			_leave()
 			return
 		return
+	# Mount only from the floor. Airborne grab is off on purpose: a jump,
+	# fall, or hatch fly-through must not become a climb.
+	if not _p.is_on_floor():
+		return
 	if running_jump or not _p.can_climb or not want_climb:
+		return
+	# Leftover UP after a jump is not a new climb press.
+	if climb_axis < 0.0 and _up_spent_on_jump:
 		return
 	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.
 	if climb_axis > 0.0 and _below_feet():

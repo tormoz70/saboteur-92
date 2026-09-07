@@ -17,6 +17,7 @@ enum State {
 
 # Tuned to Saboteur II feel, still using CharacterBody2D physics.
 # Original logic is ~5.5 ticks/s and 1 tile/tick; our tiles are 16px.
+# Combat/jump chords match the 1987 inlay (see SaboteurControls).
 const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
 const BODY_CROUCH_SIZE := Vector2(14, 24)
@@ -30,18 +31,17 @@ const KICK_HIT := Vector2(21.0, 11.0)
 const JUMP_KICK_HIT := Vector2(22.0, 20.0)
 const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 # Touchscreen taps never land on the same frame, and JMP and HIT sit far
-# enough apart that a thumb needs a moment to roll between them, so the two
-# count as one gesture while they are this close together.
+# enough apart that a thumb needs a moment to roll between them, so UP and
+# FIRE count as one chord while they are this close together.
 const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
-@export var crouch_speed: float = 40.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0
 @export var punch_duration: float = 0.32
 @export var kick_duration: float = 0.42
-## Long jump with a somersault: run, then JMP + HIT together.
+## Long jump with a somersault: MOVE + UP + FIRE.
 @export var somersault_speed_scale: float = 1.7
 @export var somersault_jump_scale: float = 1.0
 @export var max_energy: int = 100
@@ -63,6 +63,10 @@ var _kick_left_ground: bool = false
 var _flip_left_ground: bool = false
 var _air_time: float = 0.0
 var _strike_age: float = 0.0
+# Seconds each chord button has been held, or INF while it is up. A button
+# left held from an earlier move is not part of the next gesture.
+var _up_hold: float = INF
+var _fire_hold: float = INF
 var _iframe: float = 0.0
 var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
@@ -99,6 +103,7 @@ func _physics_process(delta: float) -> void:
 		anim.modulate = Color.WHITE
 	_time_since_hit += delta
 	_air_time = 0.0 if is_on_floor() else _air_time + delta
+	_tick_chord(delta)
 	_tick_regen(delta)
 
 	can_climb = _ladder.overlaps()
@@ -112,10 +117,15 @@ func _physics_process(delta: float) -> void:
 	if not _lifts.is_riding():
 		_handle_attack_input()
 
+	var lift_holds := false
+	if on_lift:
+		lift_holds = _lifts.process()
+
 	if on_ladder:
 		_ladder.process_climb(delta, climb_axis)
-	elif on_lift:
-		_lifts.process()
+	elif lift_holds:
+		# Cabin is moving or just started; process() already zeroed velocity.
+		pass
 	elif _is_planted_strike():
 		velocity.x = 0.0
 		if not is_on_floor():
@@ -166,51 +176,46 @@ func _handle_attack_input() -> void:
 	if on_ladder:
 		return
 	if _is_striking() or current_state == State.SOMERSAULT:
+		# FIRE went in first; UP finishing the chord still means the flip.
 		if _flip_upgrade_wanted():
 			_start_somersault()
 		return
-
-	var moving := absf(TiltSteer.move_axis()) > 0.0
-	var punch_pressed := Input.is_action_pressed("punch")
-	var punch_tap := Input.is_action_just_pressed("punch")
-	var jump_pressed := Input.is_action_pressed("jump")
-	var jump_tap := Input.is_action_just_pressed("jump")
-	var up_held := Input.is_action_pressed("move_up")
-	var up_tap := Input.is_action_just_pressed("move_up")
-
 	if not is_on_floor():
-		if punch_tap:
-			if moving and _in_early_jump():
-				# HIT lands a frame or two after JMP on a touchscreen, so this
-				# is still the long-jump gesture, not a mid-air kick.
-				_start_somersault()
-			else:
-				_start_jump_kick()
+		# UP went in first; FIRE finishing the chord still means the flip.
+		if _late_flip_wanted():
+			_start_somersault()
 		return
 
-	var on_lift_center := _lifts.is_centered()
-	var stand_kick := (not can_climb) and (not on_lift_center) and (
-		(punch_tap and up_held)
-		or (up_tap and punch_pressed)
-		or (up_tap and not moving)
-		or (jump_tap and punch_pressed and not moving)
-	)
-	if stand_kick:
-		_start_stand_kick()
-	elif moving and ((jump_tap and punch_pressed) or (punch_tap and jump_pressed)):
-		_start_somersault()
-	elif punch_tap and _wants_crouch():
-		_start_crouch_punch()
-	elif can_climb and (jump_tap or up_tap):
-		pass
-	elif jump_tap and punch_pressed:
-		velocity.y = jump_velocity
-		_start_jump_kick()
-	elif punch_tap:
-		_start_punch()
-	elif jump_tap:
-		velocity.y = jump_velocity if moving else jump_velocity * 0.82
-		current_state = State.JUMP
+	var direction := TiltSteer.move_axis()
+	var moving := absf(direction) > 0.0
+	if moving:
+		apply_facing(int(sign(direction)))
+
+	match SaboteurControls.resolve_ground(
+		moving,
+		SaboteurControls.just_up(),
+		Input.is_action_just_pressed("punch"),
+		can_climb,
+		_lifts.can_ride_up(),
+		_chord_is_fresh(),
+		SaboteurControls.should_crouch(
+			moving, SaboteurControls.wants_down(), _lifts.can_ride_down()
+		)
+	):
+		SaboteurControls.GroundAction.STAND_KICK:
+			_start_stand_kick()
+		SaboteurControls.GroundAction.RUNNING_JUMP:
+			_start_running_jump(direction)
+		SaboteurControls.GroundAction.FLYING_KICK:
+			_start_jump_kick()
+		SaboteurControls.GroundAction.CROUCH_PUNCH:
+			_start_crouch_punch()
+		SaboteurControls.GroundAction.SOMERSAULT:
+			_start_somersault()
+		SaboteurControls.GroundAction.PUNCH:
+			_start_punch()
+		_:
+			pass
 
 
 func _process_somersault(delta: float) -> void:
@@ -230,17 +235,19 @@ func _process_platformer(delta: float) -> void:
 			current_state = State.JUMP
 		return
 
-	# Still on the floor the takeoff frame; only land when vertical speed has fallen.
-	if current_state == State.JUMP and velocity.y >= 0.0:
+	# Takeoff frame is still on the floor; keep JUMP until vertical speed falls.
+	if current_state == State.JUMP:
+		if velocity.y < 0.0:
+			return
 		current_state = State.IDLE
 
 	var direction := TiltSteer.move_axis()
-	if Input.is_action_pressed("move_down") and not _lifts.is_centered():
-		if direction:
-			velocity.x = direction * crouch_speed
-			apply_facing(int(sign(direction)))
-		else:
-			velocity.x = move_toward(velocity.x, 0.0, crouch_speed)
+	if SaboteurControls.should_crouch(
+		absf(direction) > 0.0,
+		SaboteurControls.wants_down(),
+		_lifts.can_ride_down()
+	):
+		velocity.x = 0.0
 		current_state = State.CROUCH
 	elif direction:
 		velocity.x = direction * speed
@@ -275,7 +282,17 @@ func _try_unstuck() -> void:
 
 
 func get_climb_axis() -> float:
-	return Input.get_axis("move_up", "move_down")
+	return SaboteurControls.climb_axis()
+
+
+func _start_running_jump(direction: float) -> void:
+	if direction != 0.0:
+		velocity.x = direction * speed
+		apply_facing(int(sign(direction)))
+	else:
+		velocity.x = float(facing) * speed
+	velocity.y = jump_velocity
+	current_state = State.JUMP
 
 
 func get_world_mask() -> int:
@@ -311,7 +328,9 @@ func _start_crouch_punch() -> void:
 
 func _start_jump_kick() -> void:
 	current_state = State.JUMP_KICK
-	_kick_left_ground = not is_on_floor()
+	_kick_left_ground = false
+	velocity.y = jump_velocity
+	velocity.x = float(facing) * speed
 	punch_timer = kick_duration
 	_aim_strike(JUMP_KICK_HIT)
 
@@ -333,13 +352,26 @@ func _aim_strike(hit: Vector2) -> void:
 
 
 func _flip_upgrade_wanted() -> bool:
-	# HIT then JMP while running is the same gesture as JMP then HIT, so a
-	# punch that young turns into the long jump instead of standing there.
+	# MOVE + FIRE already started the flying kick and UP arrived a frame or two
+	# later. Those are the flip's own two buttons, so finish the gesture rather
+	# than leaving the player in a kick they did not ask for.
 	return (
-		current_state == State.PUNCH
-		and is_on_floor()
+		current_state == State.JUMP_KICK
 		and _strike_age <= COMBO_WINDOW
-		and Input.is_action_just_pressed("jump")
+		and SaboteurControls.just_up()
+		and absf(TiltSteer.move_axis()) > 0.0
+	)
+
+
+func _late_flip_wanted() -> bool:
+	# The mirror case: MOVE + UP already started the running jump and FIRE
+	# arrived a frame or two later. Rising, and only just, so FIRE after
+	# walking off a ledge stays the no-op the inlay says it is.
+	return (
+		current_state == State.JUMP
+		and velocity.y < 0.0
+		and _air_time <= COMBO_WINDOW
+		and Input.is_action_just_pressed("punch")
 		and absf(TiltSteer.move_axis()) > 0.0
 	)
 
@@ -361,13 +393,35 @@ func _is_planted_strike() -> bool:
 	)
 
 
+func _tick_chord(delta: float) -> void:
+	_up_hold = _advance_hold(_up_hold, delta, SaboteurControls.just_up(), SaboteurControls.wants_up())
+	_fire_hold = _advance_hold(
+		_fire_hold,
+		delta,
+		Input.is_action_just_pressed("punch"),
+		Input.is_action_pressed("punch")
+	)
+
+
+static func _advance_hold(held_for: float, delta: float, tapped: bool, held: bool) -> float:
+	if tapped:
+		return 0.0
+	return held_for + delta if held else INF
+
+
+func _chord_is_fresh() -> bool:
+	# Both buttons down, and both pressed recently enough to read as one roll
+	# of the thumb. UP left held since an earlier kick is stale and does not
+	# turn the next flying kick into a flip.
+	return maxf(_up_hold, _fire_hold) <= COMBO_WINDOW
+
+
 func _wants_crouch() -> bool:
-	return Input.is_action_pressed("move_down") and not _lifts.is_centered()
-
-
-func _in_early_jump() -> bool:
-	# Rising, and only just: falling off a ledge must still punch, not flip.
-	return current_state == State.JUMP and velocity.y < 0.0 and _air_time <= COMBO_WINDOW
+	return SaboteurControls.should_crouch(
+		absf(TiltSteer.move_axis()) > 0.0,
+		SaboteurControls.wants_down(),
+		_lifts.can_ride_down()
+	)
 
 
 func _update_animation() -> void:
@@ -466,6 +520,8 @@ func respawn(to_position: Vector2) -> void:
 	_flip_left_ground = false
 	_air_time = 0.0
 	_strike_age = 0.0
+	_up_hold = INF
+	_fire_hold = INF
 	_iframe = 0.0
 	_time_since_hit = 10.0
 	_regen_accum = 0.0

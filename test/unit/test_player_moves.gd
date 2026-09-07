@@ -52,7 +52,7 @@ func test_crouch_then_punch_is_a_low_punch() -> void:
 	assert_eq(_player.current_state, Player.State.CROUCH, "down crouches")
 	var crouch_size := _body_shape().size
 	await _press("punch")
-	assert_eq(_player.current_state, Player.State.CROUCH_PUNCH, "crouch + HIT punches")
+	assert_eq(_player.current_state, Player.State.CROUCH_PUNCH, "DOWN + FIRE punches low")
 	assert_eq(_body_shape().size, crouch_size, "the body stays crouched while punching")
 	assert_true(_player.punch_area.monitoring, "the low punch can actually hit")
 	assert_gt(
@@ -84,20 +84,49 @@ func test_running_jump_plus_punch_somersaults() -> void:
 	await _run_right()
 	await _press("jump")
 	await _press("punch")
-	assert_eq(_player.current_state, Player.State.SOMERSAULT, "JMP then HIT while running")
+	assert_eq(_player.current_state, Player.State.SOMERSAULT, "UP then FIRE while running")
 	assert_gt(
 		absf(_player.velocity.x), _player.speed, "the somersault carries more speed than a run"
 	)
 
 
 func test_running_punch_plus_jump_also_somersaults() -> void:
-	# The other tap order has to work too: a thumb reaches HIT before JMP just
+	# The other tap order has to work too: a thumb reaches FIRE before UP just
 	# as often as the other way round.
 	await _run_right()
 	await _press("punch")
-	assert_eq(_player.current_state, Player.State.PUNCH, "the punch starts first")
+	assert_eq(_player.current_state, Player.State.JUMP_KICK, "MOVE + FIRE kicks first")
 	await _press("jump")
-	assert_eq(_player.current_state, Player.State.SOMERSAULT, "HIT then JMP while running")
+	assert_eq(_player.current_state, Player.State.SOMERSAULT, "FIRE then UP while running")
+
+
+func test_both_buttons_on_one_frame_somersaults() -> void:
+	# Neither tap is "the second one" here, so the chord has to be caught in
+	# resolve_ground rather than by either upgrade path.
+	await _run_right()
+	Input.action_press("jump")
+	Input.action_press("punch")
+	await _step(2)
+	assert_eq(_player.current_state, Player.State.SOMERSAULT, "MOVE + UP + FIRE together")
+
+
+func test_stale_held_up_does_not_turn_a_flying_kick_into_a_flip() -> void:
+	# UP left held from an earlier standing kick is not part of the next
+	# gesture, so MOVE + FIRE after it stays the inlay's flying kick.
+	Input.action_press("move_up")
+	await _step(2)
+	assert_eq(_player.current_state, Player.State.KICK, "UP while still is the standing kick")
+	await _step(40)
+	Input.action_press("move_right")
+	await _press("punch")
+	assert_eq(_player.current_state, Player.State.JUMP_KICK, "a stale UP is not the flip chord")
+
+
+func test_somersault_needs_a_direction() -> void:
+	Input.action_press("jump")
+	Input.action_press("punch")
+	await _step(2)
+	assert_ne(_player.current_state, Player.State.SOMERSAULT, "standing still cannot long jump")
 
 
 func test_somersault_clears_more_ground_than_a_plain_jump() -> void:
@@ -120,18 +149,18 @@ func test_somersault_lands_back_on_its_feet() -> void:
 func test_standing_jump_plus_punch_still_kicks() -> void:
 	Input.action_press("punch")
 	await _press("jump")
-	assert_eq(_player.current_state, Player.State.KICK, "standing JMP + HIT is the high kick")
+	assert_eq(_player.current_state, Player.State.KICK, "UP while still is the standing kick")
 
 
-func test_punching_after_walking_off_a_ledge_is_a_jump_kick() -> void:
+func test_punching_after_walking_off_a_ledge_stays_a_fall() -> void:
+	# The inlay makes FIRE in the air a no-op, and falling is not the rising
+	# half of a long jump, so neither rule may fire here.
 	_player.current_state = Player.State.JUMP
 	_player.global_position.y -= 96.0
 	_player.velocity = Vector2(_player.speed, 60.0)
 	Input.action_press("move_right")
 	await _press("punch")
-	assert_eq(
-		_player.current_state, Player.State.JUMP_KICK, "falling is not the start of a long jump"
-	)
+	assert_eq(_player.current_state, Player.State.JUMP, "falling + FIRE does nothing")
 
 
 func _measure_jump(with_flip: bool) -> float:

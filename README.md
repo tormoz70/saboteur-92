@@ -40,16 +40,20 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
 
 1. Open the project in Godot 4.6
 2. Press F5 or click **Play**
-3. Controls:
-   - Move: Arrow keys / WASD / touch ◀ ▶
-   - Jump: Space / touch JMP
-   - Punch: Z or X / touch HIT
-   - Crouch: S or ▼ / touch ▼
-   - Low punch: crouch, then HIT — stays crouched, hits knee height
-   - High kick: HIT with ▲ held, or JMP + HIT standing still
-   - Flying kick: HIT while already in the air
-   - Long jump with a somersault: run, then JMP + HIT together (either order)
-   - Climb ladders: W/S or ▲/▼ while on ladder
+3. Controls (Saboteur II stick + FIRE; Space / JMP are aliases for UP):
+   - Left / right: walk (arrows, A/D, touch ◀ ▶)
+   - UP while still: standing kick (W, Space, ▲, JMP)
+   - Left/right + UP: running jump. FIRE in the air does nothing;
+     the flying kick starts on the ground as left/right + FIRE.
+   - FIRE while still: punch (Z/X, HIT)
+   - Left/right + FIRE: flying kick
+   - DOWN while still: duck (S, ▼)
+   - DOWN + FIRE: low punch. Stays ducked and hits at knee height.
+   - Left/right + UP + FIRE: long jump with a somersault. Either button may
+     land first; the two count as one gesture inside 0.25 s.
+   - Climb: UP / DOWN on a ladder. You mount from the floor; a jump or
+     fall through a shaft does not grab the rungs.
+   - Lift: UP / DOWN only if the cabin can move that way
    - Optional phone tilt: tap **TILT** (top-right). Lean the screen's left or
      right edge down to walk that way; the angle you hold when you switch it on
      becomes neutral. ◀ ▶ still override the sensor, and the button reads
