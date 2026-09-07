@@ -8,6 +8,9 @@ extends Area2D
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	EventBus.bomb_planted.connect(_sync_modulate)
+	# lose_mission() with lives left resets bomb_planted without emitting
+	# bomb_planted; player_died fires after that reset.
+	EventBus.player_died.connect(_sync_modulate)
 	_sync_modulate()
 
 
