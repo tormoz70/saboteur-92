@@ -114,6 +114,13 @@ func test_killing_an_enemy_adds_one_hundred() -> void:
 	enemy.free()
 
 
+func test_event_bus_enemy_killed_reaches_game_manager() -> void:
+	var enemy := Node.new()
+	EventBus.enemy_killed.emit(enemy)
+	assert_eq(GameManager.score, 100, "GameManager._ready must stay subscribed")
+	enemy.free()
+
+
 func test_event_bus_item_collected_reaches_game_manager() -> void:
 	EventBus.item_collected.emit("key")
 	assert_true(GameManager.has_key, "GameManager._ready must stay subscribed")
