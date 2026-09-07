@@ -1,6 +1,10 @@
-[gd_scene load_steps=6 format=3 uid="uid://touchcontrols01"]
+[gd_scene load_steps=5 format=3 uid="uid://touchcontrols01"]
 
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/chord_touch_button.gd" id="2"]
+
+[sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_pad"]
+points = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_btn"]
 size = Vector2(80, 80)
@@ -38,88 +42,115 @@ layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 176.0
-offset_top = -248.0
-offset_right = 416.0
-offset_bottom = -16.0
+offset_left = 24.0
+offset_top = -316.0
+offset_right = 320.0
+offset_bottom = -20.0
 grow_vertical = 0
 mouse_filter = 2
 
 [node name="btnUp" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(120, 40)
-shape = SubResource("RectangleShape2D_btn")
+position = Vector2(148, 148)
+shape = SubResource("ConvexPolygonShape2D_pad")
 shape_centered = false
 passby_press = true
-action = "move_up"
+script = ExtResource("2")
+chord = PackedStringArray("move_up")
 
-[node name="Label" type="Label" parent="Root/LeftPad/btnUp"]
-offset_left = -40.0
-offset_top = -40.0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_font_sizes/font_size = 36
-text = "▲"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnUp"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
 
-[node name="btnLeft" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(40, 120)
-shape = SubResource("RectangleShape2D_btn")
+[node name="btnJumpRight" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(148, 148)
+rotation = 0.785398
+shape = SubResource("ConvexPolygonShape2D_pad")
 shape_centered = false
 passby_press = true
-action = "move_left"
+script = ExtResource("2")
+chord = PackedStringArray("move_right", "move_up")
 
-[node name="Label" type="Label" parent="Root/LeftPad/btnLeft"]
-offset_left = -40.0
-offset_top = -40.0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_font_sizes/font_size = 36
-text = "◀"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnJumpRight"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
 
 [node name="btnRight" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(200, 120)
-shape = SubResource("RectangleShape2D_btn")
+position = Vector2(148, 148)
+rotation = 1.5708
+shape = SubResource("ConvexPolygonShape2D_pad")
 shape_centered = false
 passby_press = true
-action = "move_right"
+script = ExtResource("2")
+chord = PackedStringArray("move_right")
 
-[node name="Label" type="Label" parent="Root/LeftPad/btnRight"]
-offset_left = -40.0
-offset_top = -40.0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_font_sizes/font_size = 36
-text = "▶"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnRight"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
+
+[node name="btnCrawlRight" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(148, 148)
+rotation = 2.35619
+shape = SubResource("ConvexPolygonShape2D_pad")
+shape_centered = false
+passby_press = true
+script = ExtResource("2")
+chord = PackedStringArray("move_right", "move_down")
+
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnCrawlRight"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
 
 [node name="btnDown" type="TouchScreenButton" parent="Root/LeftPad"]
-position = Vector2(120, 200)
-shape = SubResource("RectangleShape2D_btn")
+position = Vector2(148, 148)
+rotation = 3.14159
+shape = SubResource("ConvexPolygonShape2D_pad")
 shape_centered = false
 passby_press = true
-action = "move_down"
+script = ExtResource("2")
+chord = PackedStringArray("move_down")
 
-[node name="Label" type="Label" parent="Root/LeftPad/btnDown"]
-offset_left = -40.0
-offset_top = -40.0
-offset_right = 40.0
-offset_bottom = 40.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_font_sizes/font_size = 36
-text = "▼"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnDown"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
+
+[node name="btnCrawlLeft" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(148, 148)
+rotation = 3.92699
+shape = SubResource("ConvexPolygonShape2D_pad")
+shape_centered = false
+passby_press = true
+script = ExtResource("2")
+chord = PackedStringArray("move_left", "move_down")
+
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnCrawlLeft"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
+
+[node name="btnLeft" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(148, 148)
+rotation = 4.71239
+shape = SubResource("ConvexPolygonShape2D_pad")
+shape_centered = false
+passby_press = true
+script = ExtResource("2")
+chord = PackedStringArray("move_left")
+
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnLeft"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
+
+[node name="btnJumpLeft" type="TouchScreenButton" parent="Root/LeftPad"]
+position = Vector2(148, 148)
+rotation = 5.49779
+shape = SubResource("ConvexPolygonShape2D_pad")
+shape_centered = false
+passby_press = true
+script = ExtResource("2")
+chord = PackedStringArray("move_left", "move_up")
+
+[node name="Poly" type="Polygon2D" parent="Root/LeftPad/btnJumpLeft"]
+color = Color(1, 1, 1, 0.95)
+polygon = PackedVector2Array(-16, -42, 16, -42, 42, -114, -42, -114)
 
 [node name="RightPad" type="Control" parent="Root"]
 layout_mode = 1

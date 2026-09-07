@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Build a playable Saboteur II world from the screenshot mosaic.
 
-Floors are brick strips; cave earth (black with blue specks) is solid. Blue
-brick is room wallpaper — a lift shaft stays walkable. Green wallpaper,
-furniture and interior black air stay empty. Ladders are the original rail
-tiles (interior green pair, outdoor white X-lattice, and the white-on-blue
-sky pair that continues a green shaft above the roof). Yellow crates and
-interior bookcases are foreground-only.
+Floors are brick strips, cave earth (black with blue specks), the white
+diamond slab (two white bars around a blue chevron) that divides rooms and
+forms outdoor girder decks, and the top/bottom lining of thin blue-brick
+cave tunnels. Blue brick is room wallpaper — a lift shaft stays walkable.
+Green wallpaper, furniture and interior black air stay empty.
+Ladders are the original rail tiles (interior green pair, outdoor white
+X-lattice, and the white-on-blue sky pair that continues a green shaft above
+the roof). Yellow crates and interior bookcases are foreground-only.
 """
 from __future__ import annotations
 
@@ -60,6 +62,11 @@ def _ink(rgb: tuple[int, int, int]) -> str:
     return "o"
 
 
+def _cell_rows(px, cx: int, cy: int) -> list[list[str]]:
+    x0, y0 = cx * CELL, cy * CELL
+    return [[_ink(px[x0 + x, y0 + y]) for x in range(CELL)] for y in range(CELL)]
+
+
 def cell_is_ladder(px, cx: int, cy: int) -> bool:
     """Match original Saboteur II ladder character graphics.
 
@@ -68,13 +75,16 @@ def cell_is_ladder(px, cx: int, cy: int) -> bool:
     on both edges, or the white-on-blue sky pair that continues a green
     shaft above the roof — not windows, lift shafts, or picket fences.
     """
-    x0, y0 = cx * CELL, cy * CELL
-    rows = [[_ink(px[x0 + x, y0 + y]) for x in range(CELL)] for y in range(CELL)]
+    rows = _cell_rows(px, cx, cy)
     return (
         _is_green_rail_tile(rows)
         or _is_x_lattice_tile(rows)
         or _is_sky_rail_tile(rows)
     )
+
+
+def cell_is_diamond_floor(px, cx: int, cy: int) -> bool:
+    return _is_diamond_floor_tile(_cell_rows(px, cx, cy))
 
 
 def _is_green_rail_tile(rows: list[list[str]]) -> bool:
@@ -111,6 +121,25 @@ def _is_sky_rail_tile(rows: list[list[str]]) -> bool:
     return rung_rows >= 2 and 16 <= blue <= 40
 
 
+def _is_diamond_floor_tile(rows: list[list[str]]) -> bool:
+    """Walkable 8px slab: two white bars around a blue downward diamond.
+
+    Same character is the interior room divider (green wallpaper above, blue
+    brick below) and the outdoor girder deck. Not a window, rail, or sky bar.
+    """
+    if any(p not in "wb" for row in rows for p in row):
+        return False
+    if any(p != "w" for p in rows[0] + rows[1] + rows[6] + rows[7]):
+        return False
+    diamond = ((0, 7), (1, 6), (2, 5), (3, 4))
+    for i, (a, b) in enumerate(diamond):
+        row = rows[2 + i]
+        whites = [x for x, p in enumerate(row) if p == "w"]
+        if whites != [a, b]:
+            return False
+    return True
+
+
 def _is_x_lattice_tile(rows: list[list[str]]) -> bool:
     flat = [p for row in rows for p in row]
     inks = {p for p in flat if p != "k"}
@@ -133,6 +162,250 @@ def _is_x_lattice_tile(rows: list[list[str]]) -> bool:
 def cell_is_crate(counts: dict[str, int]) -> bool:
     # Wooden crates are yellow on black, not yellow books on blue paper.
     return counts["y"] >= 12 and counts["r"] < 10 and counts["k"] >= 16 and counts["b"] < 10
+
+
+def cell_is_red_brick(counts: dict[str, int]) -> bool:
+    return counts["r"] >= 10 and counts["k"] >= 4
+
+
+def _cell_counts(px, cx: int, cy: int) -> dict[str, int]:
+    counts = {k: 0 for k in "kbgrcywmo"}
+    x0, y0 = cx * CELL, cy * CELL
+    for y in range(y0, y0 + CELL):
+        for x in range(x0, x0 + CELL):
+            counts[_col(*px[x, y])] += 1
+    return counts
+
+
+def _is_cave_paper(counts: dict[str, int]) -> bool:
+    """Blue brick wallpaper — walkable room interior, not cyan trim or sky."""
+    return (
+        counts["b"] >= 20
+        and counts["k"] >= 6
+        and counts["g"] < 8
+        and counts["c"] < 8
+        and counts["r"] < 8
+        and counts["y"] < 4
+        and counts["w"] <= 8
+    )
+
+
+def _is_cave_void(counts: dict[str, int]) -> bool:
+    """Black cave around a tunnel: earth, specks, or empty void."""
+    return (
+        counts["k"] >= 24
+        and counts["b"] < 20
+        and counts["g"] < 8
+        and counts["c"] < 8
+        and counts["r"] < 8
+        and counts["w"] < 8
+        and counts["y"] < 8
+    )
+
+
+def _is_cave_fringe(counts: dict[str, int]) -> bool:
+    """Jagged black/blue lining on a tunnel's ceiling or floor."""
+    if counts["g"] >= 8 or counts["c"] >= 8 or counts["r"] >= 8 or counts["y"] >= 4:
+        return False
+    if _is_cave_paper(counts) or _is_cave_void(counts):
+        return False
+    return counts["b"] >= 6 and counts["k"] >= 16
+
+
+# Thin cave corridor: enough cells for a crouch (24px) between 8px lining.
+_TUNNEL_MIN_H = 5
+_TUNNEL_MAX_H = 10
+_TUNNEL_MIN_WIDTH = 6
+# Black gap between two blue-brick masses (air, or air over water).
+_GAP_MIN_H = 5
+_GAP_MAX_H = 12
+# Thin red post in a room: not a floor strip, not a 1-cell speck.
+_PILLAR_MIN_H = 3
+
+
+def _cave_cell_masks(
+    px, cw: int, ch: int
+) -> tuple[list[list[bool]], list[list[bool]], list[list[bool]]]:
+    paper = [[False] * cw for _ in range(ch)]
+    void = [[False] * cw for _ in range(ch)]
+    fringe = [[False] * cw for _ in range(ch)]
+    for cy in range(ch):
+        for cx in range(cw):
+            counts = _cell_counts(px, cx, cy)
+            paper[cy][cx] = _is_cave_paper(counts)
+            void[cy][cx] = _is_cave_void(counts)
+            fringe[cy][cx] = _is_cave_fringe(counts)
+    return paper, void, fringe
+
+
+def _wide_horizontal_runs(
+    raw: list[tuple[int, int, int]], min_width: int
+) -> list[tuple[int, int, int]]:
+    """Keep (cx, y0, y1) columns that form a corridor at least min_width wide."""
+    by_col: dict[int, list[tuple[int, int, int]]] = {}
+    for rec in raw:
+        by_col.setdefault(rec[0], []).append(rec)
+    used = [False] * len(raw)
+    index = {rec: i for i, rec in enumerate(raw)}
+    out: list[tuple[int, int, int]] = []
+    for i, rec in enumerate(raw):
+        if used[i]:
+            continue
+        stack = [rec]
+        used[i] = True
+        members: list[tuple[int, int, int]] = []
+        while stack:
+            cx, y0, y1 = stack.pop()
+            members.append((cx, y0, y1))
+            for dx in (-1, 1):
+                for ocx, oy0, oy1 in by_col.get(cx + dx, []):
+                    j = index[(ocx, oy0, oy1)]
+                    if used[j]:
+                        continue
+                    if oy0 <= y1 and y0 <= oy1:
+                        used[j] = True
+                        stack.append((ocx, oy0, oy1))
+        xs = [m[0] for m in members]
+        if max(xs) - min(xs) + 1 >= min_width:
+            out.extend(members)
+    return out
+
+
+def find_cave_tunnels(
+    px,
+    cw: int,
+    ch: int,
+    biomes: list[str],
+    sx_n: int,
+) -> list[tuple[int, int, int]]:
+    """Horizontal blue-brick cave corridors with void above and below.
+
+    Each hit is `(cx, y0, y1)`: ceiling cell, floor cell, interior between.
+    """
+    paper, void, fringe = _cave_cell_masks(px, cw, ch)
+    raw: list[tuple[int, int, int]] = []
+    for cx in range(cw):
+        cy = 0
+        while cy < ch:
+            if not paper[cy][cx]:
+                cy += 1
+                continue
+            y0 = cy
+            while cy < ch and paper[cy][cx]:
+                cy += 1
+            y1 = cy - 1
+            while y0 > 0 and fringe[y0 - 1][cx]:
+                y0 -= 1
+            while y1 + 1 < ch and fringe[y1 + 1][cx]:
+                y1 += 1
+            h = y1 - y0 + 1
+            if h < _TUNNEL_MIN_H or h > _TUNNEL_MAX_H:
+                continue
+            if y0 == 0 or y1 + 1 >= ch:
+                continue
+            if not (void[y0 - 1][cx] and void[y1 + 1][cx]):
+                continue
+            if _biome_at(biomes, sx_n, cx, y0) != "cave":
+                continue
+            raw.append((cx, y0, y1))
+    return _wide_horizontal_runs(raw, _TUNNEL_MIN_WIDTH)
+
+
+def find_cave_gaps(
+    px,
+    cw: int,
+    ch: int,
+    biomes: list[str],
+    sx_n: int,
+) -> list[tuple[int, int, int]]:
+    """Walkable black corridors between two blue-brick masses.
+
+    Flooded tunnels look like this: air in the upper half of the gap, water
+    (blue brick / jagged fringe) in the lower half. Each hit is
+    `(cx, y_ceil, y_floor)` with the gap interior between them.
+    """
+    paper, void, fringe = _cave_cell_masks(px, cw, ch)
+    lining = [
+        [paper[cy][cx] or fringe[cy][cx] for cx in range(cw)] for cy in range(ch)
+    ]
+    raw: list[tuple[int, int, int]] = []
+    for cx in range(cw):
+        cy = 0
+        while cy < ch:
+            if not void[cy][cx]:
+                cy += 1
+                continue
+            y0 = cy
+            while cy < ch and void[cy][cx]:
+                cy += 1
+            y1 = cy - 1
+            h = y1 - y0 + 1
+            if h < _GAP_MIN_H or h > _GAP_MAX_H:
+                continue
+            if y0 == 0 or y1 + 1 >= ch:
+                continue
+            if not (lining[y0 - 1][cx] and lining[y1 + 1][cx]):
+                continue
+            if _biome_at(biomes, sx_n, cx, y0) != "cave":
+                continue
+            raw.append((cx, y0 - 1, y1 + 1))
+    return _wide_horizontal_runs(raw, _TUNNEL_MIN_WIDTH)
+
+
+def find_red_pillars(px, cw: int, ch: int) -> list[tuple[int, int, int]]:
+    """Vertical red posts: 1 cell wide, not a floor strip.
+
+    Horizontal red brick has neighbours on the left or right. A post does not.
+    Each hit is `(cx, y0, y1)` inclusive.
+    """
+    red = [[False] * cw for _ in range(ch)]
+    for cy in range(ch):
+        for cx in range(cw):
+            red[cy][cx] = cell_is_red_brick(_cell_counts(px, cx, cy))
+    runs: list[tuple[int, int, int]] = []
+    for cx in range(cw):
+        cy = 0
+        while cy < ch:
+            left = cx > 0 and red[cy][cx - 1]
+            right = cx + 1 < cw and red[cy][cx + 1]
+            if not red[cy][cx] or left or right:
+                cy += 1
+                continue
+            y0 = cy
+            while cy < ch and red[cy][cx]:
+                left = cx > 0 and red[cy][cx - 1]
+                right = cx + 1 < cw and red[cy][cx + 1]
+                if left or right:
+                    break
+                cy += 1
+            y1 = cy - 1
+            if y1 - y0 + 1 >= _PILLAR_MIN_H:
+                runs.append((cx, y0, y1))
+    return runs
+
+
+def _clear_red_pillars(px, solid: list[list[int]]) -> int:
+    """Remove collision from decorative red posts, including thicken stubs."""
+    ch = len(solid)
+    cw = len(solid[0])
+    cleared = 0
+    for cx, y0, y1 in find_red_pillars(px, cw, ch):
+        for cy in range(y0, y1 + 1):
+            if solid[cy][cx]:
+                cleared += 1
+            solid[cy][cx] = 0
+        for d in range(1, 4):
+            yy = y1 + d
+            if yy >= ch:
+                break
+            left = cx > 0 and solid[yy][cx - 1]
+            right = cx + 1 < cw and solid[yy][cx + 1]
+            if solid[yy][cx] and not left and not right:
+                solid[yy][cx] = 0
+                cleared += 1
+            else:
+                break
+    return cleared
 
 
 # The bookcase is built from three fixed shelf-plank characters: a left end, a
@@ -251,26 +524,7 @@ def classify_cells(
     w, h = im.size
     cw, ch = w // CELL, h // CELL
     sx_n, sy_n = w // SCREEN_W, h // SCREEN_H
-    biomes: list[str] = []
-    for sy in range(sy_n):
-        for sx in range(sx_n):
-            sky = blk = grn = 0
-            n = SCREEN_W * SCREEN_H
-            for y in range(sy * SCREEN_H, (sy + 1) * SCREEN_H):
-                for x in range(sx * SCREEN_W, (sx + 1) * SCREEN_W):
-                    k = _col(*px[x, y])
-                    if k == "b":
-                        sky += 1
-                    elif k == "k":
-                        blk += 1
-                    elif k == "g":
-                        grn += 1
-            if sky / n > 0.55:
-                biomes.append("sky")
-            elif grn / n > 0.12:
-                biomes.append("interior")
-            else:
-                biomes.append("cave")
+    biomes = _detect_biomes(px, sx_n, sy_n)
 
     cases = find_bookcases(im)
     bookcase = [[0] * cw for _ in range(ch)]
@@ -299,7 +553,7 @@ def classify_cells(
                 if cell_is_ladder(px, cx, cy):
                     ladder[cy][cx] = 1
                 continue
-            red_brick = counts["r"] >= 10 and counts["k"] >= 4
+            red_brick = cell_is_red_brick(counts)
             # Black field with sparse blue dots is impermeable cave earth.
             speckled_earth = (
                 counts["k"] >= 48
@@ -354,6 +608,15 @@ def classify_cells(
                         keep[y][cx] = 1
     fill_cave_earth(solid, biomes, sx_n)
     thicken_floors(solid, 3)
+    # Isolated red posts are wallpaper, not walls. Clear after thicken so a
+    # hanging post does not leave a 24px stub in the room below.
+    _clear_red_pillars(px, solid)
+    # Slabs after thicken: growing them down would hang 24px into the room
+    # below and turn the underside of a floor into an invisible wall.
+    _apply_diamond_floors(px, solid)
+    # After thicken: a 1-cell ceiling must not grow down into the corridor.
+    _apply_cave_tunnels(px, solid, biomes)
+    _apply_cave_gaps(px, solid, biomes)
     punch_ladder_shafts(solid, keep)
     cap_ladder_hatches(solid, keep)
     for cy in range(ch):
@@ -361,6 +624,30 @@ def classify_cells(
             if fg[cy][cx]:
                 solid[cy][cx] = 0
     return solid, keep, fg, bookcase, cases, biomes
+
+
+def _detect_biomes(px, sx_n: int, sy_n: int) -> list[str]:
+    biomes: list[str] = []
+    n = SCREEN_W * SCREEN_H
+    for sy in range(sy_n):
+        for sx in range(sx_n):
+            sky = blk = grn = 0
+            for y in range(sy * SCREEN_H, (sy + 1) * SCREEN_H):
+                for x in range(sx * SCREEN_W, (sx + 1) * SCREEN_W):
+                    k = _col(*px[x, y])
+                    if k == "b":
+                        sky += 1
+                    elif k == "k":
+                        blk += 1
+                    elif k == "g":
+                        grn += 1
+            if sky / n > 0.55:
+                biomes.append("sky")
+            elif grn / n > 0.12:
+                biomes.append("interior")
+            else:
+                biomes.append("cave")
+    return biomes
 
 
 def _biome_at(biomes: list[str], sx_n: int, cx: int, cy: int) -> str:
@@ -411,7 +698,10 @@ def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int) -> Non
 
 
 def thicken_floors(solid: list[list[int]], depth: int) -> None:
-    """Grow floors downward so fast falls cannot tunnel through 8px bricks."""
+    """Grow floors downward so fast falls cannot tunnel through 8px bricks.
+
+    Not idempotent: each call grows every current underside by `depth` cells.
+    """
     ch = len(solid)
     cw = len(solid[0])
     extra = [[0] * cw for _ in range(ch)]
@@ -888,6 +1178,124 @@ def update_collision_ladders(im: Image.Image) -> list[list[int]]:
     return rects
 
 
+def _paint_solid_rects(rects: list[list[int]], cw: int, ch: int) -> list[list[int]]:
+    grid = [[0] * cw for _ in range(ch)]
+    for x, y, w, h in rects:
+        x0 = max(0, x // CELL)
+        y0 = max(0, y // CELL)
+        x1 = min(cw, (x + w + CELL - 1) // CELL)
+        y1 = min(ch, (y + h + CELL - 1) // CELL)
+        for cy in range(y0, y1):
+            for cx in range(x0, x1):
+                px, py = cx * CELL + CELL // 2, cy * CELL + CELL // 2
+                if x <= px < x + w and y <= py < y + h:
+                    grid[cy][cx] = 1
+    return grid
+
+
+def _world_border_pads(w: int, h: int) -> list[list[int]]:
+    pad = CELL * 2
+    return [
+        [-pad, -pad, w + pad * 2, pad],
+        [-pad, h, w + pad * 2, pad],
+        [-pad, 0, pad, h],
+        [w, 0, pad, h],
+    ]
+
+
+def _apply_diamond_floors(px, solid: list[list[int]]) -> int:
+    """Mark white diamond slabs solid without thickening them."""
+    ch = len(solid)
+    cw = len(solid[0])
+    added = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if not cell_is_diamond_floor(px, cx, cy):
+                continue
+            if not solid[cy][cx]:
+                added += 1
+            solid[cy][cx] = 1
+    return added
+
+
+def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
+    """Thin blue-brick cave corridors: solid ceiling, solid floor, air inside.
+
+    `fill_cave_earth` can seal an unreached corridor as rock; the interior is
+    punched open here. Not thickened — growing the ceiling would fill the gap.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = (cw * CELL) // SCREEN_W
+    added_ceil = 0
+    added_floor = 0
+    punched = 0
+    for cx, y0, y1 in find_cave_tunnels(px, cw, ch, biomes, sx_n):
+        if not solid[y0][cx]:
+            added_ceil += 1
+        solid[y0][cx] = 1
+        if not solid[y1][cx]:
+            added_floor += 1
+        solid[y1][cx] = 1
+        for cy in range(y0 + 1, y1):
+            if solid[cy][cx]:
+                punched += 1
+            solid[cy][cx] = 0
+    return added_ceil, added_floor, punched
+
+
+def _apply_cave_gaps(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
+    """Open black cave corridors between brick masses; lining is not thickened.
+
+    Flooded tunnels are this shape: walkable air above water, solid ceiling
+    on the brick above, solid floor on the brick below.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = (cw * CELL) // SCREEN_W
+    added_ceil = 0
+    added_floor = 0
+    punched = 0
+    for cx, y0, y1 in find_cave_gaps(px, cw, ch, biomes, sx_n):
+        if not solid[y0][cx]:
+            added_ceil += 1
+        solid[y0][cx] = 1
+        if not solid[y1][cx]:
+            added_floor += 1
+        solid[y1][cx] = 1
+        for cy in range(y0 + 1, y1):
+            if solid[cy][cx]:
+                punched += 1
+            solid[cy][cx] = 0
+    return added_ceil, added_floor, punched
+
+
+def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
+    """Add diamond slabs and cave-tunnel linings without re-thickening."""
+    px = im.load()
+    cw, ch = im.width // CELL, im.height // CELL
+    sx_n, sy_n = im.width // SCREEN_W, im.height // SCREEN_H
+    path = OUT_DIR / "s2_collision.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    solid = _paint_solid_rects(data["solids"], cw, ch)
+    added = _apply_diamond_floors(px, solid)
+    biomes = _detect_biomes(px, sx_n, sy_n)
+    ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
+    g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
+    pillars = _clear_red_pillars(px, solid)
+    cap_ladder_hatches(solid, detect_ladder_grid(im))
+    rects = greedy_rects(solid)
+    rects.extend(_world_border_pads(im.width, im.height))
+    data["solids"] = rects
+    path.write_text(json.dumps(data), encoding="utf-8")
+    print(f"diamond floor cells added {added} -> {len(rects)} solid rects")
+    print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
+    print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
+    print(f"red posts cleared {pillars}")
+    print(f"updated {path}")
+    return rects
+
+
 def main() -> None:
     im = Image.open(SRC).convert("RGB")
     print(f"mosaic {im.size}")
@@ -1163,6 +1571,8 @@ if __name__ == "__main__":
 
     if "--ladders-only" in sys.argv:
         update_collision_ladders(load_world_image())
+    elif "--floors-only" in sys.argv:
+        update_collision_diamond_floors(load_world_image())
     elif SRC.exists():
         main()
     else:

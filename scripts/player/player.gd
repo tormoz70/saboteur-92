@@ -9,6 +9,7 @@ enum State {
 	KICK,
 	CLIMB,
 	CROUCH,
+	CRAWL,
 	CROUCH_PUNCH,
 	PUNCH,
 	SOMERSAULT,
@@ -36,6 +37,7 @@ const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
+@export var crawl_speed: float = 55.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0
@@ -165,9 +167,9 @@ func _tick_attack(delta: float) -> void:
 		return
 	if not is_on_floor():
 		current_state = State.JUMP
-	elif current_state == State.CROUCH_PUNCH and _wants_crouch():
+	elif current_state == State.CROUCH_PUNCH and _wants_low_stance():
 		# Stay small: standing up under a hatch or lift would wedge the body.
-		current_state = State.CROUCH
+		current_state = State.CRAWL if absf(TiltSteer.move_axis()) > 0.0 else State.CROUCH
 	else:
 		current_state = State.IDLE
 
@@ -198,9 +200,7 @@ func _handle_attack_input() -> void:
 		can_climb,
 		_lifts.can_ride_up(),
 		_chord_is_fresh(),
-		SaboteurControls.should_crouch(
-			moving, SaboteurControls.wants_down(), _lifts.can_ride_down()
-		)
+		_wants_low_stance()
 	):
 		SaboteurControls.GroundAction.STAND_KICK:
 			_start_stand_kick()
@@ -242,13 +242,16 @@ func _process_platformer(delta: float) -> void:
 		current_state = State.IDLE
 
 	var direction := TiltSteer.move_axis()
-	if SaboteurControls.should_crouch(
-		absf(direction) > 0.0,
-		SaboteurControls.wants_down(),
-		_lifts.can_ride_down()
-	):
+	var moving := absf(direction) > 0.0
+	var down := SaboteurControls.wants_down()
+	var lift_down := _lifts.can_ride_down()
+	if SaboteurControls.should_crouch(moving, down, lift_down):
 		velocity.x = 0.0
 		current_state = State.CROUCH
+	elif SaboteurControls.should_crawl(moving, down, lift_down):
+		velocity.x = direction * crawl_speed
+		apply_facing(int(sign(direction)))
+		current_state = State.CRAWL
 	elif direction:
 		velocity.x = direction * speed
 		apply_facing(int(sign(direction)))
@@ -268,6 +271,7 @@ func _try_unstuck() -> void:
 		not is_on_floor()
 		or _is_striking()
 		or current_state == State.CROUCH
+		or current_state == State.CRAWL
 		or current_state == State.SOMERSAULT
 		or on_ladder
 		or on_lift
@@ -416,16 +420,22 @@ func _chord_is_fresh() -> bool:
 	return maxf(_up_hold, _fire_hold) <= COMBO_WINDOW
 
 
-func _wants_crouch() -> bool:
-	return SaboteurControls.should_crouch(
-		absf(TiltSteer.move_axis()) > 0.0,
-		SaboteurControls.wants_down(),
-		_lifts.can_ride_down()
+func _wants_low_stance() -> bool:
+	var moving := absf(TiltSteer.move_axis()) > 0.0
+	var down := SaboteurControls.wants_down()
+	var lift_down := _lifts.can_ride_down()
+	return (
+		SaboteurControls.should_crouch(moving, down, lift_down)
+		or SaboteurControls.should_crawl(moving, down, lift_down)
 	)
 
 
 func _update_animation() -> void:
-	_set_body_crouch(current_state == State.CROUCH or current_state == State.CROUCH_PUNCH)
+	_set_body_crouch(
+		current_state == State.CROUCH
+		or current_state == State.CRAWL
+		or current_state == State.CROUCH_PUNCH
+	)
 	match current_state:
 		State.CLIMB:
 			_ladder.sync_pose()
@@ -448,7 +458,7 @@ func _update_animation() -> void:
 			_play_anim(&"jump")
 		State.RUN:
 			_play_anim(&"run")
-		State.CROUCH:
+		State.CROUCH, State.CRAWL:
 			_play_anim(&"crouch")
 		State.DEAD:
 			_play_anim(&"death")

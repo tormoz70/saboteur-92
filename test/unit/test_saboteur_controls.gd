@@ -151,6 +151,20 @@ func test_crouch_only_when_still() -> void:
 	assert_false(SaboteurControls.should_crouch(false, false, false))
 
 
+func test_crawl_when_down_and_moving() -> void:
+	assert_true(SaboteurControls.should_crawl(true, true, false))
+	assert_false(SaboteurControls.should_crawl(false, true, false))
+	assert_false(SaboteurControls.should_crawl(true, true, true))
+	assert_false(SaboteurControls.should_crawl(true, false, false))
+
+
+func test_crawling_fire_is_a_low_punch() -> void:
+	assert_eq(
+		SaboteurControls.resolve_ground(true, false, true, false, false, false, true),
+		SaboteurControls.GroundAction.CROUCH_PUNCH
+	)
+
+
 func test_space_is_only_on_jump_not_move_up() -> void:
 	for event in InputMap.action_get_events("move_up"):
 		var key := event as InputEventKey

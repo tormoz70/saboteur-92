@@ -75,6 +75,15 @@ func test_crouch_punch_returns_to_the_crouch() -> void:
 	assert_false(_player.punch_area.monitoring, "the hitbox closes with the punch")
 
 
+func test_crawl_then_punch_stays_low() -> void:
+	await _press("move_down")
+	await _press("move_right")
+	assert_eq(_player.current_state, Player.State.CRAWL, "down plus move crawls")
+	await _press("punch")
+	assert_eq(_player.current_state, Player.State.CROUCH_PUNCH, "crawling FIRE is still a low punch")
+	assert_eq(_body_shape().size, Player.BODY_CROUCH_SIZE)
+
+
 func test_standing_punch_is_unchanged() -> void:
 	await _press("punch")
 	assert_eq(_player.current_state, Player.State.PUNCH)

@@ -190,15 +190,25 @@ func test_airborne_fire_does_not_start_a_kick() -> void:
 	assert_ne(player.current_state, Player.State.JUMP_KICK)
 
 
-func test_down_while_still_ducks_and_does_not_crawl() -> void:
+func test_down_while_still_ducks() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_down")
 	await wait_physics_frames(2)
 	assert_eq(player.current_state, Player.State.CROUCH)
 	assert_eq(player.velocity.x, 0.0)
+
+
+func test_down_plus_move_crawls() -> void:
+	var player := await _spawn_on_floor()
+	Input.action_press("move_down")
+	await wait_physics_frames(2)
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
-	assert_eq(player.current_state, Player.State.RUN)
+	assert_eq(player.current_state, Player.State.CRAWL)
+	assert_gt(player.velocity.x, 0.0)
+	assert_lt(player.velocity.x, player.speed)
+	var shape := player.body_collision.shape as RectangleShape2D
+	assert_eq(shape.size, Player.BODY_CROUCH_SIZE)
 
 
 func _spawn_on_floor() -> Player:

@@ -90,5 +90,15 @@ and the white-on-blue sky pair):
 python tools/saboteur_rip/build_s2_world.py --ladders-only
 ```
 
-Without the mosaic PNG the first command exits; the second still works on the
-committed collision JSON.
+To mark the white diamond slabs (interior room dividers and outdoor girder
+decks) and cave-tunnel floors/ceilings (including flooded black corridors
+between brick masses) as walkable solids, and to punch decorative red support
+posts so they are not walls, without growing those slabs downward:
+
+```bash
+python tools/saboteur_rip/build_s2_world.py --floors-only
+```
+
+Without the mosaic PNG the first command only re-exports tilesets.
+`--ladders-only` and `--floors-only` still work from the committed visual
+tileset and rewrite `s2_collision.json`.

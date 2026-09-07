@@ -5,7 +5,8 @@ extends RefCounted
 ## https://worldofspectrum.net/pub/sinclair/games-info/s/SaboteurII.txt
 ##
 ## UP if still = kick. MOVE+UP = running jump. FIRE if still = punch.
-## MOVE+FIRE = flying kick. DOWN if still = duck. jump is an UP synonym.
+## MOVE+FIRE = flying kick. DOWN if still = duck. DOWN+MOVE = crawl.
+## jump is an UP synonym.
 ## FIRE in the air does nothing; the flying kick starts on the ground.
 ##
 ## Two remake moves extend the table rather than replace a row of it:
@@ -56,10 +57,10 @@ static func resolve_ground(
 		return GroundAction.NONE
 	if up_tap:
 		return GroundAction.STAND_KICK
-	if punch_tap and moving:
-		return GroundAction.FLYING_KICK
 	if punch_tap and ducking:
 		return GroundAction.CROUCH_PUNCH
+	if punch_tap and moving:
+		return GroundAction.FLYING_KICK
 	if punch_tap:
 		return GroundAction.PUNCH
 	return GroundAction.NONE
@@ -67,3 +68,7 @@ static func resolve_ground(
 
 static func should_crouch(moving: bool, down_held: bool, lift_takes_down: bool) -> bool:
 	return down_held and not moving and not lift_takes_down
+
+
+static func should_crawl(moving: bool, down_held: bool, lift_takes_down: bool) -> bool:
+	return down_held and moving and not lift_takes_down
