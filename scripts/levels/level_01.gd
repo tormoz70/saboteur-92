@@ -7,6 +7,7 @@ extends Node2D
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
 const WORLD_TEX_PATH := "res://assets/world/saboteur2_world.png"
 const WORLD_FG_PATH := "res://assets/world/saboteur2_fg.png"
+const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const LETTERBOX_PX := 160.0
 # Camera stays put while Nina is more than this fraction of the playfield away
@@ -120,7 +121,8 @@ func _load_original_world() -> void:
 
 
 func _add_map_sprite(node_name: String, path: String, z: int) -> void:
-	if not FileAccess.file_exists(path):
+	if not ResourceLoader.exists(path):
+		push_error("Missing world texture %s" % path)
 		return
 	var sprite := Sprite2D.new()
 	sprite.name = node_name
@@ -128,11 +130,7 @@ func _add_map_sprite(node_name: String, path: String, z: int) -> void:
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.scale = Vector2(_scale, _scale)
 	sprite.z_index = z
-	var img := Image.new()
-	if img.load(path) != OK:
-		push_error("Could not load %s" % path)
-		return
-	sprite.texture = ImageTexture.create_from_image(img)
+	sprite.texture = load(path)
 	add_child(sprite)
 	move_child(sprite, 0)
 
@@ -142,10 +140,10 @@ func _add_lifts(data: Dictionary) -> void:
 	lifts.name = "Lifts"
 	world.add_child(lifts)
 	var tex: Texture2D = null
-	if FileAccess.file_exists("res://assets/world/s2_lift.png"):
-		var img := Image.new()
-		if img.load("res://assets/world/s2_lift.png") == OK:
-			tex = ImageTexture.create_from_image(img)
+	if ResourceLoader.exists(LIFT_TEX_PATH):
+		tex = load(LIFT_TEX_PATH)
+	else:
+		push_error("Missing lift texture %s" % LIFT_TEX_PATH)
 	var script := load("res://scripts/world/lift.gd")
 	for spec in data.get("lifts", []):
 		var lift := AnimatableBody2D.new()
