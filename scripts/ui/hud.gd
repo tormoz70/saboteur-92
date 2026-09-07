@@ -86,6 +86,9 @@ func _on_mission_complete() -> void:
 
 
 func _on_player_died() -> void:
+	# Inventory is already reset in lose_mission(); refresh it immediately
+	# instead of waiting a second for _refresh() (no per-frame rebuild).
+	_update_inventory()
 	if GameManager.state == GameManager.GameState.LOST:
 		status_label.text = ""
 		_refresh()
