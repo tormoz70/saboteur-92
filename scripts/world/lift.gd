@@ -19,7 +19,7 @@ func setup(world_top: float, world_bottom: float, width: float) -> void:
 	bottom_y = world_bottom
 	_width = width
 	add_to_group("lifts")
-	collision_layer = 4
+	collision_layer = CollisionLayers.LAYER_WORLD
 	collision_mask = 0
 	sync_to_physics = true
 

@@ -91,18 +91,18 @@ func _load_original_world() -> void:
 
 	var body := StaticBody2D.new()
 	body.name = "Solids"
-	body.collision_layer = 4
+	body.collision_layer = CollisionLayers.LAYER_WORLD
 	body.collision_mask = 0
 	world.add_child(body)
 	for rect in data.get("solids", []):
-		_add_rect_shape(body, rect, 4)
+		_add_rect_shape(body, rect)
 
 	var ladders := Node2D.new()
 	ladders.name = "Ladders"
 	world.add_child(ladders)
 	for rect in data.get("ladders", []):
 		var area := Area2D.new()
-		area.collision_layer = 16
+		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
 		area.collision_mask = 0
 		area.monitorable = true
 		area.monitoring = false
@@ -372,7 +372,7 @@ func _reset_mission_entities() -> void:
 	_add_entities()
 
 
-func _add_rect_shape(body: StaticBody2D, rect: Array, _layer: int) -> void:
+func _add_rect_shape(body: StaticBody2D, rect: Array) -> void:
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
 	var size := Vector2(float(rect[2]), float(rect[3])) * _scale
@@ -413,7 +413,7 @@ func _player_center() -> Vector2:
 
 func _player_is_moving() -> bool:
 	if player.on_ladder:
-		return absf(player._climb_axis()) > 0.1
+		return absf(player.get_climb_axis()) > 0.1
 	if player.on_lift and player.is_riding_lift():
 		return true
 	return absf(player.velocity.x) > 18.0 or absf(player.velocity.y) > 36.0

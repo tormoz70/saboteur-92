@@ -41,6 +41,9 @@ var _regen_accum: float = 0.0
 var _climb_step_timer: float = 0.0
 var _climb_frame: int = 0
 var _lift: LiftPlatform = null
+var _probe_shape := RectangleShape2D.new()
+var _probe_query := PhysicsShapeQueryParameters2D.new()
+var _world_mask: int = CollisionLayers.LAYER_WORLD
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -53,6 +56,7 @@ func _ready() -> void:
 	energy = max_energy
 	floor_snap_length = 16.0
 	safe_margin = 0.25
+	_world_mask = collision_mask
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.emit(energy, max_energy)
 
@@ -70,11 +74,11 @@ func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
 
 	can_climb = _ladder_overlaps()
-	var climb_axis := _climb_axis()
+	var climb_axis := get_climb_axis()
 	_update_ladder_state(climb_axis)
 	_update_lift_state()
 	floor_snap_length = 0.0 if on_ladder else 16.0
-	collision_mask = 0 if on_ladder else 4
+	collision_mask = 0 if on_ladder else _world_mask
 
 	_tick_attack(delta)
 	if not (on_lift and _lift != null and _lift.dir != 0):
@@ -277,7 +281,7 @@ func _try_unstuck() -> void:
 		global_position += escape
 
 
-func _climb_axis() -> float:
+func get_climb_axis() -> float:
 	return Input.get_axis("move_up", "move_down")
 
 
@@ -285,14 +289,7 @@ func _ladder_overlaps() -> bool:
 	var col := ladder_detector.get_child(0) as CollisionShape2D
 	if col == null or col.shape == null:
 		return false
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = col.shape
-	q.transform = col.global_transform
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_query(col.shape, col.global_transform)
 
 
 func _update_ladder_state(climb_axis: float) -> void:
@@ -334,7 +331,7 @@ func _enter_ladder() -> void:
 
 func _leave_ladder() -> void:
 	on_ladder = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	floor_snap_length = 16.0
 	velocity = Vector2.ZERO
 	_snap_onto_support()
@@ -355,7 +352,7 @@ func _snap_onto_support() -> void:
 	var cx := global_position.x + BODY_STAND_POS.x * scale.x
 	var from := Vector2(cx, global_position.y + 4.0)
 	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 96.0))
-	q.collision_mask = 4
+	q.collision_mask = _world_mask
 	q.exclude = [get_rid()]
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
@@ -424,14 +421,7 @@ func _ladder_overlaps_at(origin: Vector2) -> bool:
 		return false
 	var xf := col.global_transform
 	xf.origin += origin - global_position
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = col.shape
-	q.transform = xf
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_query(col.shape, xf)
 
 
 func _feet_y() -> float:
@@ -443,16 +433,7 @@ func _body_cx() -> float:
 
 
 func _ladder_at_world(point: Vector2) -> bool:
-	var probe := RectangleShape2D.new()
-	probe.size = Vector2(8.0, 8.0)
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = probe
-	q.transform = Transform2D(0.0, point)
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_hits(point, Vector2(8.0, 8.0))
 
 
 func _ladder_above_feet() -> bool:
@@ -469,16 +450,24 @@ func _ladder_below_feet() -> bool:
 
 
 func _ladder_probe(local_center: Vector2, size: Vector2) -> bool:
-	var probe := RectangleShape2D.new()
-	probe.size = size
-	var q := PhysicsShapeQueryParameters2D.new()
-	q.shape = probe
-	q.transform = Transform2D(0.0, global_position + local_center)
-	q.collision_mask = ladder_detector.collision_mask
-	q.collide_with_areas = true
-	q.collide_with_bodies = false
-	q.exclude = [get_rid()]
-	return get_world_2d().direct_space_state.intersect_shape(q, 1).size() > 0
+	return _ladder_hits(global_position + local_center, size)
+
+
+func _ladder_hits(center: Vector2, size: Vector2) -> bool:
+	_probe_shape.size = size
+	return _ladder_query(_probe_shape, Transform2D(0.0, center))
+
+
+func _ladder_query(shape: Shape2D, xf: Transform2D) -> bool:
+	# Reused query keeps leftover fields. Set every field the four old
+	# functions wrote, every call, or a prior detector/probe leaks in.
+	_probe_query.shape = shape
+	_probe_query.transform = xf
+	_probe_query.collision_mask = ladder_detector.collision_mask
+	_probe_query.collide_with_areas = true
+	_probe_query.collide_with_bodies = false
+	_probe_query.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(_probe_query, 1).size() > 0
 
 
 func _blocking_floor_y(dy: float) -> float:
@@ -511,7 +500,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 	var space := get_world_2d().direct_space_state
 	var cx := _body_cx()
 	var q := PhysicsRayQueryParameters2D.create(Vector2(cx, from_y), Vector2(cx, to_y))
-	q.collision_mask = 4
+	q.collision_mask = _world_mask
 	q.exclude = [get_rid()]
 	return space.intersect_ray(q)
 
@@ -519,7 +508,7 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 func _dismount_to_y(floor_y: float) -> void:
 	var feet_off := (BODY_STAND_POS.y + BODY_STAND_SIZE.y * 0.5) * scale.y
 	on_ladder = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	floor_snap_length = 16.0
 	velocity = Vector2.ZERO
 	global_position.y = floor_y - feet_off
@@ -543,7 +532,7 @@ func _dismount_if_landing() -> bool:
 	for side in [-48.0, 48.0, -72.0, 72.0]:
 		var from := Vector2(cx + side, feet - 12.0)
 		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 28.0))
-		q.collision_mask = 4
+		q.collision_mask = _world_mask
 		q.exclude = [get_rid()]
 		var hit := space.intersect_ray(q)
 		if hit.is_empty():
@@ -660,21 +649,21 @@ func take_damage(amount: int = 12) -> void:
 	GameManager.lose_mission()
 
 
-func respawn(spawn_point: Vector2) -> void:
+func respawn(to_position: Vector2) -> void:
 	is_dead = false
 	current_state = State.IDLE
 	on_ladder = false
 	on_lift = false
 	_lift = null
 	can_climb = false
-	collision_mask = 4
+	collision_mask = _world_mask
 	_kick_left_ground = false
 	_iframe = 0.0
 	_time_since_hit = 10.0
 	_regen_accum = 0.0
 	energy = max_energy
 	anim.modulate = Color.WHITE
-	global_position = spawn_point
+	global_position = to_position
 	velocity = Vector2.ZERO
 	EventBus.energy_changed.emit(energy, max_energy)
 
