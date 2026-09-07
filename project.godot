@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
+TiltSteer="*res://scripts/systems/tilt_steer.gd"
 
 [editor_plugins]
 

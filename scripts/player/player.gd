@@ -135,7 +135,7 @@ func _handle_attack_input() -> void:
 	if current_state == State.PUNCH or current_state == State.KICK or current_state == State.JUMP_KICK:
 		return
 
-	var moving := absf(Input.get_axis("move_left", "move_right")) > 0.0
+	var moving := absf(TiltSteer.move_axis()) > 0.0
 	var punch_pressed := Input.is_action_pressed("punch")
 	var punch_tap := Input.is_action_just_pressed("punch")
 	var jump_tap := Input.is_action_just_pressed("jump")
@@ -177,7 +177,7 @@ func _process_platformer(delta: float) -> void:
 	if current_state == State.JUMP and velocity.y >= 0.0:
 		current_state = State.IDLE
 
-	var direction := Input.get_axis("move_left", "move_right")
+	var direction := TiltSteer.move_axis()
 	if Input.is_action_pressed("move_down") and not _lifts.is_centered():
 		if direction:
 			velocity.x = direction * crouch_speed
@@ -210,7 +210,7 @@ func _try_unstuck() -> void:
 		or on_lift
 	):
 		return
-	var direction := Input.get_axis("move_left", "move_right")
+	var direction := TiltSteer.move_axis()
 	if direction == 0.0 or absf(velocity.x) > 8.0:
 		return
 	var escape := Vector2(direction * 6.0, -10.0)
