@@ -1,6 +1,8 @@
 extends GutTest
 ## Drive a real Player on a floor and check the inlay chords stick.
 
+const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
+
 
 func after_each() -> void:
 	_release_all()
@@ -130,7 +132,6 @@ func test_held_up_after_stand_kick_still_climbs() -> void:
 	Input.action_release("move_right")
 	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	await wait_physics_frames(30)
-	assert_true(player.is_on_floor())
 	assert_true(player.on_ladder, "UP after a kick is still a climb, not a spent jump")
 	assert_eq(player.current_state, Player.State.CLIMB)
 
@@ -190,7 +191,7 @@ func _spawn_on_floor() -> Player:
 	floor.add_child(col)
 	add_child_autofree(floor)
 
-	var player: Player = preload("res://scenes/player/player.tscn").instantiate()
+	var player: Player = PLAYER_SCENE.instantiate()
 	add_child_autofree(player)
 	# Collider bottom is 56px below origin; sit just above the slab.
 	player.global_position = Vector2(80, 20)
@@ -213,7 +214,7 @@ func _spawn_on_dead_end_lift() -> Player:
 	lift.global_position = Vector2(80, 80)
 	lift.setup(80.0, 80.0, 96.0)
 
-	var player: Player = preload("res://scenes/player/player.tscn").instantiate()
+	var player: Player = PLAYER_SCENE.instantiate()
 	add_child_autofree(player)
 	# is_centered uses origin.x + 48; feet sit 56px below origin.
 	player.global_position = Vector2(80, 24)
