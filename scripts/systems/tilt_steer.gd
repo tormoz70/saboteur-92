@@ -3,7 +3,7 @@ extends Node
 
 signal enabled_changed(is_on: bool)
 
-enum Orientation { LANDSCAPE, REVERSE_LANDSCAPE, PORTRAIT, REVERSE_PORTRAIT }
+enum TiltOrientation { LANDSCAPE, REVERSE_LANDSCAPE, PORTRAIT, REVERSE_PORTRAIT }
 
 const CONFIG_PATH := "user://settings.cfg"
 const CONFIG_SECTION := "controls"
@@ -32,23 +32,23 @@ func move_axis() -> float:
 	return axis_from_accelerometer(Input.get_accelerometer(), current_orientation())
 
 
-func current_orientation() -> Orientation:
+func current_orientation() -> TiltOrientation:
 	var orient := DisplayServer.screen_get_orientation()
 	match orient:
 		DisplayServer.SCREEN_REVERSE_LANDSCAPE:
-			return Orientation.REVERSE_LANDSCAPE
+			return TiltOrientation.REVERSE_LANDSCAPE
 		DisplayServer.SCREEN_PORTRAIT:
-			return Orientation.PORTRAIT
+			return TiltOrientation.PORTRAIT
 		DisplayServer.SCREEN_REVERSE_PORTRAIT:
-			return Orientation.REVERSE_PORTRAIT
+			return TiltOrientation.REVERSE_PORTRAIT
 		_:
 			# SENSOR / LANDSCAPE / unknown: the game viewport is 16:9.
 			if DisplayServer.window_get_size().y > DisplayServer.window_get_size().x:
-				return Orientation.PORTRAIT
-			return Orientation.LANDSCAPE
+				return TiltOrientation.PORTRAIT
+			return TiltOrientation.LANDSCAPE
 
 
-static func axis_from_accelerometer(acc: Vector3, orientation: Orientation) -> float:
+static func axis_from_accelerometer(acc: Vector3, orientation: TiltOrientation) -> float:
 	var raw := raw_tilt(acc, orientation)
 	if raw > DEADZONE:
 		return 1.0
@@ -57,16 +57,16 @@ static func axis_from_accelerometer(acc: Vector3, orientation: Orientation) -> f
 	return 0.0
 
 
-static func raw_tilt(acc: Vector3, orientation: Orientation) -> float:
-	## Device-space gravity. Left edge of the *screen* down → negative (walk left).
+static func raw_tilt(acc: Vector3, orientation: TiltOrientation) -> float:
+	# Device-space gravity. Left edge of the screen down → walk left.
 	match orientation:
-		Orientation.LANDSCAPE:
+		TiltOrientation.LANDSCAPE:
 			return -acc.y
-		Orientation.REVERSE_LANDSCAPE:
+		TiltOrientation.REVERSE_LANDSCAPE:
 			return acc.y
-		Orientation.PORTRAIT:
+		TiltOrientation.PORTRAIT:
 			return acc.x
-		Orientation.REVERSE_PORTRAIT:
+		TiltOrientation.REVERSE_PORTRAIT:
 			return -acc.x
 	return -acc.y
 
