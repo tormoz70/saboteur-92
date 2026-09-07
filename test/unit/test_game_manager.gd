@@ -112,3 +112,17 @@ func test_killing_an_enemy_adds_one_hundred() -> void:
 	GameManager._on_enemy_killed(enemy)
 	assert_eq(GameManager.score, 100)
 	enemy.free()
+
+
+func test_event_bus_item_collected_reaches_game_manager() -> void:
+	EventBus.item_collected.emit("key")
+	assert_true(GameManager.has_key, "GameManager._ready must stay subscribed")
+	assert_eq(GameManager.score, 50)
+
+
+func test_event_bus_bomb_planted_reaches_game_manager() -> void:
+	GameManager.has_bomb = true
+	EventBus.bomb_planted.emit()
+	assert_true(GameManager.bomb_planted, "GameManager._ready must stay subscribed")
+	assert_false(GameManager.has_bomb)
+	assert_eq(GameManager.bomb_timer, GameManager.bomb_fuse_time)
