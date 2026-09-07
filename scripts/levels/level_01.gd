@@ -95,7 +95,7 @@ func _load_original_world() -> void:
 	body.collision_mask = 0
 	world.add_child(body)
 	for rect in data.get("solids", []):
-		_add_rect_shape(body, rect, CollisionLayers.LAYER_WORLD)
+		_add_rect_shape(body, rect)
 
 	var ladders := Node2D.new()
 	ladders.name = "Ladders"
@@ -372,7 +372,7 @@ func _reset_mission_entities() -> void:
 	_add_entities()
 
 
-func _add_rect_shape(body: StaticBody2D, rect: Array, _layer: int) -> void:
+func _add_rect_shape(body: StaticBody2D, rect: Array) -> void:
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
 	var size := Vector2(float(rect[2]), float(rect[3])) * _scale
