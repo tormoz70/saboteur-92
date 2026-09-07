@@ -64,6 +64,7 @@ var energy: int = 100
 var _kick_left_ground: bool = false
 var _flip_left_ground: bool = false
 var _air_time: float = 0.0
+var _was_on_floor: bool = true
 var _strike_age: float = 0.0
 # Seconds each chord button has been held, or INF while it is up. A button
 # left held from an earlier move is not part of the next gesture.
@@ -105,6 +106,8 @@ func _physics_process(delta: float) -> void:
 		anim.modulate = Color.WHITE
 	_time_since_hit += delta
 	_air_time = 0.0 if is_on_floor() else _air_time + delta
+	var just_landed := is_on_floor() and not _was_on_floor
+	_was_on_floor = is_on_floor()
 	_tick_chord(delta)
 	_tick_regen(delta)
 
@@ -117,7 +120,7 @@ func _physics_process(delta: float) -> void:
 
 	_tick_attack(delta)
 	if not _lifts.is_riding():
-		_handle_attack_input()
+		_handle_attack_input(just_landed)
 
 	var lift_holds := false
 	if on_lift:
@@ -174,7 +177,7 @@ func _tick_attack(delta: float) -> void:
 		current_state = State.IDLE
 
 
-func _handle_attack_input() -> void:
+func _handle_attack_input(just_landed: bool = false) -> void:
 	if on_ladder:
 		return
 	if _is_striking() or current_state == State.SOMERSAULT:
@@ -193,9 +196,23 @@ func _handle_attack_input() -> void:
 	if moving:
 		apply_facing(int(sign(direction)))
 
+	var up_tap := SaboteurControls.just_up()
+	# Diagonal pad holds UP with MOVE. just_pressed is only the first frame,
+	# so land-and-hold must still start another running jump. A stale UP from
+	# an earlier kick must not become a jump (or a flip) when MOVE is added.
+	if (
+		not up_tap
+		and moving
+		and just_landed
+		and SaboteurControls.wants_up()
+		and current_state != State.JUMP_KICK
+		and current_state != State.SOMERSAULT
+	):
+		up_tap = true
+
 	match SaboteurControls.resolve_ground(
 		moving,
-		SaboteurControls.just_up(),
+		up_tap,
 		Input.is_action_just_pressed("punch"),
 		can_climb,
 		_lifts.can_ride_up(),

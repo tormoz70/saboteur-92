@@ -92,8 +92,9 @@ python tools/saboteur_rip/build_s2_world.py --ladders-only
 
 To mark the white diamond slabs (interior room dividers and outdoor girder
 decks) and cave-tunnel floors/ceilings (including flooded black corridors
-between brick masses) as walkable solids, and to punch decorative red support
-posts so they are not walls, without growing those slabs downward:
+between brick masses) as walkable solids, punch decorative red support
+posts, and clear blue-brick wallpaper plus crates so they are never walls,
+without growing those slabs downward:
 
 ```bash
 python tools/saboteur_rip/build_s2_world.py --floors-only

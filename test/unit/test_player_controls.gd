@@ -36,6 +36,26 @@ func test_run_plus_up_starts_running_jump() -> void:
 	assert_lt(player.velocity.y, 0.0)
 
 
+func test_held_run_and_up_jumps_again_after_landing() -> void:
+	var player := await _spawn_on_floor()
+	Input.action_press("move_right")
+	Input.action_press("move_up")
+	await wait_physics_frames(2)
+	assert_eq(player.current_state, Player.State.JUMP)
+	var saw_air := false
+	for _i in 50:
+		await wait_physics_frames(1)
+		if not player.is_on_floor():
+			saw_air = true
+		elif saw_air:
+			await wait_physics_frames(2)
+			assert_eq(player.current_state, Player.State.JUMP, "held MOVE+UP jumps again")
+			assert_lt(player.velocity.y, 0.0)
+			return
+	assert_true(saw_air, "should have left the slab")
+	fail_test("should have jumped again after landing")
+
+
 func test_still_fire_starts_punch() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("punch")

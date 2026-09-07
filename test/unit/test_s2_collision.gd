@@ -160,6 +160,36 @@ func test_red_pillars_are_passable() -> void:
 	)
 
 
+func test_crates_and_blue_brick_are_not_solid() -> void:
+	var data := _collision_data()
+	# Mosaic 8,15: yellow crates and the blue-brick far wall around them.
+	# Furniture and basement wallpaper are walk-behind, not walls.
+	var air: Array[Vector2i] = [
+		Vector2i(2052, 2948),
+		Vector2i(2076, 2972),
+		Vector2i(2100, 2980),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"crate/blue brick at %s must stay walkable" % p
+		)
+
+
+func test_blue_wallpaper_above_diamond_is_not_a_floor() -> void:
+	var data := _collision_data()
+	# Mosaic 7,14: cave paper sitting on the diamond slab used to be marked as
+	# a tunnel floor and blocked walking left at chest height.
+	assert_false(
+		_point_in_any_rect(Vector2i(1764, 2708), data["solids"]),
+		"blue wallpaper above the diamond must stay walkable"
+	)
+	assert_true(
+		_point_in_any_rect(Vector2i(1868, 2716), data["solids"]),
+		"diamond slab should stay solid"
+	)
+
+
 func _point_in_any_rect(p: Vector2i, rects: Array) -> bool:
 	for rect in rects:
 		if (

@@ -6,13 +6,16 @@ from build_s2_world import (
     _apply_cave_gaps,
     _apply_cave_tunnels,
     _clear_red_pillars,
+    _clear_walkable_decor,
     _is_cave_paper,
     _is_cave_void,
     _is_diamond_floor_tile,
     _is_sky_rail_tile,
     _is_x_lattice_tile,
+    cell_is_crate,
     cell_is_diamond_floor,
     cell_is_red_brick,
+    fill_cave_earth,
     find_cave_gaps,
     find_cave_tunnels,
     find_red_pillars,
@@ -67,12 +70,14 @@ def _counts(rows: list[list[str]]) -> dict[str, int]:
 BRICK = [list("bbbbbbbb") for _ in range(7)] + [list("kkkkkkkk")]
 VOID = [list("kkkkkkkk") for _ in range(8)]
 CYAN = [list("cccccccc") for _ in range(8)]
+GREEN = [list("gggggggg") for _ in range(5)] + [list("kkkkkkkk") for _ in range(3)]
 INK_RGB = {
     "k": (0, 0, 0),
     "b": (0, 0, 255),
     "c": (0, 255, 255),
     "g": (0, 255, 0),
     "r": (255, 0, 0),
+    "y": (255, 255, 0),
     "w": (255, 255, 255),
 }
 
@@ -130,6 +135,26 @@ def test_cave_tunnel_floor_and_ceiling() -> None:
         assert solid[2][cx] == 1
         assert solid[7][cx] == 1
         assert all(solid[cy][cx] == 0 for cy in range(3, 7))
+
+
+def test_cave_tunnel_rejects_wallpaper_beside_green_room() -> None:
+    # Basement far-wall: blue paper over void, green interior to the right.
+    # That is not a cave corridor; painting y1 as a floor makes a chest-high wall.
+    layout = [
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbg",
+        "kbbbbbbbbbbg",
+        "kbbbbbbbbbbg",
+        "kbbbbbbbbbbg",
+        "kbbbbbbbbbbg",
+        "kbbbbbbbbbbg",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK, "g": GREEN}
+    px = CellGridPx(layout, tiles)
+    assert find_cave_tunnels(px, 12, 10, ["cave"], 1) == []
 
 
 def test_cave_tunnel_rejects_cyan_and_short_runs() -> None:
@@ -234,6 +259,73 @@ def test_red_pillars_are_passable() -> None:
     assert all(solid[6][cx] == 1 for cx in range(12))
 
 
+CRATE = [
+    list("yyyykkyk"),
+    list("ykkyyyyy"),
+    list("yyyykkyk"),
+    list("kkkkkkkk"),
+    list("yyyykkyk"),
+    list("ykkyyyyy"),
+    list("yyyykkyk"),
+    list("kkkkkkkk"),
+]
+
+
+def test_crate_counts_as_furniture() -> None:
+    assert cell_is_crate(_counts(CRATE))
+    assert not _is_cave_paper(_counts(CRATE))
+
+
+def test_blue_brick_and_crates_are_not_cave_rock() -> None:
+    layout = [
+        "kkkkkkkkkk",
+        "kbbbbbbkk",
+        "kbbccbbkk",
+        "kbbccbbkk",
+        "kbbbbbbkk",
+        "kkkkkkkkkk",
+    ]
+    # pad rows to equal width
+    layout = [row.ljust(10, "k") for row in layout]
+    tiles = {"k": VOID, "b": BRICK, "c": CRATE}
+    px = CellGridPx(layout, tiles)
+    solid = [[0] * 10 for _ in range(6)]
+    fill_cave_earth(solid, ["cave"], 1, px)
+    for cy in range(1, 5):
+        for cx in range(1, 7):
+            letter = layout[cy][cx]
+            if letter in "bc":
+                assert solid[cy][cx] == 0, (cx, cy, letter)
+    assert solid[0][1] == 1
+
+
+def test_clear_paper_then_tunnel_keeps_lining() -> None:
+    layout = [
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK}
+    px = CellGridPx(layout, tiles)
+    solid = [[1] * 12 for _ in range(10)]
+    cleared = _clear_walkable_decor(px, solid)
+    assert cleared > 0
+    for cx in range(1, 11):
+        assert all(solid[cy][cx] == 0 for cy in range(2, 8))
+    _apply_cave_tunnels(px, solid, ["cave"])
+    for cx in range(1, 11):
+        assert solid[2][cx] == 1
+        assert solid[7][cx] == 1
+        assert all(solid[cy][cx] == 0 for cy in range(3, 7))
+
+
 if __name__ == "__main__":
     test_diamond_slab_is_floor()
     test_diamond_rejects_rails_windows_and_bars()
@@ -243,4 +335,7 @@ if __name__ == "__main__":
     test_flooded_gap_has_floor_and_ceiling()
     test_red_post_is_brick_but_not_a_floor()
     test_red_pillars_are_passable()
+    test_crate_counts_as_furniture()
+    test_blue_brick_and_crates_are_not_cave_rock()
+    test_clear_paper_then_tunnel_keeps_lining()
     print("test_floor_classify: ok")

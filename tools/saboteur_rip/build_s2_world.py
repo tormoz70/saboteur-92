@@ -203,6 +203,17 @@ def _is_cave_void(counts: dict[str, int]) -> bool:
     )
 
 
+def _is_speckled_earth(counts: dict[str, int]) -> bool:
+    """Black field with sparse blue dots — impermeable cave earth."""
+    return (
+        counts["k"] >= 48
+        and 1 <= counts["b"] <= 8
+        and counts["g"] < 8
+        and counts["r"] < 8
+        and counts["c"] < 8
+    )
+
+
 def _is_cave_fringe(counts: dict[str, int]) -> bool:
     """Jagged black/blue lining on a tunnel's ceiling or floor."""
     if counts["g"] >= 8 or counts["c"] >= 8 or counts["r"] >= 8 or counts["y"] >= 4:
@@ -238,16 +249,16 @@ def _cave_cell_masks(
     return paper, void, fringe
 
 
-def _wide_horizontal_runs(
+def _wide_horizontal_groups(
     raw: list[tuple[int, int, int]], min_width: int
-) -> list[tuple[int, int, int]]:
-    """Keep (cx, y0, y1) columns that form a corridor at least min_width wide."""
+) -> list[list[tuple[int, int, int]]]:
+    """Connected (cx, y0, y1) columns that form a corridor at least min_width wide."""
     by_col: dict[int, list[tuple[int, int, int]]] = {}
     for rec in raw:
         by_col.setdefault(rec[0], []).append(rec)
     used = [False] * len(raw)
     index = {rec: i for i, rec in enumerate(raw)}
-    out: list[tuple[int, int, int]] = []
+    groups: list[list[tuple[int, int, int]]] = []
     for i, rec in enumerate(raw):
         if used[i]:
             continue
@@ -267,8 +278,44 @@ def _wide_horizontal_runs(
                         stack.append((ocx, oy0, oy1))
         xs = [m[0] for m in members]
         if max(xs) - min(xs) + 1 >= min_width:
-            out.extend(members)
-    return out
+            groups.append(members)
+    return groups
+
+
+def _wide_horizontal_runs(
+    raw: list[tuple[int, int, int]], min_width: int
+) -> list[tuple[int, int, int]]:
+    """Keep (cx, y0, y1) columns that form a corridor at least min_width wide."""
+    return [m for g in _wide_horizontal_groups(raw, min_width) for m in g]
+
+
+def _corridor_abuts_green_wallpaper(px, members: list[tuple[int, int, int]], cw: int) -> bool:
+    """True if this paper band is a room wall beside green interior wallpaper.
+
+    Cave earth counts as void, so a basement blue-brick panel above a diamond
+    deck looks like a tunnel. The valid-column run can stop at a screen edge
+    before it actually touches the green, so walk onward through paper.
+    Real corridors sit in rock; walking off their end hits void, not a room.
+    Drop the whole run: leaving the far columns would still pass min-width.
+    """
+    min_x = min(m[0] for m in members)
+    max_x = max(m[0] for m in members)
+    for cx, y0, y1 in members:
+        if cx != min_x and cx != max_x:
+            continue
+        mid = (y0 + y1) // 2
+        step = -1 if cx == min_x else 1
+        x = cx
+        for _ in range(12):
+            x += step
+            if x < 0 or x >= cw:
+                break
+            counts = _cell_counts(px, x, mid)
+            if counts["g"] >= 16 and not cell_is_ladder(px, x, mid):
+                return True
+            if not _is_cave_paper(counts):
+                break
+    return False
 
 
 def find_cave_tunnels(
@@ -305,10 +352,50 @@ def find_cave_tunnels(
                 continue
             if not (void[y0 - 1][cx] and void[y1 + 1][cx]):
                 continue
+            # Both ends must be cave. A paper band that starts in a cave
+            # screen and ends in an interior room is a basement far-wall,
+            # not a corridor — treating y1 as a floor puts an invisible
+            # slab through the room below the wallpaper.
             if _biome_at(biomes, sx_n, cx, y0) != "cave":
                 continue
+            if _biome_at(biomes, sx_n, cx, y1) != "cave":
+                continue
+            if cell_is_diamond_floor(px, cx, y1 + 1):
+                continue
+            if _floor_slab_along_row(px, cx, y1 + 1, cw, biomes, sx_n):
+                continue
             raw.append((cx, y0, y1))
-    return _wide_horizontal_runs(raw, _TUNNEL_MIN_WIDTH)
+    out: list[tuple[int, int, int]] = []
+    for members in _wide_horizontal_groups(raw, _TUNNEL_MIN_WIDTH):
+        if _corridor_abuts_green_wallpaper(px, members, cw):
+            continue
+        out.extend(members)
+    return out
+
+
+def _floor_slab_along_row(
+    px, cx: int, cy: int, cw: int, biomes: list[str], sx_n: int, reach: int = 16
+) -> bool:
+    """True if an interior diamond deck sits on this row beside the column.
+
+    Cave earth is 'void' in the tunnel mask, so a wallpaper panel above a
+    green-room diamond looks like a corridor. Outdoor girder diamonds stay
+    ignored so real cave tunnels are not dropped.
+    """
+    for step in (-1, 1):
+        x = cx
+        for _ in range(reach):
+            x += step
+            if x < 0 or x >= cw:
+                break
+            if cell_is_diamond_floor(px, x, cy):
+                if _biome_at(biomes, sx_n, x, cy) == "interior":
+                    return True
+                break
+            counts = _cell_counts(px, x, cy)
+            if _is_cave_paper(counts):
+                break
+    return False
 
 
 def find_cave_gaps(
@@ -553,15 +640,13 @@ def classify_cells(
                 if cell_is_ladder(px, cx, cy):
                     ladder[cy][cx] = 1
                 continue
+            # Blue brick is the far wall of a basement, never a collider.
+            if _is_cave_paper(counts):
+                if cell_is_ladder(px, cx, cy):
+                    ladder[cy][cx] = 1
+                continue
             red_brick = cell_is_red_brick(counts)
-            # Black field with sparse blue dots is impermeable cave earth.
-            speckled_earth = (
-                counts["k"] >= 48
-                and 1 <= counts["b"] <= 8
-                and counts["g"] < 8
-                and counts["r"] < 8
-                and counts["c"] < 8
-            )
+            speckled_earth = _is_speckled_earth(counts)
             black_wall = counts["k"] >= 40 and counts["g"] < 20
             if biome == "sky":
                 if counts["b"] >= 40:
@@ -606,8 +691,11 @@ def classify_cells(
                             wide += 1
                     if wide <= 2:
                         keep[y][cx] = 1
-    fill_cave_earth(solid, biomes, sx_n)
+    fill_cave_earth(solid, biomes, sx_n, px)
     thicken_floors(solid, 3)
+    # Paper and crates must not keep thicken stubs; tunnel linings are
+    # re-applied after this punch.
+    _clear_walkable_decor(px, solid)
     # Isolated red posts are wallpaper, not walls. Clear after thicken so a
     # hanging post does not leave a 24px stub in the room below.
     _clear_red_pillars(px, solid)
@@ -656,8 +744,12 @@ def _biome_at(biomes: list[str], sx_n: int, cx: int, cy: int) -> str:
     return biomes[sy * sx_n + sx]
 
 
-def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int) -> None:
-    """Black mass in caves that is not reachable air above a floor becomes rock."""
+def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int, px) -> None:
+    """Black mass in caves that is not reachable air above a floor becomes rock.
+
+    Blue brick rooms and yellow crates stay air: they are wallpaper / furniture,
+    not the cave earth this fill is for.
+    """
     from collections import deque
 
     ch = len(solid)
@@ -693,8 +785,28 @@ def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int) -> Non
         for cx in range(cw):
             if solid[cy][cx] or air[cy][cx]:
                 continue
-            if _biome_at(biomes, sx_n, cx, cy) == "cave":
-                solid[cy][cx] = 1
+            if _biome_at(biomes, sx_n, cx, cy) != "cave":
+                continue
+            counts = _cell_counts(px, cx, cy)
+            if _is_cave_paper(counts) or cell_is_crate(counts):
+                continue
+            solid[cy][cx] = 1
+
+
+def _clear_walkable_decor(px, solid: list[list[int]]) -> int:
+    """Blue brick wallpaper and crates are never collision."""
+    ch = len(solid)
+    cw = len(solid[0])
+    cleared = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if not solid[cy][cx]:
+                continue
+            counts = _cell_counts(px, cx, cy)
+            if _is_cave_paper(counts) or cell_is_crate(counts):
+                solid[cy][cx] = 0
+                cleared += 1
+    return cleared
 
 
 def thicken_floors(solid: list[list[int]], depth: int) -> None:
@@ -1278,6 +1390,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     path = OUT_DIR / "s2_collision.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     solid = _paint_solid_rects(data["solids"], cw, ch)
+    decor = _clear_walkable_decor(px, solid)
     added = _apply_diamond_floors(px, solid)
     biomes = _detect_biomes(px, sx_n, sy_n)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
@@ -1288,6 +1401,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     rects.extend(_world_border_pads(im.width, im.height))
     data["solids"] = rects
     path.write_text(json.dumps(data), encoding="utf-8")
+    print(f"walkable decor cleared {decor}")
     print(f"diamond floor cells added {added} -> {len(rects)} solid rects")
     print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
     print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
