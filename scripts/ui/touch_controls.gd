@@ -8,6 +8,7 @@ func _ready() -> void:
 	_refresh_tilt_label()
 	tilt_toggle.toggled.connect(_on_tilt_toggled)
 	TiltSteer.enabled_changed.connect(_on_tilt_enabled_changed)
+	TiltSteer.sensor_missing_changed.connect(_on_tilt_sensor_missing_changed)
 
 
 func _on_tilt_toggled(is_on: bool) -> void:
@@ -21,5 +22,15 @@ func _on_tilt_enabled_changed(is_on: bool) -> void:
 	_refresh_tilt_label()
 
 
+func _on_tilt_sensor_missing_changed(_is_missing: bool) -> void:
+	_refresh_tilt_label()
+
+
 func _refresh_tilt_label() -> void:
-	tilt_toggle.text = "TILT ON" if TiltSteer.enabled else "TILT"
+	if not TiltSteer.enabled:
+		tilt_toggle.text = "TILT"
+	elif TiltSteer.sensor_missing:
+		# Otherwise a phone without a usable sensor looks like a broken game.
+		tilt_toggle.text = "NO SENSOR"
+	else:
+		tilt_toggle.text = "TILT ON"
