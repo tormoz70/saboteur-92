@@ -472,12 +472,17 @@ func _add_letterbox() -> void:
 
 func _start_demo_if_requested() -> void:
 	var args := OS.get_cmdline_user_args()
-	if not args.has("--demo") and not args.has("--demo-fuse"):
-		return
-	var demo := Node.new()
-	demo.name = "MissionDemo"
-	demo.set_script(load("res://scripts/demo/mission_demo.gd"))
-	add_child(demo)
+	if args.has("--demo") or args.has("--demo-fuse"):
+		_add_probe("MissionDemo", "res://scripts/demo/mission_demo.gd")
+	if args.has("--demo-tilt"):
+		_add_probe("TiltDemo", "res://scripts/demo/tilt_demo.gd")
+
+
+func _add_probe(probe_name: String, script_path: String) -> void:
+	var probe := Node.new()
+	probe.name = probe_name
+	probe.set_script(load(script_path))
+	add_child(probe)
 
 
 func _connect_punch_areas() -> void:
