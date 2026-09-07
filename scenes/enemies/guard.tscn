@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://guard01scene"]
+[gd_scene load_steps=11 format=3 uid="uid://guard01scene"]
 
 [ext_resource type="Script" path="res://scripts/enemies/guard.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/sprites/saboteur85_guard.png" id="2"]
@@ -8,9 +8,6 @@ size = Vector2(14, 42)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sight"]
 size = Vector2(440, 80)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
-size = Vector2(11, 11)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_i0"]
 atlas = ExtResource("2")
@@ -79,12 +76,5 @@ collision_layer = 0
 collision_mask = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="SightArea"]
+position = Vector2(24, 28)
 shape = SubResource("RectangleShape2D_sight")
-
-[node name="AttackArea" type="Area2D" parent="."]
-collision_layer = 0
-collision_mask = 1
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
-position = Vector2(36, 19)
-shape = SubResource("RectangleShape2D_attack")

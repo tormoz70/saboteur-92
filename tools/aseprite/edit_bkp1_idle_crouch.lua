@@ -1,9 +1,15 @@
 -- Edit saboteur92_player_bkp1.aseprite:
 -- 1) Frames 1-3: standing + breathing
 -- 2) Append 2 crouch frames at end
+-- Repo root is two levels above this file (tools/aseprite/).
 
-local FILE = "C:/data/prjs/saboteur-92/assets/sprites/saboteur92_player_bkp1.aseprite"
-local SIT = "C:/data/prjs/saboteur-92/assets/reference/original/ripped/ninja_sitting.png"
+local _src = debug.getinfo(1, "S").source
+if _src:sub(1, 1) == "@" then
+  _src = _src:sub(2)
+end
+local ROOT = dofile(_src:match("^(.*)[/\\]") .. "/repo_root.lua")
+local FILE = ROOT .. "/assets/sprites/saboteur92_player_bkp1.aseprite"
+local SIT = ROOT .. "/assets/reference/original/ripped/ninja_sitting.png"
 
 local function get_cel(spr, layer, frameIdx)
   local cel = layer:cel(spr.frames[frameIdx])

@@ -10,6 +10,7 @@ interior bookcases are foreground-only.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -17,6 +18,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets" / "reference" / "original" / "maps" / "Saboteur2_speccy.png"
 OUT_DIR = ROOT / "assets" / "world"
+TILESET_DIR = ROOT / "assets" / "tilesets"
 CELL = 8
 SCREEN_W, SCREEN_H = 256, 192
 SCALE = 2
@@ -283,7 +285,14 @@ def classify_cells(
             elif biome == "interior":
                 if red_brick:
                     solid[cy][cx] = 1
+                elif speckled_earth:
+                    # Biome is per flip-screen, so interior rooms still contain
+                    # cave earth. Sky/cave already mark it solid; this branch did not.
+                    solid[cy][cx] = 1
                 elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
+                    # cw/ch are the mosaic, so this is the world border, not
+                    # each 256×192 screen edge. Per-screen walls would solidify
+                    # black interior floors along every flip-screen seam.
                     solid[cy][cx] = 1
             else:
                 # Blue brick is a room (lift shaft, cave hall), not a wall.
@@ -463,29 +472,19 @@ def greedy_rects(grid: list[list[int]]) -> list[list[int]]:
     return rects
 
 
-def find_spawn(solid: list[list[int]]) -> list[int]:
-    ch = len(solid)
-    cw = len(solid[0])
-    # Prefer an early rooftop / tower floor with air above.
-    for cy in range(4, ch - 2):
-        run = 0
-        run_x = 0
-        for cx in range(8, min(cw, 40 * 4)):
-            air = cy >= 3 and not solid[cy - 1][cx] and not solid[cy - 2][cx]
-            if solid[cy][cx] and air:
-                if run == 0:
-                    run_x = cx
-                run += 1
-                if run >= 6:
-                    px = (run_x + 2) * CELL * SCALE
-                    py = cy * CELL * SCALE - 56 * SCALE
-                    return [px, py]
-            else:
-                run = 0
-    return [64, 200]
+def load_mission_spawn() -> list[int]:
+    """Player spawn lives in hand-authored s2_entities.json, not this generator."""
+    data = json.loads((OUT_DIR / "s2_entities.json").read_text(encoding="utf-8"))
+    spawn = data["spawn"]
+    return [int(spawn[0]), int(spawn[1])]
 
 
-def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], spawn: list[int]) -> Image.Image:
+def preview(
+    im: Image.Image,
+    solid: list[list[int]],
+    ladders: list[list[int]],
+    spawn: list[int] | None = None,
+) -> Image.Image:
     overlay = im.copy().convert("RGBA")
     draw = ImageDraw.Draw(overlay, "RGBA")
     ch = len(solid)
@@ -497,7 +496,11 @@ def preview(im: Image.Image, solid: list[list[int]], ladders: list[list[int]], s
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(255, 40, 40, 110))
             if ladders[cy][cx]:
                 draw.rectangle((x0, y0, x0 + CELL - 1, y0 + CELL - 1), fill=(40, 220, 255, 140))
-    sx, sy = spawn[0] // SCALE, (spawn[1] + 56) // SCALE
+    # PNG pixels, same space as solids/ladders/lifts. World = spawn * SCALE.
+    # Marker sits on the feet.
+    if spawn is None:
+        spawn = load_mission_spawn()
+    sx, sy = spawn[0], spawn[1] + 56
     draw.rectangle((sx - 4, sy - 28, sx + 12, sy), outline=(255, 255, 0, 255))
     return overlay.resize((im.width // 4, im.height // 4), Image.NEAREST)
 
@@ -787,7 +790,6 @@ def main() -> None:
         # Keep the hit box close to the 8–16px rails so windows and wallpaper
         # next to a shaft are not climbable.
         ladder_rects.append([x - 4, y, w + 8, h])
-    spawn = [4480, 1584]
     w, h = im.size
     pad = CELL * 2
     solids.extend(
@@ -817,15 +819,16 @@ def main() -> None:
     paint_cabinet_backs(world, bookcase)
     paint_lift_cars(world, car_rows)
     world.save(OUT_DIR / "saboteur2_world.png")
-    crate_overlay(im, fg, bookcase, cases).save(OUT_DIR / "saboteur2_fg.png")
+    fg_img = crate_overlay(im, fg, bookcase, cases)
+    fg_img.save(OUT_DIR / "saboteur2_fg.png")
     car_img.save(OUT_DIR / "s2_lift.png")
+    export_visual_tilesets(world, fg_img)
     payload = {
         "source": "Saboteur2_speccy.png",
         "scale": SCALE,
         "cell": CELL,
         "screen": [SCREEN_W, SCREEN_H],
         "size": [im.width, im.height],
-        "spawn": spawn,
         "solids": solids,
         "ladders": ladder_rects,
         "lifts": lifts,
@@ -835,5 +838,224 @@ def main() -> None:
     print(f"wrote {OUT_DIR}")
 
 
+def rle_encode(indices: list[int]) -> list[int]:
+    """Flat [value, count, ...] run-length encoding of a row-major tile grid."""
+    if not indices:
+        return []
+    out: list[int] = []
+    prev = indices[0]
+    count = 1
+    for value in indices[1:]:
+        if value == prev:
+            count += 1
+        else:
+            out.extend((prev, count))
+            prev = value
+            count = 1
+    out.extend((prev, count))
+    return out
+
+
+def rle_decode(runs: list[int]) -> list[int]:
+    out: list[int] = []
+    for i in range(0, len(runs), 2):
+        out.extend([runs[i]] * runs[i + 1])
+    return out
+
+
+def _is_fully_transparent(tile: Image.Image) -> bool:
+    if tile.mode != "RGBA":
+        return False
+    extrema = tile.getextrema()
+    return extrema is not None and extrema[3] == (0, 0)
+
+
+def collect_unique_cells(
+    im: Image.Image, mode: str
+) -> tuple[list[Image.Image], list[int], int, int, int | None]:
+    """Return (tiles, row-major ids, cols, rows, empty_id).
+
+    `empty_id` is the fully-transparent cell for RGBA layers, else None.
+    Every distinct 8×8 cell — including empty — keeps a stable index so a
+    later re-rip does not shuffle atlas coordinates.
+    """
+    src = im.convert(mode)
+    cw, ch = src.width // CELL, src.height // CELL
+    index_of: dict[bytes, int] = {}
+    tiles: list[Image.Image] = []
+    ids: list[int] = []
+    empty_id: int | None = None
+    for cy in range(ch):
+        for cx in range(cw):
+            tile = src.crop((cx * CELL, cy * CELL, cx * CELL + CELL, cy * CELL + CELL))
+            key = tile.tobytes()
+            tid = index_of.get(key)
+            if tid is None:
+                tid = len(tiles)
+                index_of[key] = tid
+                tiles.append(tile)
+                if empty_id is None and _is_fully_transparent(tile):
+                    empty_id = tid
+            ids.append(tid)
+    return tiles, ids, cw, ch, empty_id
+
+
+def pack_atlas(tiles: list[Image.Image]) -> tuple[Image.Image, int, int]:
+    n = max(len(tiles), 1)
+    cols = math.ceil(math.sqrt(n))
+    rows = math.ceil(n / cols)
+    mode = tiles[0].mode if tiles else "RGBA"
+    fill = (0, 0, 0, 0) if mode == "RGBA" else (0, 0, 0)
+    atlas = Image.new(mode, (cols * CELL, rows * CELL), fill)
+    for i, tile in enumerate(tiles):
+        atlas.paste(tile, ((i % cols) * CELL, (i // cols) * CELL))
+    return atlas, cols, rows
+
+
+def reconstruct_from_atlas(
+    atlas: Image.Image,
+    ids: list[int],
+    cw: int,
+    ch: int,
+    atlas_cols: int,
+    mode: str,
+) -> Image.Image:
+    out = Image.new(mode, (cw * CELL, ch * CELL))
+    for i, tid in enumerate(ids):
+        ax, ay = (tid % atlas_cols) * CELL, (tid // atlas_cols) * CELL
+        cell = atlas.crop((ax, ay, ax + CELL, ay + CELL))
+        cx, cy = i % cw, i // cw
+        out.paste(cell, (cx * CELL, cy * CELL))
+    return out
+
+
+def _write_tileset_tres(
+    path: Path,
+    texture_res: str,
+    texture_uid: str,
+    atlas_cols: int,
+    atlas_rows: int,
+    tile_count: int,
+) -> None:
+    """Visual-only TileSet: 8×8 atlas, no physics. Collision stays in JSON."""
+    lines = [
+        "[gd_resource type=\"TileSet\" load_steps=2 format=3]",
+        "",
+        f"[ext_resource type=\"Texture2D\" uid=\"{texture_uid}\" path=\"{texture_res}\" id=\"1\"]",
+        "",
+        "[sub_resource type=\"TileSetAtlasSource\" id=\"TileSetAtlasSource_1\"]",
+        "texture = ExtResource(\"1\")",
+        "texture_region_size = Vector2i(8, 8)",
+        "use_texture_padding = true",
+    ]
+    written = 0
+    for y in range(atlas_rows):
+        for x in range(atlas_cols):
+            if written >= tile_count:
+                break
+            lines.append(f"{x}:{y}/0 = 0")
+            written += 1
+        if written >= tile_count:
+            break
+    lines.extend(
+        [
+            "",
+            "[resource]",
+            "tile_size = Vector2i(8, 8)",
+            "sources/0 = SubResource(\"TileSetAtlasSource_1\")",
+            "",
+        ]
+    )
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def export_visual_tilesets(world: Image.Image, fg: Image.Image) -> dict:
+    """Dump unique 8×8 cells to atlases + a cell-index JSON.
+
+    Passability is *not* encoded here. Two identical pictures can still
+    differ in s2_collision.json (fill_cave_earth, thicken_floors, …).
+    """
+    TILESET_DIR.mkdir(parents=True, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    layers = {
+        "world": {
+            "image": world,
+            "mode": "RGB",
+            "atlas_name": "s2_world_tileset.png",
+            "tres_name": "s2_world_tileset.tres",
+            "texture_uid": "uid://dma7fdoakrrr6",
+        },
+        "fg": {
+            "image": fg,
+            "mode": "RGBA",
+            "atlas_name": "s2_fg_tileset.png",
+            "tres_name": "s2_fg_tileset.tres",
+            "texture_uid": "uid://s2fgatlas8px",
+        },
+    }
+    payload: dict = {
+        "cell": CELL,
+        "scale": SCALE,
+        "size": [world.width, world.height],
+        "grid": [world.width // CELL, world.height // CELL],
+        "note": "Visual tile indices only. Collision stays in s2_collision.json.",
+    }
+    for name, spec in layers.items():
+        tiles, ids, cw, ch, empty_id = collect_unique_cells(spec["image"], spec["mode"])
+        atlas, atlas_cols, atlas_rows = pack_atlas(tiles)
+        atlas_path = TILESET_DIR / spec["atlas_name"]
+        atlas.save(atlas_path)
+        # Round-trip through PNG so the file on disk is what Godot will import.
+        saved = Image.open(atlas_path).convert(spec["mode"])
+        rebuilt = reconstruct_from_atlas(saved, ids, cw, ch, atlas_cols, spec["mode"])
+        original = spec["image"].convert(spec["mode"])
+        if rebuilt.tobytes() != original.tobytes():
+            raise RuntimeError(f"{name} tileset is not pixel-identical to the mosaic")
+        rle = rle_encode(ids)
+        texture_res = f"res://assets/tilesets/{spec['atlas_name']}"
+        _write_tileset_tres(
+            TILESET_DIR / spec["tres_name"],
+            texture_res,
+            spec["texture_uid"],
+            atlas_cols,
+            atlas_rows,
+            len(tiles),
+        )
+        layer_payload = {
+            "atlas": texture_res,
+            "tileset": f"res://assets/tilesets/{spec['tres_name']}",
+            "atlas_tiles": [atlas_cols, atlas_rows],
+            "tile_count": len(tiles),
+            "empty": empty_id,
+            "rle": rle,
+        }
+        payload[name] = layer_payload
+        print(
+            f"{name} unique {len(tiles)} atlas {atlas.size} "
+            f"rle {len(rle)//2} runs ({len(rle)} ints) empty_id={empty_id}"
+        )
+
+    json_path = OUT_DIR / "s2_world_tiles.json"
+    json_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    print(f"wrote {json_path} ({json_path.stat().st_size} bytes)")
+    return payload
+
+
+def export_tilesets_from_mosaics() -> None:
+    """Build atlases from the already-exported mosaics when the rip is absent."""
+    world_path = OUT_DIR / "saboteur2_world.png"
+    fg_path = OUT_DIR / "saboteur2_fg.png"
+    if not world_path.exists() or not fg_path.exists():
+        raise SystemExit(
+            f"need {world_path.name} and {fg_path.name}, or the original rip at {SRC}"
+        )
+    print(f"rip missing at {SRC}; exporting tilesets from existing mosaics")
+    export_visual_tilesets(Image.open(world_path), Image.open(fg_path))
+
+
 if __name__ == "__main__":
-    main()
+    if SRC.exists():
+        main()
+    else:
+        export_tilesets_from_mosaics()

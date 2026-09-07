@@ -1,13 +1,13 @@
 extends Area2D
 
-@export var item_type: String = "key"
-@export var required_item: String = ""
-
 const ITEM_REGIONS := {
 	"key": Rect2(0, 0, 32, 16),
 	"document": Rect2(32, 0, 32, 16),
 	"bomb": Rect2(64, 0, 32, 16),
 }
+
+@export var item_type: String = "key"
+@export var required_item: String = ""
 
 
 func _ready() -> void:
@@ -22,6 +22,8 @@ func _ready() -> void:
 
 func _on_body_entered(body: Node2D) -> void:
 	if not body.is_in_group("player"):
+		return
+	if body.get("is_dead"):
 		return
 	if required_item != "" and not _player_has(required_item):
 		return

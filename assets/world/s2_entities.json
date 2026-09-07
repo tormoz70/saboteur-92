@@ -1,0 +1,51 @@
+{
+  "coord_space": "png",
+  "coord_space_note": "Every x/y in this file is mosaic/PNG pixels (0..8192 × 0..4608), the same space as solids/ladders/lifts in s2_collision.json. Runtime multiplies by the scale from s2_collision.json (currently 2) to get world pixels (16384 × 9216). Do not mix in pre-scaled world coordinates — that is how spawn used to sit at half the intended place. Player and guard origins are sprite top-left (48×56). Pickup, sabotage and exit origins are Area2D centres. This file is hand-authored; s2_collision.json is generated.",
+  "spawn": [2240, 792],
+  "fuse": 50,
+  "items": [
+    {
+      "id": "key",
+      "type": "key",
+      "x": 2480,
+      "y": 840,
+      "required": ""
+    },
+    {
+      "id": "document",
+      "type": "document",
+      "x": 1920,
+      "y": 696,
+      "required": "key"
+    },
+    {
+      "id": "bomb",
+      "type": "bomb",
+      "x": 3360,
+      "y": 840,
+      "required": "document"
+    }
+  ],
+  "sabotage": { "x": 3480, "y": 832 },
+  "exit": { "x": 1800, "y": 808 },
+  "guards": [
+    {
+      "id": "ground",
+      "x": 2800,
+      "y": 792,
+      "patrol": 80
+    },
+    {
+      "id": "upper",
+      "x": 1784,
+      "y": 648,
+      "patrol": 24
+    },
+    {
+      "id": "east",
+      "x": 3200,
+      "y": 792,
+      "patrol": 48
+    }
+  ]
+}

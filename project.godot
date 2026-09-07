@@ -20,7 +20,10 @@ config/icon="res://icon.svg"
 EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
 
-McpBridge="*res://mcp_bridge.gd"
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/mcp_bridge/plugin.cfg", "res://addons/gut/plugin.cfg")
+
 [debug]
 
 shapes/collision/draw_2d_collision_shapes=false
@@ -32,6 +35,10 @@ window/size/viewport_height=720
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="viewport"
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
 
 [input]
 

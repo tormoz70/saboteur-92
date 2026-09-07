@@ -6,6 +6,9 @@ extends CanvasLayer
 @onready var energy_dial: Control = $Margin/HBox/EnergyDial
 @onready var status_label: Label = $Margin/HBox/VBox/StatusLabel
 @onready var bomb_timer_label: Label = $Margin/HBox/VBox/BombTimerLabel
+@onready var result_overlay: Control = $ResultOverlay
+@onready var result_title: Label = $ResultOverlay/Panel/Title
+@onready var restart_button: Button = $ResultOverlay/Panel/RestartButton
 
 
 func _ready() -> void:
@@ -15,11 +18,23 @@ func _ready() -> void:
 	EventBus.mission_complete.connect(_on_mission_complete)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.connect(_on_energy_changed)
+	restart_button.pressed.connect(_on_restart_pressed)
 	_refresh()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not result_overlay.visible:
+		return
+	if event.is_action_pressed("ui_accept"):
+		_on_restart_pressed()
+		var vp := get_viewport()
+		if vp:
+			vp.set_input_as_handled()
+
+
 func _process(_delta: float) -> void:
-	_update_inventory()
+	# Fuse ticks in GameManager._process; the label has to follow it.
+	# Inventory is signal-driven (item_collected / bomb_planted / _refresh).
 	if GameManager.bomb_planted and GameManager.state == GameManager.GameState.PLAYING:
 		bomb_timer_label.text = "Bomb: %ds" % ceili(GameManager.bomb_timer)
 	else:
@@ -62,17 +77,41 @@ func _on_item_collected(_item_type: String) -> void:
 
 func _on_bomb_planted() -> void:
 	status_label.text = "Bomb planted! Escape!"
+	_update_inventory()
 
 
 func _on_mission_complete() -> void:
-	status_label.text = "Mission complete!"
+	status_label.text = ""
+	_show_result("Mission complete!", "Play again")
 
 
 func _on_player_died() -> void:
+	# Inventory is already reset in lose_mission(); refresh it immediately
+	# instead of waiting a second for _refresh() (no per-frame rebuild).
+	_update_inventory()
 	if GameManager.state == GameManager.GameState.LOST:
-		status_label.text = "Game Over"
+		status_label.text = ""
+		_refresh()
+		var title := GameManager.fail_reason
+		if title.is_empty():
+			title = "Game Over"
+		_show_result(title, "Restart")
 	else:
 		status_label.text = "You died!"
 		await get_tree().create_timer(1.0).timeout
 		status_label.text = ""
 		_refresh()
+
+
+func _show_result(title: String, button_text: String) -> void:
+	result_title.text = title
+	restart_button.text = button_text
+	result_overlay.visible = true
+	restart_button.grab_focus()
+
+
+func _on_restart_pressed() -> void:
+	if not result_overlay.visible:
+		return
+	result_overlay.visible = false
+	GameManager.restart_mission()

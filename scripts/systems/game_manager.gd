@@ -2,6 +2,8 @@ extends Node
 
 enum GameState { PLAYING, WON, LOST }
 
+const ESCAPE_BONUS := 500
+
 var state: GameState = GameState.PLAYING
 var lives: int = 3
 var score: int = 0
@@ -11,8 +13,11 @@ var has_bomb: bool = false
 var bomb_planted: bool = false
 var bomb_timer: float = 0.0
 var demo_mode: bool = false
-
-const BOMB_FUSE_TIME := 10.0
+var fail_reason: String = ""
+# Seconds after planting. s2_entities.json overwrites this so the timer lives
+# next to the layout it covers. Default matches the Stage 2 hall: sabotage →
+# exit is 3360 world px / 110 px/s ≈ 31 s of sprinting plus turn-around slack.
+var bomb_fuse_time: float = 50.0
 
 
 func _ready() -> void:
@@ -22,15 +27,14 @@ func _ready() -> void:
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.item_collected.connect(_on_item_collected)
 	EventBus.bomb_planted.connect(_on_bomb_planted)
-	EventBus.player_died.connect(_on_player_died)
 
 
 func _process(delta: float) -> void:
 	if bomb_planted and state == GameState.PLAYING:
 		bomb_timer -= delta
 		if bomb_timer <= 0.0:
-			add_score(500)
-			win_mission()
+			bomb_timer = 0.0
+			fail_mission("The bomb exploded")
 
 
 func reset_inventory() -> void:
@@ -49,8 +53,33 @@ func add_score(points: int) -> void:
 func win_mission() -> void:
 	if state != GameState.PLAYING:
 		return
+	add_score(ESCAPE_BONUS)
 	state = GameState.WON
 	EventBus.mission_complete.emit()
+
+
+func restart_mission() -> void:
+	reset_run_state()
+	get_tree().reload_current_scene()
+
+
+func reset_run_state() -> void:
+	# Autoload survives scene reload — reset everything explicitly.
+	state = GameState.PLAYING
+	lives = 3
+	score = 0
+	demo_mode = false
+	fail_reason = ""
+	reset_inventory()
+
+
+func fail_mission(reason: String = "Game Over") -> void:
+	if state != GameState.PLAYING:
+		return
+	lives = 0
+	state = GameState.LOST
+	fail_reason = reason
+	EventBus.player_died.emit()
 
 
 func lose_mission() -> void:
@@ -59,8 +88,10 @@ func lose_mission() -> void:
 	lives -= 1
 	if lives <= 0:
 		state = GameState.LOST
-	else:
-		reset_inventory()
+		fail_reason = "Game Over"
+		EventBus.player_died.emit()
+		return
+	reset_inventory()
 	EventBus.player_died.emit()
 
 
@@ -84,8 +115,4 @@ func _on_bomb_planted() -> void:
 		return
 	bomb_planted = true
 	has_bomb = false
-	bomb_timer = BOMB_FUSE_TIME
-
-
-func _on_player_died() -> void:
-	pass
+	bomb_timer = bomb_fuse_time
