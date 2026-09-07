@@ -83,8 +83,8 @@ func _physics_process(delta: float) -> void:
 
 	if on_ladder:
 		_ladder.process_climb(delta, climb_axis)
-	elif on_lift:
-		_lifts.process()
+	elif on_lift and _lifts.process():
+		pass
 	elif current_state == State.PUNCH or current_state == State.KICK:
 		velocity.x = 0.0
 		if not is_on_floor():
@@ -227,6 +227,7 @@ func _start_running_jump(direction: float) -> void:
 		velocity.x = float(facing) * speed
 	velocity.y = jump_velocity
 	current_state = State.JUMP
+	_ladder.mark_up_spent()
 
 
 func get_world_mask() -> int:

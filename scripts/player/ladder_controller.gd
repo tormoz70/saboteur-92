@@ -23,6 +23,10 @@ func reset() -> void:
 	_up_spent_on_jump = false
 
 
+func mark_up_spent() -> void:
+	_up_spent_on_jump = true
+
+
 func overlaps() -> bool:
 	var col := _detector_shape()
 	if col == null:
@@ -41,8 +45,6 @@ func update_state(climb_axis: float) -> void:
 	)
 	if not SaboteurControls.wants_up():
 		_up_spent_on_jump = false
-	elif running_jump:
-		_up_spent_on_jump = true
 	if _p.on_ladder:
 		if not _p.can_climb:
 			_leave()

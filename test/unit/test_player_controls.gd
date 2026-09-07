@@ -120,6 +120,36 @@ func test_fresh_up_after_jump_still_climbs() -> void:
 	assert_eq(player.current_state, Player.State.CLIMB)
 
 
+func test_held_up_after_stand_kick_still_climbs() -> void:
+	var player := await _spawn_on_floor()
+	Input.action_press("move_up")
+	await wait_physics_frames(1)
+	assert_eq(player.current_state, Player.State.KICK)
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_release("move_right")
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	await wait_physics_frames(30)
+	assert_true(player.is_on_floor())
+	assert_true(player.on_ladder, "UP after a kick is still a climb, not a spent jump")
+	assert_eq(player.current_state, Player.State.CLIMB)
+
+
+func test_dead_end_lift_up_is_a_kick() -> void:
+	var player := await _spawn_on_dead_end_lift()
+	Input.action_press("move_up")
+	await wait_physics_frames(1)
+	assert_eq(player.current_state, Player.State.KICK)
+	assert_true(player.punch_area.monitoring)
+
+
+func test_dead_end_lift_down_ducks() -> void:
+	var player := await _spawn_on_dead_end_lift()
+	Input.action_press("move_down")
+	await wait_physics_frames(2)
+	assert_eq(player.current_state, Player.State.CROUCH)
+
+
 func test_airborne_fire_does_not_start_a_kick() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_right")
@@ -166,6 +196,30 @@ func _spawn_on_floor() -> Player:
 	player.global_position = Vector2(80, 20)
 	await wait_physics_frames(8)
 	assert_true(player.is_on_floor(), "player should land on the test slab")
+	return player
+
+
+func _spawn_on_dead_end_lift() -> Player:
+	GameManager.reset_run_state()
+	GameManager.state = GameManager.GameState.PLAYING
+	var lift := Lift.new()
+	var col := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(96, 8)
+	col.shape = rect
+	col.position = Vector2(48, 4)
+	lift.add_child(col)
+	add_child_autofree(lift)
+	lift.global_position = Vector2(80, 80)
+	lift.setup(80.0, 80.0, 96.0)
+
+	var player: Player = preload("res://scenes/player/player.tscn").instantiate()
+	add_child_autofree(player)
+	# is_centered uses origin.x + 48; feet sit 56px below origin.
+	player.global_position = Vector2(80, 24)
+	await wait_physics_frames(8)
+	assert_true(player.is_on_floor(), "player should stand on the cabin")
+	assert_true(player.on_lift)
 	return player
 
 

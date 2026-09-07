@@ -54,17 +54,19 @@ func update_state() -> void:
 	_lift = found
 
 
-func process() -> void:
-	_p.current_state = Player.State.IDLE
+func process() -> bool:
+	# True when the cabin is moving or just started. False: treat as a floor
+	# so a dead-end lift can still kick, jump, or duck.
 	if _lift == null:
-		return
+		return false
 	if _lift.dir != 0:
 		if SaboteurControls.wants_up() and _lift.dir > 0:
 			_lift.dir = -1
 		elif SaboteurControls.wants_down() and _lift.dir < 0:
 			_lift.dir = 1
 		_p.velocity = Vector2.ZERO
-		return
+		_p.current_state = Player.State.IDLE
+		return true
 	var want := 0
 	if SaboteurControls.wants_up():
 		want = -1
@@ -72,14 +74,9 @@ func process() -> void:
 		want = 1
 	if want != 0 and _lift.start_ride(_p, want):
 		_p.velocity = Vector2.ZERO
-		return
-	var direction := TiltSteer.move_axis()
-	if direction:
-		_p.velocity.x = direction * _p.speed
-		_p.apply_facing(int(sign(direction)))
-		_p.current_state = Player.State.RUN
-	else:
-		_p.velocity.x = move_toward(_p.velocity.x, 0.0, _p.speed)
+		_p.current_state = Player.State.IDLE
+		return true
+	return false
 
 
 func _leave() -> void:
