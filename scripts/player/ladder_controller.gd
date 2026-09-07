@@ -44,6 +44,10 @@ func update_state(climb_axis: float) -> void:
 			_leave()
 			return
 		return
+	# MOVE+UP is a jump for the whole arc. After takeoff, held UP still
+	# drives climb_axis, so a shaft/hatch must not grab mid-air.
+	if not _p.is_on_floor():
+		return
 	if running_jump or not _p.can_climb or not want_climb:
 		return
 	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.

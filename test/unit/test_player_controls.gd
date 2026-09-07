@@ -53,6 +53,29 @@ func test_run_plus_fire_starts_flying_kick() -> void:
 	assert_lt(player.velocity.y, 0.0)
 
 
+func test_running_jump_does_not_grab_ladder_in_air() -> void:
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(104, -40), Vector2(28, 200))
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_press("move_up")
+	await wait_physics_frames(8)
+	assert_false(player.is_on_floor(), "jump should have left the slab")
+	assert_false(player.on_ladder, "held UP must not mount a shaft mid-jump")
+	assert_eq(player.current_state, Player.State.JUMP)
+
+
+func test_still_up_on_ladder_still_climbs() -> void:
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(104, -40), Vector2(28, 200))
+	await wait_physics_frames(1)
+	assert_true(player.can_climb)
+	Input.action_press("move_up")
+	await wait_physics_frames(2)
+	assert_true(player.on_ladder)
+	assert_eq(player.current_state, Player.State.CLIMB)
+
+
 func test_down_while_still_ducks_and_does_not_crawl() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_down")
@@ -83,6 +106,21 @@ func _spawn_on_floor() -> Player:
 	await wait_physics_frames(8)
 	assert_true(player.is_on_floor(), "player should land on the test slab")
 	return player
+
+
+func _add_ladder(center: Vector2, size: Vector2) -> void:
+	var area := Area2D.new()
+	area.collision_layer = CollisionLayers.LAYER_TRIGGERS
+	area.collision_mask = 0
+	area.monitorable = true
+	area.monitoring = false
+	var col := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = size
+	col.shape = shape
+	col.position = center
+	area.add_child(col)
+	add_child_autofree(area)
 
 
 func _release_all() -> void:
