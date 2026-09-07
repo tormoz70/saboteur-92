@@ -16,6 +16,7 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
+          # Pin matches project.godot config/features=4.6 (Godot 4.6.stable).
           version: 4.6.0
           use-dotnet: false
           include-templates: true
@@ -86,7 +87,7 @@ jobs:
       - name: Audit world collision
         run: |
           set -euo pipefail
-          pip3 install --user Pillow
+          pip3 install --user -r tools/requirements.txt
           python3 tools/saboteur_rip/audit_collision.py | tee collision-audit.log
           python3 -c "import re,sys; t=open('collision-audit.log').read(); m=re.search(r'\[грунт \(speckled\)\].*?interior\s+всего\s+\d+, дыр\s+(\d+)', t, re.S); assert m and int(m.group(1))==0, 'interior speckled-earth holes are not zero'"
 

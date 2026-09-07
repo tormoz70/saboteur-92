@@ -4,9 +4,11 @@ Mobile remake of **Saboteur** (1985) built with **Godot 4.6**.
 
 ## Requirements
 
-- [Godot 4.6](https://godotengine.org/) with Mobile export support
+- [Godot 4.6](https://godotengine.org/) with Mobile export support (`4.6.stable` / 4.6.0 — the version CI installs; `project.godot` `config/features` is `4.6`)
 - Android SDK + JDK 17 (for Android builds)
 - Android export templates installed in Godot
+- Python 3.10+ and `pip install -r tools/requirements.txt` if you run the asset tools
+- Optional Cursor MCP: copy `.cursor/mcp.json.example` to `.cursor/mcp.json` (gitignored) and replace the `C:\Path\To\...` placeholders with your Godot executable, this repo's `tools/aseprite-mcp/build/index.js`, and your `aseprite.exe`. The example uses `cmd /c` so it works in Cursor on Windows.
 
 ## Project structure
 
@@ -22,6 +24,7 @@ exports/         Built APK/AAB output (gitignored)
 Pixel art is generated programmatically to approximate the ZX Spectrum original:
 
 ```bash
+pip install -r tools/requirements.txt
 python tools/generate_saboteur85_assets.py
 ```
 

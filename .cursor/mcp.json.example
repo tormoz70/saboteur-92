@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "godot": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "godot-mcp-runtime"],
+      "env": {
+        "GODOT_PATH": "C:\\Path\\To\\Godot.exe",
+        "DEBUG_MODE": "true"
+      }
+    },
+    "aseprite": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "C:\\Path\\To\\saboteur-92\\tools\\aseprite-mcp\\build\\index.js"
+      ],
+      "env": {
+        "ASEPRITE_PATH": "C:\\Path\\To\\Aseprite\\aseprite.exe"
+      }
+    }
+  }
+}

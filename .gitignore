@@ -33,3 +33,10 @@ Thumbs.db
 # Python bytecode (was committed under tools/saboteur_rip/__pycache__/)
 __pycache__/
 *.py[cod]
+
+# Machine-local MCP servers (absolute editor/tool paths). Copy
+# .cursor/mcp.json.example to .cursor/mcp.json and replace the C:\Path\To\...
+# placeholders with your Godot executable, this repo's
+# tools/aseprite-mcp/build/index.js, and aseprite.exe. The example uses
+# cmd /c for Windows.
+.cursor/mcp.json
