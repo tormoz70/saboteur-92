@@ -35,5 +35,7 @@ __pycache__/
 *.py[cod]
 
 # Machine-local MCP servers (absolute editor/tool paths). Copy
-# .cursor/mcp.json.example and point GODOT_PATH / ASEPRITE_PATH at this machine.
+# .cursor/mcp.json.example to .cursor/mcp.json and replace the C:\Path\To\...
+# placeholders with your Godot executable and this repo's
+# tools/aseprite-mcp/build/index.js. The example uses cmd /c for Windows.
 .cursor/mcp.json
