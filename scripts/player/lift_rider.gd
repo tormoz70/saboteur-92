@@ -26,6 +26,14 @@ func is_centered() -> bool:
 	return _p.on_lift and _lift != null and _lift.is_centered(_p)
 
 
+func can_ride_up() -> bool:
+	return is_centered() and _lift != null and not _lift.at_top()
+
+
+func can_ride_down() -> bool:
+	return is_centered() and _lift != null and not _lift.at_bottom()
+
+
 func update_state() -> void:
 	if _p.on_ladder:
 		_leave()
@@ -53,14 +61,14 @@ func process() -> void:
 	if _lift.dir != 0:
 		if SaboteurControls.wants_up() and _lift.dir > 0:
 			_lift.dir = -1
-		elif Input.is_action_pressed("move_down") and _lift.dir < 0:
+		elif SaboteurControls.wants_down() and _lift.dir < 0:
 			_lift.dir = 1
 		_p.velocity = Vector2.ZERO
 		return
 	var want := 0
 	if SaboteurControls.wants_up():
 		want = -1
-	elif Input.is_action_pressed("move_down"):
+	elif SaboteurControls.wants_down():
 		want = 1
 	if want != 0 and _lift.start_ride(_p, want):
 		_p.velocity = Vector2.ZERO

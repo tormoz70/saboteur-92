@@ -7,6 +7,8 @@ var climb_frame: int = 0
 
 var _p: Player
 var _step_timer: float = 0.0
+# Held UP that already launched a jump must not mount on landing.
+var _up_spent_on_jump: bool = false
 var _probe_shape := RectangleShape2D.new()
 var _probe_query := PhysicsShapeQueryParameters2D.new()
 
@@ -18,6 +20,7 @@ func setup(player: Player) -> void:
 func reset() -> void:
 	_step_timer = 0.0
 	climb_frame = 0
+	_up_spent_on_jump = false
 
 
 func overlaps() -> bool:
@@ -36,6 +39,10 @@ func update_state(climb_axis: float) -> void:
 		and absf(h_axis) > 0.0
 		and SaboteurControls.wants_up()
 	)
+	if not SaboteurControls.wants_up():
+		_up_spent_on_jump = false
+	elif running_jump:
+		_up_spent_on_jump = true
 	if _p.on_ladder:
 		if not _p.can_climb:
 			_leave()
@@ -44,11 +51,14 @@ func update_state(climb_axis: float) -> void:
 			_leave()
 			return
 		return
-	# MOVE+UP is a jump for the whole arc. After takeoff, held UP still
-	# drives climb_axis, so a shaft/hatch must not grab mid-air.
+	# Mount only from the floor. Airborne grab is off on purpose: a jump,
+	# fall, or hatch fly-through must not become a climb.
 	if not _p.is_on_floor():
 		return
 	if running_jump or not _p.can_climb or not want_climb:
+		return
+	# Leftover UP after a jump is not a new climb press.
+	if climb_axis < 0.0 and _up_spent_on_jump:
 		return
 	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.
 	if climb_axis > 0.0 and _below_feet():

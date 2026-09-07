@@ -70,7 +70,7 @@ func _physics_process(delta: float) -> void:
 		var reverse := 0
 		if SaboteurControls.wants_up():
 			reverse = -1
-		elif Input.is_action_pressed("move_down"):
+		elif SaboteurControls.wants_down():
 			reverse = 1
 		if reverse != 0 and reverse != dir:
 			dir = reverse

@@ -55,7 +55,7 @@ func test_run_plus_fire_starts_flying_kick() -> void:
 
 func test_running_jump_does_not_grab_ladder_in_air() -> void:
 	var player := await _spawn_on_floor()
-	_add_ladder(Vector2(104, -40), Vector2(28, 200))
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	Input.action_press("move_up")
@@ -67,13 +67,72 @@ func test_running_jump_does_not_grab_ladder_in_air() -> void:
 
 func test_still_up_on_ladder_still_climbs() -> void:
 	var player := await _spawn_on_floor()
-	_add_ladder(Vector2(104, -40), Vector2(28, 200))
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	await wait_physics_frames(1)
 	assert_true(player.can_climb)
 	Input.action_press("move_up")
 	await wait_physics_frames(2)
 	assert_true(player.on_ladder)
 	assert_eq(player.current_state, Player.State.CLIMB)
+
+
+func test_held_up_after_jump_does_not_mount_on_landing() -> void:
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_press("move_up")
+	await wait_physics_frames(4)
+	Input.action_release("move_right")
+	var saw_air := false
+	for _i in 40:
+		await wait_physics_frames(1)
+		if not player.is_on_floor():
+			saw_air = true
+		elif saw_air:
+			break
+	assert_true(saw_air, "should have left the slab")
+	assert_true(player.is_on_floor(), "should have landed")
+	assert_false(player.on_ladder, "held UP from the jump must not mount")
+
+
+func test_fresh_up_after_jump_still_climbs() -> void:
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_press("move_up")
+	await wait_physics_frames(4)
+	Input.action_release("move_right")
+	var saw_air := false
+	for _i in 40:
+		await wait_physics_frames(1)
+		if not player.is_on_floor():
+			saw_air = true
+		elif saw_air:
+			break
+	assert_true(player.is_on_floor())
+	Input.action_release("move_up")
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	await wait_physics_frames(2)
+	assert_true(player.on_ladder)
+	assert_eq(player.current_state, Player.State.CLIMB)
+
+
+func test_airborne_fire_does_not_start_a_kick() -> void:
+	var player := await _spawn_on_floor()
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_press("move_up")
+	await wait_physics_frames(6)
+	assert_false(player.is_on_floor())
+	Input.action_release("move_up")
+	Input.action_release("move_right")
+	Input.action_press("punch")
+	await wait_physics_frames(1)
+	assert_eq(player.current_state, Player.State.JUMP)
+	assert_ne(player.current_state, Player.State.JUMP_KICK)
 
 
 func test_down_while_still_ducks_and_does_not_crawl() -> void:
@@ -88,6 +147,8 @@ func test_down_while_still_ducks_and_does_not_crawl() -> void:
 
 
 func _spawn_on_floor() -> Player:
+	GameManager.reset_run_state()
+	GameManager.state = GameManager.GameState.PLAYING
 	var floor := StaticBody2D.new()
 	floor.collision_layer = CollisionLayers.LAYER_WORLD
 	floor.collision_mask = 0

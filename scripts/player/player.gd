@@ -147,7 +147,7 @@ func _handle_attack_input() -> void:
 		SaboteurControls.just_up(),
 		Input.is_action_just_pressed("punch"),
 		can_climb,
-		_lifts.is_centered()
+		_lifts.can_ride_up()
 	):
 		SaboteurControls.GroundAction.STAND_KICK:
 			_start_stand_kick()
@@ -177,8 +177,8 @@ func _process_platformer(delta: float) -> void:
 	var direction := TiltSteer.move_axis()
 	if SaboteurControls.should_crouch(
 		absf(direction) > 0.0,
-		Input.is_action_pressed("move_down"),
-		_lifts.is_centered()
+		SaboteurControls.wants_down(),
+		_lifts.can_ride_down()
 	):
 		velocity.x = 0.0
 		current_state = State.CROUCH
@@ -243,12 +243,10 @@ func apply_facing(direction: int) -> void:
 
 
 func _start_punch() -> void:
-	var low := current_state == State.CROUCH
 	current_state = State.PUNCH
 	punch_timer = punch_duration
 	punch_area.monitoring = true
-	var hit_y := 28.0 if low else 19.0
-	punch_area.position = Vector2(24.0 * facing + 12.0, hit_y)
+	punch_area.position = Vector2(24.0 * facing + 12.0, 19.0)
 
 
 func _start_stand_kick() -> void:
@@ -260,9 +258,8 @@ func _start_stand_kick() -> void:
 
 func _start_jump_kick() -> void:
 	current_state = State.JUMP_KICK
-	_kick_left_ground = not is_on_floor()
-	if is_on_floor():
-		velocity.y = jump_velocity
+	_kick_left_ground = false
+	velocity.y = jump_velocity
 	velocity.x = float(facing) * speed
 	punch_timer = kick_duration
 	punch_area.monitoring = true

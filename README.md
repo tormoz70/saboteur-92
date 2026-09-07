@@ -43,11 +43,14 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
 3. Controls (Saboteur II stick + FIRE; Space / JMP are aliases for UP):
    - Left / right: walk (arrows, A/D, touch ◀ ▶)
    - UP while still: standing kick (W, Space, ▲, JMP)
-   - Left/right + UP: running jump
+   - Left/right + UP: running jump. FIRE in the air does nothing;
+     the flying kick starts on the ground as left/right + FIRE.
    - FIRE while still: punch (Z/X, HIT)
    - Left/right + FIRE: flying kick
-   - DOWN while still: duck (S, ▼). Climb down on a ladder; start a lift
-   - Climb: UP / DOWN on a ladder
+   - DOWN while still: duck (S, ▼)
+   - Climb: UP / DOWN on a ladder. You mount from the floor; a jump or
+     fall through a shaft does not grab the rungs.
+   - Lift: UP / DOWN only if the cabin can move that way
    - Optional phone tilt: tap **TILT** (top-right). Lean left/right to walk.
      ◀ ▶ still override the accelerometer. Off by default; the choice is saved.
 
