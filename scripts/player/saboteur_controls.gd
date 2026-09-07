@@ -1,6 +1,7 @@
+@abstract
 class_name SaboteurControls
 extends RefCounted
-## Static Saboteur II inlay table. Do not instantiate.
+## Static Saboteur II inlay table.
 ## https://worldofspectrum.net/pub/sinclair/games-info/s/SaboteurII.txt
 ##
 ## UP if still = kick. MOVE+UP = running jump. FIRE if still = punch.

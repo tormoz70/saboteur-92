@@ -81,9 +81,14 @@ func _physics_process(delta: float) -> void:
 	if not _lifts.is_riding():
 		_handle_attack_input()
 
+	var lift_holds := false
+	if on_lift:
+		lift_holds = _lifts.process()
+
 	if on_ladder:
 		_ladder.process_climb(delta, climb_axis)
-	elif on_lift and _lifts.process():
+	elif lift_holds:
+		# Cabin is moving or just started; process() already zeroed velocity.
 		pass
 	elif current_state == State.PUNCH or current_state == State.KICK:
 		velocity.x = 0.0
@@ -227,7 +232,6 @@ func _start_running_jump(direction: float) -> void:
 		velocity.x = float(facing) * speed
 	velocity.y = jump_velocity
 	current_state = State.JUMP
-	_ladder.mark_up_spent()
 
 
 func get_world_mask() -> int:

@@ -122,6 +122,30 @@ func test_fresh_up_after_jump_still_climbs() -> void:
 	assert_eq(player.current_state, Player.State.CLIMB)
 
 
+func test_held_up_after_flying_kick_does_not_mount() -> void:
+	var player := await _spawn_on_floor()
+	Input.action_press("move_up")
+	await wait_physics_frames(1)
+	assert_eq(player.current_state, Player.State.KICK)
+	await wait_physics_frames(30)
+	Input.action_press("move_right")
+	Input.action_press("punch")
+	await wait_physics_frames(4)
+	assert_eq(player.current_state, Player.State.JUMP_KICK)
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	Input.action_release("move_right")
+	Input.action_release("punch")
+	var saw_air := false
+	for _i in 40:
+		await wait_physics_frames(1)
+		if not player.is_on_floor() and not player.on_ladder:
+			saw_air = true
+		elif saw_air:
+			break
+	assert_true(saw_air, "flying kick should leave the slab")
+	assert_false(player.on_ladder, "UP held through a flying kick must not mount")
+
+
 func test_held_up_after_stand_kick_still_climbs() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_up")
