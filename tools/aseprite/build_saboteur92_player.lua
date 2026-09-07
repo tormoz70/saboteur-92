@@ -2,19 +2,11 @@
 -- Animations: idle×2, run×4, punch×2, jump_kick×2, climb×2, crouch×2
 -- Repo root is two levels above this file (tools/aseprite/).
 
-local function repo_root()
-  local src = debug.getinfo(1, "S").source
-  if src:sub(1, 1) == "@" then
-    src = src:sub(2)
-  end
-  local root = src:match("^(.*)[/\\]tools[/\\]aseprite[/\\][^/\\]+$")
-  if not root or root == "" then
-    error("Could not resolve repo root from script path: " .. src)
-  end
-  return root
+local _src = debug.getinfo(1, "S").source
+if _src:sub(1, 1) == "@" then
+  _src = _src:sub(2)
 end
-
-local ROOT = repo_root()
+local ROOT = dofile(_src:match("^(.*)[/\\]") .. "/repo_root.lua")
 local SRC85 = ROOT .. "/assets/sprites/saboteur85_player.png"
 local SIT = ROOT .. "/assets/reference/original/ripped/ninja_sitting.png"
 local OUT_ASE = ROOT .. "/assets/sprites/saboteur92_player.aseprite"
