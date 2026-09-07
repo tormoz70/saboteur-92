@@ -12,7 +12,10 @@ func setup(player: Player) -> void:
 
 
 func reset() -> void:
-	_leave()
+	# Player.respawn used to null _lift without stop_ride(). Dying mid-ride
+	# left the cabin moving; calling _leave() here would halt it.
+	_lift = null
+	_p.on_lift = false
 
 
 func is_riding() -> bool:
