@@ -14,7 +14,10 @@
         "/c",
         "node",
         "C:\\Path\\To\\saboteur-92\\tools\\aseprite-mcp\\build\\index.js"
-      ]
+      ],
+      "env": {
+        "ASEPRITE_PATH": "C:\\Path\\To\\Aseprite\\aseprite.exe"
+      }
     }
   }
 }
