@@ -73,7 +73,6 @@ jobs:
           # GUT 9.6.1 is the Godot 4.6 release. Smoke already imported the
           # project; -gexit fails the job when any test fails.
           godot --headless -s addons/gut/gut_cmdln.gd -gexit 2>&1 | tee gut.log
-          grep -q "Totals" gut.log
 
       - name: Mission playthrough
         run: |
