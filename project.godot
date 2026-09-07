@@ -22,7 +22,7 @@ GameManager="*res://scripts/systems/game_manager.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/mcp_bridge/plugin.cfg")
+enabled=PackedStringArray("res://addons/mcp_bridge/plugin.cfg", "res://addons/gut/plugin.cfg")
 
 [debug]
 

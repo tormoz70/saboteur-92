@@ -59,6 +59,11 @@ func win_mission() -> void:
 
 
 func restart_mission() -> void:
+	reset_run_state()
+	get_tree().reload_current_scene()
+
+
+func reset_run_state() -> void:
 	# Autoload survives scene reload — reset everything explicitly.
 	state = GameState.PLAYING
 	lives = 3
@@ -66,7 +71,6 @@ func restart_mission() -> void:
 	demo_mode = false
 	fail_reason = ""
 	reset_inventory()
-	get_tree().reload_current_scene()
 
 
 func fail_mission(reason: String = "Game Over") -> void:
