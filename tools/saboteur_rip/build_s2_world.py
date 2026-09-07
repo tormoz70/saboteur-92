@@ -4,7 +4,8 @@
 Floors are brick strips; cave earth (black with blue specks) is solid. Blue
 brick is room wallpaper — a lift shaft stays walkable. Green wallpaper,
 furniture and interior black air stay empty. Ladders are the original rail
-tiles (interior green pair, outdoor white X-lattice). Yellow crates and
+tiles (interior green pair, outdoor white X-lattice, and the white-on-blue
+sky pair that continues a green shaft above the roof). Yellow crates and
 interior bookcases are foreground-only.
 """
 from __future__ import annotations
@@ -63,12 +64,17 @@ def cell_is_ladder(px, cx: int, cy: int) -> bool:
     """Match original Saboteur II ladder character graphics.
 
     Interior ladders are a 16px pair of green rail tiles punched through
-    wallpaper. Outdoor ladders are a thin white X-lattice with rails on both
-    edges — not windows, lift shafts, or picket fences.
+    wallpaper. Outdoor ladders are either a thin white X-lattice with rails
+    on both edges, or the white-on-blue sky pair that continues a green
+    shaft above the roof — not windows, lift shafts, or picket fences.
     """
     x0, y0 = cx * CELL, cy * CELL
     rows = [[_ink(px[x0 + x, y0 + y]) for x in range(CELL)] for y in range(CELL)]
-    return _is_green_rail_tile(rows) or _is_x_lattice_tile(rows)
+    return (
+        _is_green_rail_tile(rows)
+        or _is_x_lattice_tile(rows)
+        or _is_sky_rail_tile(rows)
+    )
 
 
 def _is_green_rail_tile(rows: list[list[str]]) -> bool:
@@ -77,6 +83,32 @@ def _is_green_rail_tile(rows: list[list[str]]) -> bool:
     left = all(row[0] == "g" and row[1] == "k" and row[2] == "k" and row[3] == "g" for row in rows[:2])
     right = all(row[4] == "g" and row[5] == "k" and row[6] == "k" and row[7] == "g" for row in rows[:2])
     return left or right
+
+
+def _is_sky_rail_tile(rows: list[list[str]]) -> bool:
+    """16px outdoor pair: 3px white rail + blue rungs against sky paper.
+
+    Left half is `wwwb` plus a 4-row rung cycle on the inner nibble; the
+    right half mirrors it. Same shafts as the interior green pair, just
+    above the roofline where the paper turns blue.
+    """
+    if any(p not in "wb" for row in rows for p in row):
+        return False
+    left = all(row[0] == "w" and row[1] == "w" and row[2] == "w" for row in rows)
+    right = all(row[5] == "w" and row[6] == "w" and row[7] == "w" for row in rows)
+    if left == right:
+        return False
+    if left:
+        gap_ok = all(row[3] == "b" for row in rows)
+        inner = [sum(1 for x in range(4, CELL) if row[x] == "w") for row in rows]
+    else:
+        gap_ok = all(row[4] == "b" for row in rows)
+        inner = [sum(1 for x in range(4) if row[x] == "w") for row in rows]
+    if not gap_ok:
+        return False
+    rung_rows = sum(1 for n in inner if n >= 3)
+    blue = sum(1 for row in rows for p in row if p == "b")
+    return rung_rows >= 2 and 16 <= blue <= 40
 
 
 def _is_x_lattice_tile(rows: list[list[str]]) -> bool:
@@ -777,19 +809,91 @@ def paint_cabinet_backs(world: Image.Image, bookcase: list[list[int]]) -> None:
                     wp[x, y] = (0, 0, 0)
 
 
+def reconstruct_world_from_tiles() -> Image.Image:
+    """Rebuild the mosaic from the committed visual tileset when the rip is absent."""
+    spec = json.loads((OUT_DIR / "s2_world_tiles.json").read_text(encoding="utf-8"))
+    ids = rle_decode(spec["world"]["rle"])
+    cw, ch = spec["grid"]
+    atlas_cols = spec["world"]["atlas_tiles"][0]
+    atlas_name = Path(spec["world"]["atlas"]).name
+    atlas = Image.open(TILESET_DIR / atlas_name).convert("RGB")
+    out = Image.new("RGB", (cw * CELL, ch * CELL))
+    for i, tid in enumerate(ids):
+        ax, ay = (tid % atlas_cols) * CELL, (tid // atlas_cols) * CELL
+        cx, cy = i % cw, i // cw
+        out.paste(atlas.crop((ax, ay, ax + CELL, ay + CELL)), (cx * CELL, cy * CELL))
+    return out
+
+
+def load_world_image() -> Image.Image:
+    if SRC.exists():
+        return Image.open(SRC).convert("RGB")
+    print(f"rip missing at {SRC}; reconstructing world from tileset")
+    return reconstruct_world_from_tiles()
+
+
+def ladder_rects_from_grid(ladders: list[list[int]]) -> list[list[int]]:
+    rects: list[list[int]] = []
+    for x, y, w, h in greedy_rects(ladders):
+        if h < 24:
+            continue
+        # Keep the hit box close to the 8–16px rails so windows and wallpaper
+        # next to a shaft are not climbable.
+        rects.append([x - 4, y, w + 8, h])
+    return rects
+
+
+def detect_ladder_grid(im: Image.Image) -> list[list[int]]:
+    """Pixel ladder mask after the thin-run filter, no solid/fg side effects."""
+    px = im.load()
+    cw, ch = im.width // CELL, im.height // CELL
+    raw = [[0] * cw for _ in range(ch)]
+    for cy in range(ch):
+        for cx in range(cw):
+            if cell_is_ladder(px, cx, cy):
+                raw[cy][cx] = 1
+    keep = [[0] * cw for _ in range(ch)]
+    for cx in range(cw):
+        cy = 0
+        while cy < ch:
+            if not raw[cy][cx]:
+                cy += 1
+                continue
+            y0 = cy
+            while cy < ch and raw[cy][cx]:
+                cy += 1
+            if cy - y0 >= 3:
+                for y in range(y0, cy):
+                    wide = 0
+                    for dx in (-1, 0, 1):
+                        xx = cx + dx
+                        if 0 <= xx < cw and raw[y][xx]:
+                            wide += 1
+                    if wide <= 2:
+                        keep[y][cx] = 1
+    return keep
+
+
+def update_collision_ladders(im: Image.Image) -> list[list[int]]:
+    """Rewrite only the ladders array in the committed collision JSON."""
+    keep = detect_ladder_grid(im)
+    rects = ladder_rects_from_grid(keep)
+    path = OUT_DIR / "s2_collision.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["ladders"] = rects
+    path.write_text(json.dumps(data), encoding="utf-8")
+    n_lad = sum(sum(row) for row in keep)
+    print(f"ladder cells {n_lad} -> {len(rects)} rects")
+    print(f"updated {path}")
+    return rects
+
+
 def main() -> None:
     im = Image.open(SRC).convert("RGB")
     print(f"mosaic {im.size}")
     solid, ladders, fg, bookcase, cases, biomes = classify_cells(im)
     solids = greedy_rects(solid)
-    raw_ladders = greedy_rects(ladders)
-    ladder_rects: list[list[int]] = []
-    for x, y, w, h in raw_ladders:
-        if h < 24:
-            continue
-        # Keep the hit box close to the 8–16px rails so windows and wallpaper
-        # next to a shaft are not climbable.
-        ladder_rects.append([x - 4, y, w + 8, h])
+    ladder_rects = ladder_rects_from_grid(ladders)
     w, h = im.size
     pad = CELL * 2
     solids.extend(
@@ -1055,7 +1159,11 @@ def export_tilesets_from_mosaics() -> None:
 
 
 if __name__ == "__main__":
-    if SRC.exists():
+    import sys
+
+    if "--ladders-only" in sys.argv:
+        update_collision_ladders(load_world_image())
+    elif SRC.exists():
         main()
     else:
         export_tilesets_from_mosaics()

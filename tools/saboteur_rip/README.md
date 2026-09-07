@@ -57,6 +57,7 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 | Script | Needs | Writes |
 |---|---|---|
 | `build_s2_world.py` | `maps/Saboteur2_speccy.png` | `assets/world/s2_collision.json`, `assets/tilesets/s2_world_tileset.png` (+ fg atlas) |
+| `build_s2_world.py --ladders-only` | mosaic, or committed tileset if the rip is absent | only the `ladders` array in `s2_collision.json` |
 | `audit_collision.py` | committed `s2_collision.json` + tileset PNG | stdout report (no dumps required) |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
 | `extract_from_disasm.py` | `sabot1core.asm` | `ripped/` |
@@ -79,6 +80,14 @@ programmatic ZX-style generator. It does not read `assets/reference/`.
 pip install -r tools/requirements.txt
 python tools/saboteur_rip/build_s2_world.py
 python tools/saboteur_rip/audit_collision.py
+```
+
+Without the mosaic PNG the first command only re-exports tilesets. To refresh
+climb zones from the committed visual tileset (green rails, white X-lattice,
+and the white-on-blue sky pair):
+
+```bash
+python tools/saboteur_rip/build_s2_world.py --ladders-only
 ```
 
 Without the mosaic PNG the first command exits; the second still works on the

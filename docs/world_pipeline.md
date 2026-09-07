@@ -30,7 +30,7 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
         │   scripts/levels/level_01.gd::_load_original_world()
         ▼                                    ▼
    Sprite2D "OriginalMap" z=-20        StaticBody2D "Solids"  — 4643 CollisionShape2D
-   Sprite2D "Foreground"  z=12         Node2D "Ladders"       — 67 Area2D
+   Sprite2D "Foreground"  z=12         Node2D "Ladders"       — 123 Area2D
                                        Node2D "Lifts"         — 4 AnimatableBody2D
 ```
 
@@ -45,7 +45,7 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
 | `screen` | `[w, h]` | — | Размер экрана Spectrum (`[256, 192]`) — задаёт зум камеры и мёртвую зону |
 | `size` | `[w, h]` | — | Размер мозаики в пикселях (`[8192, 4608]`) |
 | `solids` | `[x, y, w, h]` | 4643 | Прямоугольники коллизий, слой 4 |
-| `ladders` | `[x, y, w, h]` | 67 | Зоны лестниц, `Area2D` на слое 16 |
+| `ladders` | `[x, y, w, h]` | 123 | Зоны лестниц, `Area2D` на слое 16 |
 | `lifts` | `{x, y, w, h, top, bottom}` | 4 | Кабина и границы шахты |
 | `bookcases` | `[x, y, w, h]` | 9 | Только для шейдера обводки, не коллизия |
 
@@ -90,7 +90,7 @@ black_wall = counts["k"] >= 40 and counts["g"] < 20
 ```
 
 Лестницы распознаются по точному пиксельному узору символа
-(`_is_green_rail_tile`, `_is_x_lattice_tile`), книжные шкафы — по трём захардкоженным
+(`_is_green_rail_tile`, `_is_x_lattice_tile`, `_is_sky_rail_tile`), книжные шкафы — по трём захардкоженным
 битмапам полки в `PLANK_TILES`, кабины лифтов — по бирюзовому цвету
 (`cell_is_lift_car`), ящики — по жёлтому на чёрном (`cell_is_crate`).
 
@@ -210,7 +210,7 @@ else:                     biomes.append("cave")
 Это и есть точка развязки. **Перерисовка трогает только атлас слоя `Visual`.
 Слой `Collision` не меняется вообще** — ни одной ячейки, ни одной строки кода.
 
-Лестницы при этом перестают быть 67 отдельными `Area2D` и становятся тайлами
+Лестницы при этом перестают быть 123 отдельными `Area2D` и становятся тайлами
 с признаком — но это опционально, текущая схема с `Area2D` тоже рабочая и её можно
 оставить, чтобы не трогать выверенную логику лазанья в `player.gd`.
 

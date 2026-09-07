@@ -29,6 +29,35 @@ func test_collision_json_has_solids_ladders_and_lifts() -> void:
 		assert_true(spec.has("top") and spec.has("bottom"))
 
 
+func test_outdoor_sky_rail_ladders_are_climbable() -> void:
+	var data := _collision_data()
+	# White-on-blue shafts that continue the interior green pair into the sky
+	# on the green rooftop screen (mosaic 9,8) the player circled.
+	var samples: Array[Vector2i] = [
+		Vector2i(2352, 1664),
+		Vector2i(2440, 1664),
+		Vector2i(1976, 264),
+		Vector2i(3000, 408),
+	]
+	for p in samples:
+		assert_true(
+			_point_in_any_rect(p, data["ladders"]),
+			"outdoor sky rail at %s should be a ladder" % p
+		)
+
+
+func _point_in_any_rect(p: Vector2i, rects: Array) -> bool:
+	for rect in rects:
+		if (
+			p.x >= int(rect[0])
+			and p.x < int(rect[0]) + int(rect[2])
+			and p.y >= int(rect[1])
+			and p.y < int(rect[1]) + int(rect[3])
+		):
+			return true
+	return false
+
+
 func test_level_builds_one_shape_per_json_entry() -> void:
 	var data := _collision_data()
 	var packed: PackedScene = load("res://scenes/levels/level_01.tscn")
