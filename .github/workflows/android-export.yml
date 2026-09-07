@@ -98,6 +98,18 @@ jobs:
             exit 1
           fi
 
+      - name: Tilt steering probe
+        run: |
+          set -euo pipefail
+          # scripts/demo/tilt_demo.gd fakes the phone sensor with
+          # Input.set_gravity: no keys held, so only tilt can move Nina.
+          timeout --signal=KILL 120 godot --headless -- --demo-tilt 2>&1 | tee tilt-demo.log
+          if ! grep -q "\\[Demo\\] Tilt steering OK" tilt-demo.log; then
+            echo "Tilt steering did not move the player"
+            grep "\\[Demo\\] FAIL" tilt-demo.log || true
+            exit 1
+          fi
+
       - name: Audit world collision
         run: |
           set -euo pipefail

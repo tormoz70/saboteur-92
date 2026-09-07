@@ -85,6 +85,65 @@ func test_no_taps_is_none() -> void:
 	)
 
 
+func test_fire_is_a_low_punch_only_while_ducking() -> void:
+	assert_eq(
+		SaboteurControls.resolve_ground(false, false, true, false, false, false, true),
+		SaboteurControls.GroundAction.CROUCH_PUNCH
+	)
+	assert_eq(
+		SaboteurControls.resolve_ground(false, false, true, false, false, false, false),
+		SaboteurControls.GroundAction.PUNCH
+	)
+
+
+func test_moving_up_and_fire_is_the_somersault_either_tap_order() -> void:
+	# UP is the fresh tap.
+	assert_eq(
+		SaboteurControls.resolve_ground(true, true, false, false, false, true),
+		SaboteurControls.GroundAction.SOMERSAULT
+	)
+	# FIRE is the fresh tap.
+	assert_eq(
+		SaboteurControls.resolve_ground(true, false, true, false, false, true),
+		SaboteurControls.GroundAction.SOMERSAULT
+	)
+
+
+func test_somersault_needs_movement_a_fresh_tap_and_a_free_lift() -> void:
+	assert_eq(
+		SaboteurControls.resolve_ground(false, true, false, false, false, true),
+		SaboteurControls.GroundAction.STAND_KICK,
+		"standing still is a kick, not a long jump"
+	)
+	assert_eq(
+		SaboteurControls.resolve_ground(true, false, false, false, false, true),
+		SaboteurControls.GroundAction.NONE,
+		"both buttons down but neither newly pressed starts nothing"
+	)
+	assert_eq(
+		SaboteurControls.resolve_ground(true, true, false, false, true, true),
+		SaboteurControls.GroundAction.NONE,
+		"a usable lift still outranks the chord"
+	)
+
+
+func test_inlay_rows_are_unchanged_without_the_new_arguments() -> void:
+	# The 1987 table is the default: callers that pass only the original five
+	# arguments must see exactly the original five outcomes.
+	assert_eq(
+		SaboteurControls.resolve_ground(true, true, false, false, false),
+		SaboteurControls.GroundAction.RUNNING_JUMP
+	)
+	assert_eq(
+		SaboteurControls.resolve_ground(true, false, true, false, false),
+		SaboteurControls.GroundAction.FLYING_KICK
+	)
+	assert_eq(
+		SaboteurControls.resolve_ground(false, false, true, false, false),
+		SaboteurControls.GroundAction.PUNCH
+	)
+
+
 func test_crouch_only_when_still() -> void:
 	assert_true(SaboteurControls.should_crouch(false, true, false))
 	assert_false(SaboteurControls.should_crouch(true, true, false))

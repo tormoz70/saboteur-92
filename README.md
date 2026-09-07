@@ -48,11 +48,18 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
    - FIRE while still: punch (Z/X, HIT)
    - Left/right + FIRE: flying kick
    - DOWN while still: duck (S, ▼)
+   - DOWN + FIRE: low punch. Stays ducked and hits at knee height.
+   - Left/right + UP + FIRE: long jump with a somersault. Either button may
+     land first; the two count as one gesture inside 0.25 s.
    - Climb: UP / DOWN on a ladder. You mount from the floor; a jump or
      fall through a shaft does not grab the rungs.
    - Lift: UP / DOWN only if the cabin can move that way
-   - Optional phone tilt: tap **TILT** (top-right). Lean left/right to walk.
-     ◀ ▶ still override the accelerometer. Off by default; the choice is saved.
+   - Optional phone tilt: tap **TILT** (top-right). Lean the screen's left or
+     right edge down to walk that way; the angle you hold when you switch it on
+     becomes neutral. ◀ ▶ still override the sensor, and the button reads
+     `NO SENSOR` on a device that reports none. Off by default; the choice is
+     saved. Needs `input_devices/sensors/enable_accelerometer` — Android only
+     registers its sensor listener when that project setting is on.
 
 ## Mission flow
 
@@ -80,7 +87,7 @@ Release signing uses a local keystore configured in Godot export settings. **Do 
 
 ## CI
 
-GitHub Actions workflow `.github/workflows/android-export.yml` on push/PR: smoke run, mission playthrough (`--demo`), fuse-loss probe (`--demo-fuse`), collision audit, then a debug APK artifact.
+GitHub Actions workflow `.github/workflows/android-export.yml` on push/PR: smoke run, mission playthrough (`--demo`), fuse-loss probe (`--demo-fuse`), tilt-steering probe (`--demo-tilt`, fakes the phone sensor with `Input.set_gravity`), collision audit, then a debug APK artifact.
 
 ## License
 

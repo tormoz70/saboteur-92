@@ -7,8 +7,13 @@ extends RefCounted
 ## UP if still = kick. MOVE+UP = running jump. FIRE if still = punch.
 ## MOVE+FIRE = flying kick. DOWN if still = duck. jump is an UP synonym.
 ## FIRE in the air does nothing; the flying kick starts on the ground.
+##
+## Two remake moves extend the table rather than replace a row of it:
+## DUCK+FIRE = low punch, and MOVE+UP+FIRE = long jump with a somersault.
+## Both arrive as optional arguments so a caller that only wants the 1987
+## table can leave them out.
 
-enum GroundAction { NONE, STAND_KICK, RUNNING_JUMP, FLYING_KICK, PUNCH }
+enum GroundAction { NONE, STAND_KICK, RUNNING_JUMP, FLYING_KICK, PUNCH, CROUCH_PUNCH, SOMERSAULT }
 
 
 static func wants_up() -> bool:
@@ -35,10 +40,16 @@ static func resolve_ground(
 	up_tap: bool,
 	punch_tap: bool,
 	can_climb: bool,
-	lift_takes_up: bool
+	lift_takes_up: bool,
+	up_and_fire: bool = false,
+	ducking: bool = false
 ) -> GroundAction:
 	if lift_takes_up and up_tap:
 		return GroundAction.NONE
+	# Outranks the running jump and the flying kick: both of those are one half
+	# of this chord, so holding both buttons has to beat either on its own.
+	if moving and up_and_fire and (up_tap or punch_tap):
+		return GroundAction.SOMERSAULT
 	if moving and up_tap:
 		return GroundAction.RUNNING_JUMP
 	if can_climb and up_tap:
@@ -47,6 +58,8 @@ static func resolve_ground(
 		return GroundAction.STAND_KICK
 	if punch_tap and moving:
 		return GroundAction.FLYING_KICK
+	if punch_tap and ducking:
+		return GroundAction.CROUCH_PUNCH
 	if punch_tap:
 		return GroundAction.PUNCH
 	return GroundAction.NONE
