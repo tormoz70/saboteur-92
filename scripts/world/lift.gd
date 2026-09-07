@@ -68,9 +68,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if rider != null and is_instance_valid(rider):
 		var reverse := 0
-		if Input.is_action_pressed("move_up"):
+		if SaboteurControls.wants_up():
 			reverse = -1
-		elif Input.is_action_pressed("move_down"):
+		elif SaboteurControls.wants_down():
 			reverse = 1
 		if reverse != 0 and reverse != dir:
 			dir = reverse
