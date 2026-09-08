@@ -6,6 +6,8 @@ from build_s2_world import (
     _apply_cave_gaps,
     _apply_cave_ground,
     _apply_cave_tunnels,
+    _band_is_hall_side_step,
+    _clear_hall_bites,
     _clear_red_pillars,
     _clear_walkable_decor,
     _is_cave_paper,
@@ -13,6 +15,7 @@ from build_s2_world import (
     _is_diamond_floor_tile,
     _is_sky_rail_tile,
     _is_x_lattice_tile,
+    _paper_on_row_mask,
     cell_is_crate,
     cell_is_diamond_floor,
     cell_is_red_brick,
@@ -355,11 +358,34 @@ def test_cave_hall_black_is_ground() -> None:
     solid = [[0] * w for _ in range(h)]
     added = _apply_cave_ground(px, solid, ["cave"])
     assert added > 0
+    _clear_hall_bites(px, solid)
     assert solid[0][8] == 1
     assert solid[2][12] == 1, "ceiling mass on the right"
     assert solid[14][8] == 1, "floor mass"
     assert solid[6][4] == 0, "blue brick hall stays walkable"
     assert solid[3][2] == 0
+    assert solid[2][8] == 0, "void bite beside the hall is not a chest-high wall"
+    assert solid[3][10] == 0, "jagged hall edge stays walkable"
+
+
+def test_hall_side_step_is_not_a_tunnel_floor() -> None:
+    """Shorter paper column next to a taller hall is an edge, not a floor."""
+    paper = [[False] * 8 for _ in range(12)]
+    for cy in range(2, 10):
+        paper[cy][3] = True
+        paper[cy][4] = True
+    for cy in range(2, 7):
+        paper[cy][2] = True
+    assert _band_is_hall_side_step(paper, 2, 2, 6, 8, 12)
+    assert not _band_is_hall_side_step(paper, 3, 2, 9, 8, 12)
+
+
+def test_paper_on_row_mask_reach() -> None:
+    paper = [[False] * 10 for _ in range(3)]
+    paper[1][2] = True
+    assert _paper_on_row_mask(paper, 5, 1, 10, reach=4)
+    assert not _paper_on_row_mask(paper, 8, 1, 10, reach=4)
+    assert not _paper_on_row_mask(paper, 5, 0, 10, reach=4)
 
 
 if __name__ == "__main__":
@@ -376,4 +402,6 @@ if __name__ == "__main__":
     test_blue_brick_and_crates_are_not_cave_rock()
     test_clear_paper_then_tunnel_keeps_lining()
     test_cave_hall_black_is_ground()
+    test_hall_side_step_is_not_a_tunnel_floor()
+    test_paper_on_row_mask_reach()
     print("test_floor_classify: ok")
