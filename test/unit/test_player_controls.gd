@@ -3,8 +3,11 @@ extends GutTest
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 
+var _lid: StaticBody2D
+
 
 func after_each() -> void:
+	_lid = null
 	_release_all()
 	GameManager.reset_run_state()
 	GameManager.bomb_fuse_time = 50.0
@@ -263,19 +266,90 @@ func test_walks_up_a_one_cell_step() -> void:
 	assert_lt(player.global_position.y, start_y - 8.0, "feet should rise onto the step")
 
 
+func test_climb_stops_under_a_dead_end_ceiling() -> void:
+	# JMP/UP on a ladder is climb. Ghosting through the lid used to plant the
+	# feet on its underside, restore world collision, and freeze the body inside
+	# the brick. Stop at head height instead.
+	var player := await _spawn_under_ceiling()
+	_add_ladder(Vector2(140, 24), Vector2(160, 112))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	for _i in 90:
+		await wait_physics_frames(1)
+		if player.global_position.y <= -48.0:
+			fail_test("climbed through the lid to y=%.1f" % player.global_position.y)
+			return
+	assert_true(player.on_ladder, "still on the rungs under the lid")
+	assert_gt(player.global_position.y, -48.0, "head stays below the red brick")
+	assert_false(_overlaps_ceiling(player), "body must not sit inside the lid")
+	Input.action_release("move_up")
+	Input.action_press("move_down")
+	var y_at_lid := player.global_position.y
+	await wait_physics_frames(20)
+	assert_gt(player.global_position.y, y_at_lid + 8.0, "DOWN still climbs away from the lid")
+
+
+func test_climb_through_hatch_still_emerges() -> void:
+	# Rungs continue above the lid, so this is a hatch, not a dead-end.
+	# Stopping at head height would leave Nina stuck under every floor.
+	var player := await _spawn_on_floor()
+	_add_solid(Vector2(240, 0), Vector2(480, 8))
+	_add_ladder(Vector2(140, -40), Vector2(160, 280))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	for _i in 120:
+		await wait_physics_frames(1)
+		if player.global_position.y < -20.0:
+			break
+	assert_lt(player.global_position.y, -8.0, "should climb through the hatch")
+
+
+func test_jump_off_ladder_into_ceiling_does_not_wedge() -> void:
+	# Climb to the lid, then MOVE without UP to hop off. Restoring world
+	# collision while the head is in the brick used to freeze the pose.
+	var player := await _spawn_under_ceiling()
+	_add_ladder(Vector2(140, 24), Vector2(160, 112))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	for _i in 40:
+		await wait_physics_frames(1)
+		if player.on_ladder:
+			break
+	assert_true(player.on_ladder)
+	await wait_physics_frames(20)
+	Input.action_release("move_up")
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	assert_false(player.on_ladder, "MOVE without UP leaves the rungs")
+	assert_false(_overlaps_ceiling(player), "leave must not plant the head in the lid")
+	for _i in 80:
+		await wait_physics_frames(1)
+		if player.is_on_floor() and not player.on_ladder:
+			break
+	assert_false(_overlaps_ceiling(player), "bonking the lid must not embed the body")
+	assert_true(player.is_on_floor() or player.velocity.y > 0.0, "falls or stands after the hop")
+	assert_ne(player.current_state, Player.State.SOMERSAULT, "ceiling is not a flip landing")
+
+
+func test_somersault_into_ceiling_does_not_wedge() -> void:
+	var player := await _spawn_under_ceiling()
+	Input.action_press("move_right")
+	await wait_physics_frames(2)
+	Input.action_press("move_up")
+	await wait_physics_frames(2)
+	assert_eq(player.current_state, Player.State.SOMERSAULT)
+	for _i in 80:
+		await wait_physics_frames(1)
+		if player.is_on_floor() and player.current_state != Player.State.SOMERSAULT:
+			break
+	assert_false(_overlaps_ceiling(player), "a lid bonk must not embed the body")
+	assert_true(player.is_on_floor() or player.velocity.y >= 0.0)
+
+
 func _spawn_on_floor() -> Player:
 	GameManager.reset_run_state()
 	GameManager.state = GameManager.GameState.PLAYING
-	var floor := StaticBody2D.new()
-	floor.collision_layer = CollisionLayers.LAYER_WORLD
-	floor.collision_mask = 0
-	var col := CollisionShape2D.new()
-	var rect := RectangleShape2D.new()
-	rect.size = Vector2(480, 16)
-	col.shape = rect
-	col.position = Vector2(240, 80)
-	floor.add_child(col)
-	add_child_autofree(floor)
+	_add_solid(Vector2(240, 80), Vector2(480, 16))
 
 	var player: Player = PLAYER_SCENE.instantiate()
 	add_child_autofree(player)
@@ -284,6 +358,31 @@ func _spawn_on_floor() -> Player:
 	await wait_physics_frames(8)
 	assert_true(player.is_on_floor(), "player should land on the test slab")
 	return player
+
+
+func _spawn_under_ceiling() -> Player:
+	var player := await _spawn_on_floor()
+	# Lid bottom at y=-32. Standing head is ~origin+14, so a climb or
+	# somersault from the slab bonks it, and the feet stay more than one
+	# cell above the floor so a side-ray dismount does not fire.
+	_lid = _add_solid(Vector2(240, -40), Vector2(480, 16))
+	return player
+
+
+func _overlaps_ceiling(player: Player) -> bool:
+	if _lid == null:
+		return false
+	var col := player.body_collision
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = col.shape
+	q.transform = col.global_transform
+	q.collision_mask = player.get_world_mask()
+	q.collide_with_bodies = true
+	q.exclude = [player.get_rid()]
+	for hit in player.get_world_2d().direct_space_state.intersect_shape(q, 8):
+		if hit.get("collider") == _lid:
+			return true
+	return false
 
 
 func _spawn_on_dead_end_lift() -> Player:
@@ -311,17 +410,22 @@ func _spawn_on_dead_end_lift() -> Player:
 
 
 func _add_step(left_x: float, height: float) -> void:
+	# _spawn_on_floor slab: center (240, 80), size 480x16, top at y=72.
+	_add_solid(Vector2(left_x + 80.0, 72.0 - height * 0.5), Vector2(160.0, height))
+
+
+func _add_solid(center: Vector2, size: Vector2) -> StaticBody2D:
 	var body := StaticBody2D.new()
 	body.collision_layer = CollisionLayers.LAYER_WORLD
 	body.collision_mask = 0
 	var col := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size = Vector2(160.0, height)
+	rect.size = size
 	col.shape = rect
-	# _spawn_on_floor slab: center (240, 80), size 480x16, top at y=72.
-	col.position = Vector2(left_x + 80.0, 72.0 - height * 0.5)
+	col.position = center
 	body.add_child(col)
 	add_child_autofree(body)
+	return body
 
 
 func _add_ladder(center: Vector2, size: Vector2) -> void:
