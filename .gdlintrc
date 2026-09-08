@@ -1,0 +1,3 @@
+# GUT suites add one public test_* per case. The default cap of 20 trips
+# test_saboteur_controls.gd (the inlay table) and would block CI export.
+max-public-methods: 40
