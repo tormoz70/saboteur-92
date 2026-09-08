@@ -37,6 +37,10 @@ func test_diagonal_pad_has_jump_and_crawl_chords() -> void:
 	var ui: CanvasLayer = packed.instantiate()
 	add_child_autofree(ui)
 	assert_true(ui.get_node("Root/LeftPad") is OctantTouchPad)
+	var left: Control = ui.get_node("Root/LeftPad")
+	var right: Control = ui.get_node("Root/RightPad")
+	assert_lt(left.offset_left, 24.0, "D-pad should sit on the left edge")
+	assert_gt(right.offset_right, -24.0, "HIT/JMP should sit on the right edge")
 
 
 func test_octant_from_vec_matches_compass() -> void:

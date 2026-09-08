@@ -234,6 +234,11 @@ def _is_cave_ground(counts: dict[str, int]) -> bool:
 _TUNNEL_MIN_H = 5
 _TUNNEL_MAX_H = 10
 _TUNNEL_MIN_WIDTH = 6
+# Last paper cell used to be the walkable surface. Nina is 42px (~5.25 cells)
+# and a typical 8-cell brick band only leaves 6 cells inside, so her head
+# snags the jagged ceiling. Drop the floor this many cells into the fringe
+# / earth below the wallpaper so she stands on the visual lining.
+_TUNNEL_FLOOR_DROP = 2
 # Black gap between two blue-brick masses (air, or air over water).
 _GAP_MIN_H = 5
 _GAP_MAX_H = 12
@@ -868,10 +873,13 @@ def classify_cells(
     _apply_diamond_floors(px, solid)
     # After thicken: hall ceilings must not grow down into the room.
     _apply_cave_ground(px, solid, biomes)
+    # Gaps before tunnels: a stacked brick corridor looks like a black gap
+    # whose ceiling is the paper lip. Tunnels must run last so the dropped
+    # floor (two cells into the fringe) is not put back on that lip.
+    _apply_cave_gaps(px, solid, biomes)
     _apply_cave_tunnels(px, solid, biomes)
     _clear_hall_bites(px, solid, biomes)
     _clear_standing_stubs(solid, biomes)
-    _apply_cave_gaps(px, solid, biomes)
     punch_ladder_shafts(solid, keep)
     cap_ladder_hatches(solid, keep)
     for cy in range(ch):
@@ -1575,6 +1583,23 @@ def _apply_diamond_floors(px, solid: list[list[int]]) -> int:
     return added
 
 
+def _tunnel_floor_cell(
+    paper: list[list[bool]], cx: int, y1: int, ch: int
+) -> int:
+    """Walkable surface for a corridor whose last paper cell is `y1`.
+
+    Drop into the black/fringe lining under the wallpaper, but stop before
+    another paper band (the next room or a stacked tunnel).
+    """
+    drop = 0
+    for d in range(1, _TUNNEL_FLOOR_DROP + 1):
+        ny = y1 + d
+        if ny >= ch or paper[ny][cx]:
+            break
+        drop = d
+    return y1 + drop
+
+
 def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
     """Thin blue-brick cave corridors: solid ceiling, solid floor, air inside.
 
@@ -1584,6 +1609,10 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
     A hall's jagged side looks like a short tunnel column. Keep the real
     floor/ceiling; skip only the stepped end so it does not become a
     chest-high wall in front of the ladder.
+
+    The walkable floor is two cells below the last wallpaper cell so Nina's
+    42px body fits under the jagged ceiling instead of standing on the
+    bricks and snagging her head.
     """
     ch = len(solid)
     cw = len(solid[0])
@@ -1596,11 +1625,20 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
         if not solid[y0][cx]:
             added_ceil += 1
         solid[y0][cx] = 1
-        if not _floor_is_hall_step(paper, cx, y0, y1, cw, ch):
-            if not solid[y1][cx]:
+        hall_step = _floor_is_hall_step(paper, cx, y0, y1, cw, ch)
+        floor_y = y1 if hall_step else _tunnel_floor_cell(paper, cx, y1, ch)
+        if not hall_step:
+            if not solid[floor_y][cx]:
                 added_floor += 1
-            solid[y1][cx] = 1
-        for cy in range(y0 + 1, y1):
+            solid[floor_y][cx] = 1
+            # Keep a couple of cells of earth under the new lip so a fast
+            # fall cannot drop through an 8px slab. Stop at the next room.
+            for yy in range(floor_y + 1, min(ch, floor_y + 3)):
+                if paper[yy][cx]:
+                    break
+                solid[yy][cx] = 1
+        punch_end = y1 if hall_step else floor_y
+        for cy in range(y0 + 1, punch_end):
             if solid[cy][cx]:
                 punched += 1
             solid[cy][cx] = 0
@@ -1683,10 +1721,10 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     added = _apply_diamond_floors(px, solid)
     biomes = _detect_biomes(px, sx_n, sy_n)
     ground = _apply_cave_ground(px, solid, biomes)
+    g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
     bites = _clear_hall_bites(px, solid, biomes)
     stubs = _clear_standing_stubs(solid, biomes)
-    g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     pillars = _clear_red_pillars(px, solid)
     cap_ladder_hatches(solid, detect_ladder_grid(im))
     rects = greedy_rects(solid)

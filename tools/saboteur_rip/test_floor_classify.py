@@ -145,8 +145,9 @@ def test_cave_tunnel_floor_and_ceiling() -> None:
     assert punched > 0
     for cx in range(1, 11):
         assert solid[2][cx] == 1
-        assert solid[7][cx] == 1
-        assert all(solid[cy][cx] == 0 for cy in range(3, 7))
+        assert solid[7][cx] == 0, "old paper lip is no longer the floor"
+        assert solid[9][cx] == 1, "floor is two cells below the last brick"
+        assert all(solid[cy][cx] == 0 for cy in range(3, 9))
 
 
 def test_cave_tunnel_rejects_wallpaper_beside_green_room() -> None:
@@ -227,6 +228,41 @@ def test_flooded_gap_has_floor_and_ceiling() -> None:
         assert solid[2][cx] == 1
         assert solid[9][cx] == 1
         assert all(solid[cy][cx] == 0 for cy in range(3, 9))
+
+
+def test_stacked_tunnels_keep_dropped_floor_after_gaps() -> None:
+    """Void between two brick bands looks like a flooded gap.
+
+    Applying gaps first paints the upper paper lip as a floor. Tunnels must
+    still drop that lip two cells so Nina fits under the ceiling.
+    """
+    layout = [
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK}
+    px = CellGridPx(layout, tiles)
+    biomes = ["cave"]
+    solid = [[1] * 12 for _ in range(15)]
+    _apply_cave_gaps(px, solid, biomes)
+    _apply_cave_tunnels(px, solid, biomes)
+    for cx in range(1, 11):
+        assert solid[1][cx] == 1, "ceiling"
+        assert solid[6][cx] == 0, "paper lip must not stay the floor"
+        assert solid[8][cx] == 1, "floor two cells below the last brick"
 
 
 RED_POST = [list("kkkrrkrk") for _ in range(8)]
@@ -334,8 +370,9 @@ def test_clear_paper_then_tunnel_keeps_lining() -> None:
     _apply_cave_tunnels(px, solid, ["cave"])
     for cx in range(1, 11):
         assert solid[2][cx] == 1
-        assert solid[7][cx] == 1
-        assert all(solid[cy][cx] == 0 for cy in range(3, 7))
+        assert solid[7][cx] == 0, "old paper lip is no longer the floor"
+        assert solid[9][cx] == 1, "floor is two cells below the last brick"
+        assert all(solid[cy][cx] == 0 for cy in range(3, 9))
 
 
 def test_cave_hall_black_is_ground() -> None:
@@ -438,10 +475,11 @@ def test_tunnel_beside_hall_keeps_lining() -> None:
     _apply_cave_tunnels(px, solid, ["cave"])
     for cx in range(1, 9):
         assert solid[2][cx] == 1, cx
-        assert solid[7][cx] == 1, cx
+        assert solid[7][cx] == 0, "paper lip is walkable %s" % cx
+        assert solid[9][cx] == 1, "dropped floor %s" % cx
     _clear_hall_bites(px, solid, ["cave"])
     for cx in range(1, 9):
-        assert solid[7][cx] == 1, "tunnel floor beside hall must stay %s" % cx
+        assert solid[9][cx] == 1, "tunnel floor beside hall must stay %s" % cx
 
 
 def test_interior_speckled_next_to_paper_stays_solid() -> None:
@@ -498,6 +536,7 @@ if __name__ == "__main__":
     test_cave_tunnel_rejects_wallpaper_beside_green_room()
     test_cave_tunnel_rejects_cyan_and_short_runs()
     test_flooded_gap_has_floor_and_ceiling()
+    test_stacked_tunnels_keep_dropped_floor_after_gaps()
     test_red_post_is_brick_but_not_a_floor()
     test_red_pillars_are_passable()
     test_crate_counts_as_furniture()

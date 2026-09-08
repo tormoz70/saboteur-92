@@ -11,7 +11,9 @@ const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
 const SABOTAGE_SCENE := preload("res://scenes/items/sabotage_target.tscn")
 const EXIT_SCENE := preload("res://scenes/items/exit_zone.tscn")
-const LETTERBOX_PX := 160.0
+# Side bars used to hide extra camera width at 16:9. They ate the space the
+# touch pad needs and hid playable map; the camera now uses that width.
+const LETTERBOX_PX := 0.0
 # Camera stays put while Nina is more than this fraction of the playfield away
 # from any edge. Crossing that band pushes the view; standing still recenters.
 const CAMERA_EDGE_FRACTION := 1.0 / 3.0
@@ -117,8 +119,9 @@ func _load_original_world() -> void:
 
 	_add_lifts(data)
 
-	# Vertical view is exactly one 192px Spectrum screen (384 world px at
-	# zoom 720/384). Horizontal view is wider; the letterbox hides the extra.
+	# Vertical view is one 192px Spectrum screen (384 world px at zoom
+	# viewport_height/384). Extra horizontal pixels show more of the map
+	# instead of being covered by letterbox bars.
 	var world_px := _world_size * _scale
 	camera.limit_left = 0
 	camera.limit_top = 0
@@ -126,7 +129,10 @@ func _load_original_world() -> void:
 	camera.limit_bottom = int(world_px.y)
 	camera.limit_smoothed = true
 	camera.position_smoothing_enabled = false
-	camera.zoom = Vector2(720.0 / (_screen.y * _scale), 720.0 / (_screen.y * _scale))
+	_apply_camera_zoom()
+	var vp := get_viewport()
+	if vp and not vp.size_changed.is_connected(_on_viewport_size_changed):
+		vp.size_changed.connect(_on_viewport_size_changed)
 
 
 func _add_map_layers() -> void:
@@ -451,7 +457,28 @@ func _update_camera(delta: float, force: bool) -> void:
 	camera.global_position = camera.global_position.lerp(center, t)
 
 
+func _playfield_zoom() -> float:
+	var height := 720.0
+	var vp := get_viewport()
+	if vp:
+		var visible := vp.get_visible_rect().size.y
+		if visible >= 1.0:
+			height = visible
+	return height / (_screen.y * _scale)
+
+
+func _apply_camera_zoom() -> void:
+	var z := _playfield_zoom()
+	camera.zoom = Vector2(z, z)
+
+
+func _on_viewport_size_changed() -> void:
+	_apply_camera_zoom()
+
+
 func _add_letterbox() -> void:
+	if LETTERBOX_PX <= 0.0:
+		return
 	var layer := CanvasLayer.new()
 	layer.name = "Letterbox"
 	layer.layer = 3
