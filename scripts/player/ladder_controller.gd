@@ -159,12 +159,7 @@ func _take_step(axis: float) -> bool:
 			_dismount_to_y(floor_y)
 			return false
 	else:
-		var ceil_y := _blocking_ceiling_y(step.y)
-		if ceil_y < INF:
-			# Dead-end lid: do not plant feet on the underside — that embeds
-			# the body in the brick and freeze-locks move_and_slide. Land
-			# beside it if a floor is there, otherwise stay on the last rung.
-			_dismount_if_landing()
+		if not _try_climb_up_past_lid(step):
 			return false
 	_p.move_and_collide(step)
 	sync_pose()
@@ -255,18 +250,56 @@ func _blocking_floor_y(dy: float) -> float:
 	return fy
 
 
-func _blocking_ceiling_y(dy: float) -> float:
+func _try_climb_up_past_lid(step: Vector2) -> bool:
+	# True: take the step. False: blocked or already dismounted.
 	var head := _head_y()
-	var hit := _vertical_solid(head + 1.0, head + dy - 2.0)
+	var hit := _vertical_solid(head + 1.0, head + step.y - 2.0)
 	if hit.is_empty():
-		return INF
-	var cy: float = hit.position.y
-	# Shaft continues through the lid — keep climbing. A dead-end ceiling
-	# has no rungs above it; the old "ladder exists below" check was always
-	# true on the shaft you are already on, so every lid became a hatch.
-	if _at_world(Vector2(_body_cx(), cy - 32.0)):
-		return INF
-	return cy
+		return true
+	var bottom: float = hit.position.y
+	# Shaft continues through the lid.
+	if _at_world(Vector2(_body_cx(), bottom - 32.0)):
+		return true
+	# Thin walkable floor (document hatch): rungs often stop at the slab.
+	# Climb through until the feet reach the TOP, never the underside.
+	var top := _walkable_top(bottom)
+	if top < INF:
+		if _feet_y() + step.y <= top + 2.0:
+			_dismount_to_y(top)
+			return false
+		return true
+	# Dead-end mass: stay on the last rung. Do not plant feet on the underside.
+	_dismount_if_landing()
+	return false
+
+
+func _walkable_top(bottom_y: float) -> float:
+	# Probe up from just inside the solid. A hatch is a thin slab with empty
+	# space on top. A thick ceiling mass never emerges.
+	var y := bottom_y - 2.0
+	var end := bottom_y - 64.0 * maxf(_p.scale.y, 1.0)
+	var inside := false
+	while y > end:
+		if _point_is_world_solid(Vector2(_body_cx(), y)):
+			inside = true
+			y -= 4.0
+			continue
+		if not inside:
+			y -= 4.0
+			continue
+		# First empty sample sits just above the slab. Planting feet on the
+		# last solid pixel (y+4) embeds the collider in the brick.
+		if _point_is_world_solid(Vector2(_body_cx(), y - 8.0)):
+			return INF
+		return y
+	return INF
+
+
+func _point_is_world_solid(point: Vector2) -> bool:
+	_probe_shape.size = Vector2(6.0, 4.0)
+	return _shape_hits(
+		_probe_shape, Transform2D(0.0, point), _p.get_world_mask(), false, true
+	)
 
 
 func _vertical_solid(from_y: float, to_y: float) -> Dictionary:

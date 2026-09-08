@@ -304,6 +304,29 @@ func test_climb_through_hatch_still_emerges() -> void:
 	assert_lt(player.global_position.y, -8.0, "should climb through the hatch")
 
 
+func test_climb_through_hatch_when_rungs_end_at_the_floor() -> void:
+	# Document hatch: the floor slab covers the shaft and the Area2D stops
+	# at the lid. Climb through until the feet reach the TOP, not the
+	# underside (that embedded the body and froze the pose).
+	var player := await _spawn_on_floor()
+	_lid = _add_solid(Vector2(240, 0), Vector2(480, 8))
+	_add_ladder(Vector2(140, 44), Vector2(160, 80))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	for _i in 120:
+		await wait_physics_frames(1)
+		if not player.on_ladder and player.global_position.y < 20.0:
+			break
+	assert_false(player.on_ladder)
+	assert_true(player.is_on_floor(), "stands on the hatch")
+	assert_lt(player.global_position.y, 8.0, "feet should reach the hatch floor")
+	assert_lt(
+		player.body_collision.global_position.y,
+		-4.0,
+		"body centre sits above the slab, not inside it"
+	)
+
+
 func test_jump_off_ladder_into_ceiling_does_not_wedge() -> void:
 	# Climb to the lid, then MOVE without UP to hop off. Restoring world
 	# collision while the head is in the brick used to freeze the pose.
@@ -362,10 +385,9 @@ func _spawn_on_floor() -> Player:
 
 func _spawn_under_ceiling() -> Player:
 	var player := await _spawn_on_floor()
-	# Lid bottom at y=-32. Standing head is ~origin+14, so a climb or
-	# somersault from the slab bonks it, and the feet stay more than one
-	# cell above the floor so a side-ray dismount does not fire.
-	_lid = _add_solid(Vector2(240, -40), Vector2(480, 16))
+	# Thick mass, underside at y=-32. Empty space above a thin bar would
+	# make this a hatch; a deep brick block is a real dead-end lid.
+	_lid = _add_solid(Vector2(240, -72), Vector2(480, 80))
 	return player
 
 
