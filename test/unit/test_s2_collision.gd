@@ -118,6 +118,33 @@ func test_cave_tunnels_have_floor_and_ceiling() -> void:
 		)
 
 
+func test_cave_hall_floor_is_earth_not_wallpaper() -> void:
+	var data := _collision_data()
+	# Mosaic 7,15: yellow crates and a white ladder in a blue-brick hall.
+	# Flooded-gap finding used to climb through the speckled earth and paint
+	# the last wallpaper row as a floor, so Nina floated and her head hit
+	# the hanging ceiling on the left. Stand on the earth; the paper lip
+	# and the first earth cell under the thin tunnel stay empty.
+	assert_false(
+		_point_in_any_rect(Vector2i(1892, 2996), data["solids"]),
+		"last wallpaper cell in the crate hall must not be the floor"
+	)
+	assert_true(
+		_point_in_any_rect(Vector2i(1892, 3004), data["solids"]),
+		"speckled earth under the crate hall should be solid"
+	)
+	# Thin tunnel on the left of that screen: ceiling on the first paper
+	# cell, dropped floor two cells into the earth, room for a 42px body.
+	assert_true(
+		_point_in_any_rect(Vector2i(1804, 2948), data["solids"]),
+		"hanging ceiling mass / tunnel lining should stay solid"
+	)
+	assert_false(
+		_point_in_any_rect(Vector2i(1804, 2964), data["solids"]),
+		"standing volume under the hanging ceiling must stay walkable"
+	)
+
+
 func test_flooded_cave_gaps_are_walkable() -> void:
 	var data := _collision_data()
 	# Black corridor between two blue-brick masses: air (and water in the
@@ -127,8 +154,8 @@ func test_flooded_cave_gaps_are_walkable() -> void:
 		Vector2i(6196, 2076),
 	]
 	var ceils: Array[Vector2i] = [
-		Vector2i(5980, 1988),
-		Vector2i(6196, 1988),
+		Vector2i(5980, 1996),
+		Vector2i(6196, 1996),
 	]
 	var interiors: Array[Vector2i] = [
 		Vector2i(5980, 2028),

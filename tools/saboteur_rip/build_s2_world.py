@@ -1645,26 +1645,53 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
     return added_ceil, added_floor, punched
 
 
+def _gap_lid_y(px, paper: list[list[bool]], cx: int, y0: int, y1: int) -> int:
+    """Solid lid for a gap whose finder sat on last wallpaper.
+
+    Speckled earth under a hall is `_is_cave_void`, so the gap climb stops
+    at the last paper cell. Painting that lip solid makes Nina stand on the
+    bricks and ram the ceiling. Keep the wallpaper empty and cap the gap on
+    the earth / fringe below it. A flooded corridor with no dirt under the
+    brick still uses the paper as the lid.
+    """
+    if y0 + 1 >= y1 or not paper[y0][cx]:
+        return y0
+    lid = y0
+    for ny in range(y0 + 1, y1):
+        counts = _cell_counts(px, cx, ny)
+        if paper[ny][cx]:
+            break
+        if not (_is_speckled_earth(counts) or _is_cave_fringe(counts)):
+            break
+        lid = ny
+    return lid
+
+
 def _apply_cave_gaps(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
     """Open black cave corridors between brick masses; lining is not thickened.
 
     Flooded tunnels are this shape: walkable air above water, solid ceiling
     on the brick above, solid floor on the brick below.
+
+    When the upper lining is a wallpaper hall, the walkable floor is the
+    earth under that paper, not the last brick row.
     """
     ch = len(solid)
     cw = len(solid[0])
     sx_n = (cw * CELL) // SCREEN_W
+    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
     added_ceil = 0
     added_floor = 0
     punched = 0
     for cx, y0, y1 in find_cave_gaps(px, cw, ch, biomes, sx_n):
-        if not solid[y0][cx]:
+        ceil = _gap_lid_y(px, paper, cx, y0, y1)
+        if not solid[ceil][cx]:
             added_ceil += 1
-        solid[y0][cx] = 1
+        solid[ceil][cx] = 1
         if not solid[y1][cx]:
             added_floor += 1
         solid[y1][cx] = 1
-        for cy in range(y0 + 1, y1):
+        for cy in range(ceil + 1, y1):
             if solid[cy][cx]:
                 punched += 1
             solid[cy][cx] = 0
