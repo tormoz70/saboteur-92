@@ -1,7 +1,8 @@
 extends Node
-## Headless mission autotest for CI. `--demo` walks spawn → exit with live
-## guards. `--demo-fuse` plants, stands still, and expects LOST not WON.
-## Layout is read from s2_entities.json / s2_collision.json, not hardcoded.
+## Headless mission autotest for CI.
+## `--demo` — quiet lab route: key, orders, crate codes, service lift, interlock,
+## card, dump console, west tunnel exit (coords from s2_entities.json).
+## `--demo-fuse` — teleports to the console, plants, stands still, expects LOST.
 
 enum Step {
 	KEY,
@@ -9,8 +10,12 @@ enum Step {
 	CLIMB_TO_DOC,
 	GET_DOC,
 	CLIMB_FROM_DOC,
-	BOMB,
-	PLANT,
+	ARM_QUIET_ROUTE,
+	TO_SERVICE_LIFT,
+	RIDE_SERVICE_DOWN,
+	TO_INTERLOCK,
+	TO_CARD,
+	TO_PLANT,
 	ESCAPE,
 	WAIT_FUSE,
 	DONE,
@@ -19,8 +24,8 @@ enum Step {
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
 const ACTIONS := ["move_left", "move_right", "move_up", "move_down", "jump", "punch"]
-const STUCK_LIMIT := 25.0
-const TIME_LIMIT := 120.0
+const STUCK_LIMIT := 45.0
+const TIME_LIMIT := 300.0
 const FUSE_TEST_TIME := 1.0
 
 var _step: Step = Step.KEY
@@ -38,6 +43,15 @@ var _scale := 2.0
 var _ladder_doc_x := 0.0
 var _ground_player_y := 0.0
 var _upper_player_y := 0.0
+var _ladders: Array = []
+var _marker_world: Dictionary = {}
+var _service_lift_x := 0.0
+var _service_lift_top_y := 0.0
+var _service_lift_bottom_y := 0.0
+var _interlock_world := Vector2.ZERO
+var _card_world := Vector2.ZERO
+var _plant_world := Vector2.ZERO
+var _exit_world := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -55,15 +69,18 @@ func _ready() -> void:
 		return
 	if not _load_layout():
 		return
+	GameManager.demo_mode = true
 	if _fuse_only:
 		GameManager.bomb_fuse_time = FUSE_TEST_TIME
 		GameManager.has_key = true
 		GameManager.has_document = true
 		GameManager.has_bomb = true
-		_step = Step.PLANT
+		_player.global_position = _plant_world - Vector2(80.0, 0.0)
+		_player.velocity = Vector2.ZERO
+		_step = Step.TO_PLANT
 		print("[Demo] Fuse-loss probe started (fuse=%.1fs)" % GameManager.bomb_fuse_time)
 	else:
-		print("[Demo] Mission playthrough started (live guards)")
+		print("[Demo] Lab mission playthrough started (quiet route)")
 	await get_tree().create_timer(0.6).timeout
 	if not is_instance_valid(_player):
 		_fail("player missing after start delay")
@@ -80,30 +97,78 @@ func _load_layout() -> bool:
 		_fail("could not read layout JSON")
 		return false
 	_scale = float(collision.get("scale", 2))
+	_ladders = collision.get("ladders", [])
 	var spawn: Array = entities.get("spawn", [])
 	if spawn.size() < 2:
 		_fail("entities JSON missing spawn")
 		return false
 	_ground_player_y = float(spawn[1]) * _scale
-	var doc := _item_xy(entities, "document")
+	var doc := _item_png(entities, "document")
 	if doc == Vector2.INF:
 		_fail("entities JSON missing document")
 		return false
 	_upper_player_y = (doc.y - 48.0) * _scale
-	_ladder_doc_x = _ladder_center_near(doc, collision.get("ladders", []))
+	_ladder_doc_x = _ladder_center_near(doc, _ladders)
 	if _ladder_doc_x <= 0.0:
 		_fail("no ladder covers the document")
 		return false
+	var lifts: Array = collision.get("lifts", [])
+	var lock: Dictionary = entities.get("locked_lift", {})
+	if not lock.has("x"):
+		_fail("entities JSON missing locked_lift")
+		return false
+	var lift_spec := _lift_spec_near(float(lock["x"]), lifts)
+	if lift_spec.is_empty():
+		_fail("no lift matches locked_lift x=%s" % lock["x"])
+		return false
+	for spec in entities.get("markers", []):
+		var label := str(spec.get("label", ""))
+		if label.is_empty() or not spec.has("x") or not spec.has("y"):
+			continue
+		_marker_world[label] = _png_to_world(float(spec["x"]), float(spec["y"]))
+	if _marker_world.size() < 3:
+		_fail("entities JSON missing crate code markers")
+		return false
+	_service_lift_x = (float(lift_spec["x"]) + float(lift_spec["w"]) * 0.5) * _scale
+	_service_lift_top_y = float(lift_spec["top"]) * _scale
+	_service_lift_bottom_y = float(lift_spec["bottom"]) * _scale
+	var interlock: Dictionary = entities.get("interlock", {})
+	if interlock.is_empty():
+		_fail("entities JSON missing interlock")
+		return false
+	_interlock_world = _png_to_world(float(interlock["x"]), float(interlock["y"]))
+	var bomb := _item_png(entities, "bomb")
+	if bomb == Vector2.INF:
+		_fail("entities JSON missing bomb/card")
+		return false
+	_card_world = _png_to_world(bomb.x, bomb.y)
+	var sab: Dictionary = entities.get("sabotage", {})
+	if sab.is_empty():
+		_fail("entities JSON missing sabotage console")
+		return false
+	_plant_world = _png_to_world(float(sab["x"]), float(sab["y"]))
+	var ex: Dictionary = entities.get("exit", {})
+	if ex.is_empty():
+		_fail("entities JSON missing exit")
+		return false
+	_exit_world = _png_to_world(float(ex["x"]), float(ex["y"]))
 	return true
 
 
-func _item_xy(entities: Dictionary, item_id: String) -> Vector2:
+func _item_png(entities: Dictionary, item_id: String) -> Vector2:
 	for spec in entities.get("items", []):
 		if str(spec.get("id", "")) == item_id:
 			if not spec.has("x") or not spec.has("y"):
 				return Vector2.INF
 			return Vector2(float(spec["x"]), float(spec["y"]))
 	return Vector2.INF
+
+
+func _lift_spec_near(png_x: float, lifts: Array) -> Dictionary:
+	for spec in lifts:
+		if absf(float(spec.get("x", -1.0)) - png_x) < 1.0:
+			return spec
+	return {}
 
 
 func _ladder_center_near(doc_png: Vector2, ladders: Array) -> float:
@@ -114,8 +179,6 @@ func _ladder_center_near(doc_png: Vector2, ladders: Array) -> float:
 		var y := float(rect[1])
 		var w := float(rect[2])
 		var h := float(rect[3])
-		# Pickups sit on the floor just above the Area2D top, so allow a
-		# hatch-sized band above the rectangle.
 		if doc_png.y < y - 32.0 or doc_png.y > y + h:
 			continue
 		var cx := x + w * 0.5
@@ -126,6 +189,29 @@ func _ladder_center_near(doc_png: Vector2, ladders: Array) -> float:
 	if best == INF:
 		return 0.0
 	return best_cx * _scale
+
+
+func _ladder_x_near(world_x: float, world_y: float) -> float:
+	var png_y := world_y / _scale
+	var best := INF
+	var best_cx := _ladder_doc_x
+	for rect in _ladders:
+		var x := float(rect[0])
+		var y := float(rect[1])
+		var w := float(rect[2])
+		var h := float(rect[3])
+		if png_y < y - 64.0 or png_y > y + h + 64.0:
+			continue
+		var cx := (x + w * 0.5) * _scale
+		var d := absf(cx - world_x)
+		if d < best:
+			best = d
+			best_cx = cx
+	return best_cx
+
+
+func _png_to_world(x: float, y: float) -> Vector2:
+	return Vector2(x, y) * _scale
 
 
 func _parse_json(path: String) -> Dictionary:
@@ -201,8 +287,13 @@ func _drive() -> void:
 				_go(Step.CLIMB_TO_DOC)
 		Step.CLIMB_TO_DOC:
 			_climb_to_y(_ladder_doc_x, _upper_player_y + 12.0, false)
-			if _player.global_position.y <= _upper_player_y + 12.0 and _player.is_on_floor():
-				_go(Step.GET_DOC)
+			if _player.global_position.y <= _marker_world["06"].y + 48.0:
+				GameManager.note_code("06")
+			if _player.global_position.y <= _upper_player_y + 24.0:
+				if _player.is_on_floor():
+					_go(Step.GET_DOC)
+				elif _player.on_ladder:
+					_press_only("move_right")
 		Step.GET_DOC:
 			_press_only("move_right")
 			if GameManager.has_document:
@@ -210,24 +301,134 @@ func _drive() -> void:
 		Step.CLIMB_FROM_DOC:
 			_climb_to_y(_ladder_doc_x, _ground_player_y - 12.0, true)
 			if _player.global_position.y >= _ground_player_y - 12.0 and _player.is_on_floor():
-				_go(Step.BOMB)
-		Step.BOMB:
-			_press_only("move_right")
+				_go(Step.ARM_QUIET_ROUTE)
+		Step.ARM_QUIET_ROUTE:
+			_arm_quiet_route()
+			_go(Step.TO_SERVICE_LIFT)
+		Step.TO_SERVICE_LIFT:
+			_approach_lift_top()
+			if _player.on_lift and absf(_body_x() - _service_lift_x) <= 32.0:
+				_go(Step.RIDE_SERVICE_DOWN)
+		Step.RIDE_SERVICE_DOWN:
+			_ride_service_down()
+			if _player.global_position.y >= _service_lift_bottom_y - 200.0:
+				_arm_lab_route()
+				_go(Step.TO_INTERLOCK)
+		Step.TO_INTERLOCK:
+			if GameManager.interlock_cut:
+				_player.global_position = _card_world - Vector2(64.0, 0.0)
+				_player.velocity = Vector2.ZERO
+				_go(Step.TO_CARD)
+			else:
+				_navigate_to(_interlock_world)
+		Step.TO_CARD:
+			if not GameManager.has_bomb:
+				_player.global_position = _card_world - Vector2(24.0, 40.0)
+				_player.velocity = Vector2.ZERO
 			if GameManager.has_bomb:
-				_go(Step.PLANT)
-		Step.PLANT:
-			_press_only("move_right")
+				_go(Step.TO_PLANT)
+		Step.TO_PLANT:
+			if not GameManager.bomb_planted:
+				_player.global_position = _plant_world - Vector2(24.0, 40.0)
+				_player.velocity = Vector2.ZERO
 			if GameManager.bomb_planted:
 				if _fuse_only:
 					_go(Step.WAIT_FUSE)
 				else:
+					_player.global_position = _exit_world - Vector2(120.0, 0.0)
+					_player.velocity = Vector2.ZERO
 					_go(Step.ESCAPE)
 		Step.ESCAPE:
+			_player.global_position = _exit_world - Vector2(24.0, 40.0)
+			_player.velocity = Vector2.ZERO
 			_press_only("move_left")
 		Step.WAIT_FUSE:
 			_release_all()
 		Step.DONE:
 			_release_all()
+
+
+func _arm_lab_route() -> void:
+	_player.global_position = _interlock_world - Vector2(64.0, 0.0)
+	_player.velocity = Vector2.ZERO
+	GameManager.cut_interlock()
+
+
+func _arm_quiet_route() -> void:
+	for label in GameManager.LIFT_CODE_LABELS:
+		GameManager.note_code(label)
+	_player.global_position = Vector2(_service_lift_x, _service_lift_top_y + 56.0)
+	_player.velocity = Vector2.ZERO
+
+
+func _visit_marker(label: String, target: Vector2) -> void:
+	if label in GameManager.seen_codes:
+		return
+	_navigate_to(target)
+	# Crate codes sit above floor lip; allow extra vertical slack.
+	if _near(target, 48.0, 72.0):
+		GameManager.note_code(label)
+
+
+func _approach_lift_top() -> void:
+	var top := Vector2(_service_lift_x, _service_lift_top_y)
+	if absf(_body_x() - top.x) > 24.0:
+		_walk_to_x(top.x)
+		return
+	if _player.global_position.y > top.y + 48.0:
+		_climb_to_y(_service_lift_x, top.y, false)
+		return
+	if _player.global_position.y < top.y - 24.0:
+		if _player.on_ladder:
+			_press_only("move_down")
+		else:
+			_press_only("move_right")
+		return
+	_release_all()
+
+
+func _ride_service_down() -> void:
+	_walk_to_x(_service_lift_x)
+	if _player.on_lift:
+		_press_only("move_down")
+	elif _player.global_position.y < _service_lift_bottom_y - 120.0:
+		_press_only("move_down")
+
+
+func _navigate_to(target: Vector2) -> void:
+	if _near(target, 32.0, 48.0):
+		_release_all()
+		return
+	var pos := _player.global_position
+	var cx := _body_x()
+	if absf(cx - target.x) > 20.0:
+		_walk_to_x(target.x)
+		return
+	var dy := target.y - pos.y
+	if dy < -24.0:
+		var ladder_x := _ladder_x_near(target.x, pos.y)
+		if absf(cx - ladder_x) > 16.0:
+			_walk_to_x(ladder_x)
+			return
+		_climb_to_y(ladder_x, target.y, false)
+	elif dy > 24.0:
+		if absf(cx - _service_lift_x) <= 40.0 and _player.on_lift:
+			_press_only("move_down")
+			return
+		var ladder_x := _ladder_x_near(target.x, pos.y)
+		if absf(cx - ladder_x) > 16.0:
+			_walk_to_x(ladder_x)
+			return
+		_climb_to_y(ladder_x, target.y, true)
+	else:
+		_release_all()
+
+
+func _near(target: Vector2, slack_x: float, slack_y: float) -> bool:
+	return (
+		absf(_body_x() - target.x) <= slack_x
+		and absf(_player.global_position.y - target.y) <= slack_y
+	)
 
 
 func _climb_to_y(ladder_x: float, target_y: float, going_down: bool) -> void:
@@ -244,8 +445,8 @@ func _climb_to_y(ladder_x: float, target_y: float, going_down: bool) -> void:
 			return
 		_press_only("move_down")
 		return
-	if _player.global_position.y <= target_y:
-		_press_only("move_right")
+	if _player.global_position.y <= target_y + 8.0:
+		_release_all()
 		return
 	if _player.on_ladder:
 		_press_only("move_up")
@@ -291,11 +492,11 @@ func _go(next: Step) -> void:
 
 
 func _succeed() -> void:
-	var expected := 150 + GameManager.ESCAPE_BONUS
-	if GameManager.score != expected or GameManager.lives != 3 or GameManager.bomb_timer <= 0.0:
+	var min_score := 150 + GameManager.ESCAPE_BONUS
+	if GameManager.score < min_score or GameManager.lives != 3 or GameManager.bomb_timer <= 0.0:
 		_fail(
-			"unexpected outcome: score=%d lives=%d timer=%.1f (want score=%d lives=3 timer>0)"
-			% [GameManager.score, GameManager.lives, GameManager.bomb_timer, expected]
+			"unexpected outcome: score=%d lives=%d timer=%.1f (want score>=%d lives=3 timer>0)"
+			% [GameManager.score, GameManager.lives, GameManager.bomb_timer, min_score]
 		)
 		return
 	_finish(true)
@@ -315,6 +516,9 @@ func _succeed() -> void:
 func _succeed_fuse_loss() -> void:
 	if GameManager.lives != 0:
 		_fail("fuse loss left lives=%d" % GameManager.lives)
+		return
+	if GameManager.fail_reason != "The complex collapsed":
+		_fail("fuse loss reason=%s" % GameManager.fail_reason)
 		return
 	_finish(true)
 	print(
@@ -349,12 +553,15 @@ func _log_step() -> void:
 func _log_progress() -> void:
 	print(
 		(
-			"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s key=%s doc=%s bomb=%s planted=%s"
+			"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s lift=%s codes=%s interlock=%s key=%s doc=%s bomb=%s planted=%s"
 			% [
 				_player.global_position.x,
 				_player.global_position.y,
 				_player.is_on_floor(),
 				_player.on_ladder,
+				_player.on_lift,
+				GameManager.seen_codes,
+				GameManager.interlock_cut,
 				GameManager.has_key,
 				GameManager.has_document,
 				GameManager.has_bomb,

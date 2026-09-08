@@ -67,11 +67,15 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
 
 ## Mission flow
 
-1. Pick up the **key**
-2. Collect the **document** upstairs
-3. Pick up the **bomb**
-4. Plant the bomb at the sabotage target
-5. Escape through the green exit before the timer ends
+Second night in the Saboteur II mountain: find the **secret lab**, start its **emergency dump**, and escape before the complex collapses.
+
+1. Pick up the **key** (guarded corridor or bookcase crawl-through)
+2. Collect **orders** upstairs (needs key)
+3. Pick up the **operator card** in the caves (needs orders)
+4. Start the **dump** at the lab console (needs card; orders unless you cut the interlock)
+5. Escape through the **west tunnel** before the dump timer ends
+
+Optional: read crate numbers **02 / 06 / 11** to unlock the quiet service lift. See [docs/story.md](docs/story.md) and [docs/lab-map.md](docs/lab-map.md).
 
 ## Build Android APK
 

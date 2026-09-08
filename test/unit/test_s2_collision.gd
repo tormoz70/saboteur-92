@@ -198,6 +198,21 @@ func test_red_pillars_are_passable() -> void:
 	)
 
 
+func test_item_chrome_crates_are_walkable() -> void:
+	var data := _collision_data()
+	# Magenta ? supply boxes (mission code markers 02/06/11).
+	var air: Array[Vector2i] = [
+		Vector2i(808, 1536),
+		Vector2i(1920, 392),
+		Vector2i(4312, 1104),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"magenta item crate at %s must stay walkable" % p
+		)
+
+
 func test_crates_and_blue_brick_are_not_solid() -> void:
 	var data := _collision_data()
 	# Mosaic 8,15: yellow crates and the blue-brick far wall around them.

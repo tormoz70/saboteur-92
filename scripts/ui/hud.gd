@@ -18,8 +18,10 @@ func _ready() -> void:
 	EventBus.mission_complete.connect(_on_mission_complete)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.connect(_on_energy_changed)
+	EventBus.marker_seen.connect(_on_marker_seen)
 	restart_button.pressed.connect(_on_restart_pressed)
 	_refresh()
+	status_label.text = "Find the lab. Start the dump. Leave before it falls."
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -36,7 +38,7 @@ func _process(_delta: float) -> void:
 	# Fuse ticks in GameManager._process; the label has to follow it.
 	# Inventory is signal-driven (item_collected / bomb_planted / _refresh).
 	if GameManager.bomb_planted and GameManager.state == GameManager.GameState.PLAYING:
-		bomb_timer_label.text = "Bomb: %ds" % ceili(GameManager.bomb_timer)
+		bomb_timer_label.text = "Dump: %ds" % ceili(GameManager.bomb_timer)
 	else:
 		bomb_timer_label.text = ""
 
@@ -56,9 +58,9 @@ func _update_inventory() -> void:
 	if GameManager.has_key:
 		items.append("Key")
 	if GameManager.has_document:
-		items.append("Doc")
+		items.append("Orders")
 	if GameManager.has_bomb:
-		items.append("Bomb")
+		items.append("Card")
 	inventory_label.text = "Items: " + (", ".join(items) if items.size() else "-")
 
 
@@ -76,8 +78,12 @@ func _on_item_collected(_item_type: String) -> void:
 
 
 func _on_bomb_planted() -> void:
-	status_label.text = "Bomb planted! Escape!"
+	status_label.text = "Dump started! Escape!"
 	_update_inventory()
+
+
+func _on_marker_seen(label: String) -> void:
+	status_label.text = "Mark: %s" % label
 
 
 func _on_mission_complete() -> void:

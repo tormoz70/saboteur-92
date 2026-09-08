@@ -22,6 +22,7 @@ from build_s2_world import (
     _paper_on_row_mask,
     cell_is_crate,
     cell_is_diamond_floor,
+    cell_is_item_chrome,
     cell_is_red_brick,
     fill_cave_earth,
     find_cave_gaps,
@@ -393,6 +394,27 @@ CRATE = [
 def test_crate_counts_as_furniture() -> None:
     assert cell_is_crate(_counts(CRATE))
     assert not _is_cave_paper(_counts(CRATE))
+
+
+ITEM_CHROME = [
+    list("mwmwmwmw"),
+    list("wmwmwmwm"),
+    list("mwmwmwmw"),
+    list("wmwmwmwm"),
+    list("mwmwmwmw"),
+    list("wmwmwmwm"),
+    list("mwmwmwmw"),
+    list("kkkkkkkk"),
+]
+
+
+def test_item_chrome_is_not_cave_ground() -> None:
+    counts = _counts(ITEM_CHROME)
+    assert cell_is_item_chrome(counts)
+    assert not cell_is_crate(counts)
+    from build_s2_world import _is_cave_ground
+
+    assert not _is_cave_ground(counts)
 
 
 def test_blue_brick_and_crates_are_not_cave_rock() -> None:

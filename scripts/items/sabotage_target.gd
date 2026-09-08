@@ -21,7 +21,7 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if requires_key and not GameManager.has_key:
 		return
-	if requires_document and not GameManager.has_document:
+	if requires_document and not GameManager.has_document and not GameManager.interlock_cut:
 		return
 	if requires_bomb and not GameManager.has_bomb:
 		return

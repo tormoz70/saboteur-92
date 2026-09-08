@@ -11,6 +11,9 @@ const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
 const SABOTAGE_SCENE := preload("res://scenes/items/sabotage_target.tscn")
 const EXIT_SCENE := preload("res://scenes/items/exit_zone.tscn")
+const MARKER_SCRIPT := preload("res://scripts/world/mission_marker.gd")
+const PASSAGE_SCRIPT := preload("res://scripts/world/bookcase_passage.gd")
+const INTERLOCK_SCRIPT := preload("res://scripts/world/interlock_zone.gd")
 # Side bars used to hide extra camera width at 16:9. They ate the space the
 # touch pad needs and hid playable map; the camera now uses that width.
 const LETTERBOX_PX := 0.0
@@ -27,6 +30,7 @@ var _spawn := Vector2.ZERO
 var _cam_still := 0.0
 var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
+var _alarm_guard_spawned := false
 
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
@@ -53,6 +57,8 @@ func _ready() -> void:
 	_connect_punch_areas()
 	if not EventBus.player_died.is_connected(_on_player_died):
 		EventBus.player_died.connect(_on_player_died)
+	if not EventBus.alarm_raised.is_connected(_on_alarm_raised):
+		EventBus.alarm_raised.connect(_on_alarm_raised)
 	_start_demo_if_requested()
 
 
@@ -352,6 +358,111 @@ func _add_entities() -> void:
 		guards_root.add_child(guard)
 		gi += 1
 
+	_add_markers(data)
+	_add_passages(data)
+	_add_interlock(data)
+	_configure_locked_lift(data)
+
+
+func _add_markers(data: Dictionary) -> void:
+	var markers: Array = data.get("markers", [])
+	if markers.is_empty():
+		return
+	var root := Node2D.new()
+	root.name = "MissionMarkers"
+	add_child(root)
+	for spec in markers:
+		var area := Area2D.new()
+		area.set_script(MARKER_SCRIPT)
+		area.name = "Marker_%s" % str(spec.get("id", spec.get("label", "code")))
+		area.label = str(spec.get("label", ""))
+		area.position = _xy_world(spec, "marker")
+		var col := CollisionShape2D.new()
+		var shape := CircleShape2D.new()
+		shape.radius = 28.0
+		col.shape = shape
+		area.add_child(col)
+		root.add_child(area)
+
+
+func _add_passages(data: Dictionary) -> void:
+	var passages: Array = data.get("passages", [])
+	if passages.is_empty():
+		return
+	var root := Node2D.new()
+	root.name = "Passages"
+	add_child(root)
+	for spec in passages:
+		var area := Area2D.new()
+		area.set_script(PASSAGE_SCRIPT)
+		area.name = "Passage_%s" % str(spec.get("id", "shelf"))
+		area.position = _xy_world(spec, "passage")
+		area.dest_x = float(spec.get("to_x", spec["x"])) * _scale
+		area.dest_y = float(spec.get("to_y", spec["y"])) * _scale
+		area.need_crouch = bool(spec.get("need_crouch", true))
+		var col := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(48.0, 40.0) * _scale
+		col.shape = shape
+		col.position = shape.size * 0.5
+		area.add_child(col)
+		root.add_child(area)
+
+
+func _add_interlock(data: Dictionary) -> void:
+	var spec: Variant = data.get("interlock", null)
+	if typeof(spec) != TYPE_DICTIONARY or spec.is_empty():
+		return
+	var area := Area2D.new()
+	area.set_script(INTERLOCK_SCRIPT)
+	area.name = "InterlockZone"
+	area.position = _xy_world(spec, "interlock")
+	var col := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = 32.0
+	col.shape = shape
+	area.add_child(col)
+	add_child(area)
+
+
+func _configure_locked_lift(data: Dictionary) -> void:
+	var lock: Variant = data.get("locked_lift", null)
+	if typeof(lock) != TYPE_DICTIONARY or lock.is_empty():
+		return
+	var lifts := world.get_node_or_null("Lifts")
+	if lifts == null:
+		return
+	var lx := float(lock.get("x", -1.0)) * _scale
+	var ly := float(lock.get("y", -1.0)) * _scale
+	for child in lifts.get_children():
+		if not child.has_method("start_ride"):
+			continue
+		var pos: Vector2 = child.global_position
+		if absf(pos.x - lx) <= 4.0 and absf(pos.y - ly) <= 4.0:
+			child.requires_lift_code = true
+			return
+
+
+func _on_alarm_raised() -> void:
+	if _alarm_guard_spawned:
+		return
+	var data := _load_json(ENTITIES_PATH)
+	var spec: Variant = data.get("alarm_guard", null)
+	if typeof(spec) != TYPE_DICTIONARY or spec.is_empty():
+		return
+	var guards := get_node_or_null("Guards")
+	if guards == null:
+		guards = Node2D.new()
+		guards.name = "Guards"
+		add_child(guards)
+	var guard: CharacterBody2D = GUARD_SCENE.instantiate()
+	guard.name = "GuardAlarm"
+	guard.scale = Vector2(_scale, _scale)
+	guard.patrol_distance = float(spec.get("patrol", 40)) * _scale
+	guard.position = _xy_world(spec, "alarm guard")
+	guards.add_child(guard)
+	_alarm_guard_spawned = true
+
 
 func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
@@ -363,13 +474,22 @@ func _on_player_died() -> void:
 
 
 func _reset_mission_entities() -> void:
+	_alarm_guard_spawned = false
 	# Move Nina off the corpse tile before pickups come back, otherwise a dead
 	# body still overlapping the restored key collects it again.
 	if player:
 		player.spawn_point = _spawn
 		player.global_position = _spawn
 		player.velocity = Vector2.ZERO
-	for node_name in ["Items", "Guards", "SabotageTarget", "ExitZone"]:
+	for node_name in [
+		"Items",
+		"Guards",
+		"SabotageTarget",
+		"ExitZone",
+		"MissionMarkers",
+		"Passages",
+		"InterlockZone",
+	]:
 		var node := get_node_or_null(node_name)
 		if node == null:
 			continue

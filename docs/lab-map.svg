@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640">
+  <rect width="900" height="640" fill="#111318"/>
+  <text x="24" y="28" fill="#f2f2f2" font-family="Segoe UI, Arial, sans-serif" font-size="18">Saboteur 92 - karta S2</text>
+  <text x="24" y="48" fill="#9aa3b5" font-family="Segoe UI, Arial, sans-serif" font-size="13">32x24 ekrana. Sploshnoe - ohrana. Punktir - golovolomka. Zhyoltaya ramka - prototip.</text>
+  <rect x="40" y="64" width="768" height="432" fill="#161a22" stroke="#2a3344"/>
+  <rect x="40" y="64" width="192" height="54" fill="#1e2430"/>
+  <text x="48" y="96" fill="#9aa3b5" font-family="Segoe UI, Arial, sans-serif" font-size="12">arsenal</text>
+  <rect x="280" y="64" width="192" height="45" fill="#1a222c"/>
+  <text x="288" y="92" fill="#9aa3b5" font-family="Segoe UI, Arial, sans-serif" font-size="12">stroyka</text>
+  <rect x="616" y="64" width="192" height="54" fill="#1e2430"/>
+  <text x="624" y="96" fill="#9aa3b5" font-family="Segoe UI, Arial, sans-serif" font-size="12">shakhta rakety</text>
+  <rect x="208" y="118" width="168" height="46" fill="#2c3218" stroke="#d4c84a" stroke-width="2"/>
+  <text x="214" y="136" fill="#f2f2f2" font-family="Segoe UI, Arial, sans-serif" font-size="12">1 prototip: spawn / key / guards</text>
+  <text x="214" y="152" fill="#d4c84a" font-family="Segoe UI, Arial, sans-serif" font-size="11">koridor ili shkafy sprava</text>
+  <rect x="298" y="128" width="22" height="14" fill="#3a3a28" stroke="#d4c84a"/>
+  <line x1="284" y1="164" x2="284" y2="276" stroke="#c44ac8" stroke-width="2" stroke-dasharray="5 4"/>
+  <rect x="272" y="272" width="28" height="22" fill="#2a2038" stroke="#c44ac8" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="168" y="270" fill="#c44ac8" font-family="Segoe UI, Arial, sans-serif" font-size="12">2 kod-lift</text>
+  <line x1="380" y1="164" x2="380" y2="360" stroke="#c84a4a" stroke-width="2"/>
+  <rect x="368" y="286" width="28" height="22" fill="#3a2020" stroke="#c84a4a" stroke-width="2"/>
+  <text x="400" y="300" fill="#c84a4a" font-family="Segoe UI, Arial, sans-serif" font-size="12">2 ohrana-lift</text>
+  <rect x="328" y="352" width="130" height="48" fill="#1a2a3d" stroke="#4aa0c8" stroke-width="2"/>
+  <text x="336" y="372" fill="#f2f2f2" font-family="Segoe UI, Arial, sans-serif" font-size="12">3 laboratoriya / sbros</text>
+  <text x="336" y="388" fill="#4aa0c8" font-family="Segoe UI, Arial, sans-serif" font-size="11">peremychka sleva</text>
+  <rect x="40" y="424" width="240" height="48" fill="#14241c" stroke="#4ac88a" stroke-width="2"/>
+  <text x="48" y="444" fill="#f2f2f2" font-family="Segoe UI, Arial, sans-serif" font-size="12">vyhod S2 - tunnel sleva snizu</text>
+  <text x="48" y="460" fill="#4ac88a" font-family="Segoe UI, Arial, sans-serif" font-size="11">fitil 50s posle sbrosa</text>
+  <line x1="328" y1="388" x2="280" y2="424" stroke="#c44ac8" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="40" y1="500" x2="80" y2="500" stroke="#c84a4a" stroke-width="2"/>
+  <text x="88" y="504" fill="#c8c8d0" font-family="Segoe UI, Arial, sans-serif" font-size="12">ohrana</text>
+  <line x1="180" y1="500" x2="220" y2="500" stroke="#c44ac8" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="228" y="504" fill="#c8c8d0" font-family="Segoe UI, Arial, sans-serif" font-size="12">golovolomka</text>
+  <rect x="360" y="492" width="18" height="14" fill="none" stroke="#d4c84a" stroke-width="2"/>
+  <text x="386" y="504" fill="#c8c8d0" font-family="Segoe UI, Arial, sans-serif" font-size="12">prototip seychas</text>
+  <text x="24" y="540" fill="#7a8494" font-family="Segoe UI, Arial, sans-serif" font-size="11">Koordinaty: s2_entities.json, lifts i bookcases v s2_collision.json. Kletka = ekran 256x192.</text>
+  <text x="24" y="558" fill="#7a8494" font-family="Segoe UI, Arial, sans-serif" font-size="11">Kod-lift 2592,2264. Lab-lift 3616,2400 - dno 3520. Shkafy 2752 i 2840 u spawna.</text>
+</svg>

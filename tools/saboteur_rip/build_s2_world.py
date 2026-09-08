@@ -164,6 +164,11 @@ def cell_is_crate(counts: dict[str, int]) -> bool:
     return counts["y"] >= 12 and counts["r"] < 10 and counts["k"] >= 16 and counts["b"] < 10
 
 
+def cell_is_item_chrome(counts: dict[str, int]) -> bool:
+    # Magenta supply crates with white ? / digits — foreground, not walls.
+    return counts["m"] >= 12 and counts["w"] >= 8 and counts["y"] < 4
+
+
 def cell_is_red_brick(counts: dict[str, int]) -> bool:
     return counts["r"] >= 10 and counts["k"] >= 4
 
@@ -249,7 +254,7 @@ def _is_cave_fringe(counts: dict[str, int]) -> bool:
 
 def _is_cave_ground(counts: dict[str, int]) -> bool:
     """Black cave earth, jagged lining, or speckled/cracked rock — not wallpaper."""
-    if _is_cave_paper(counts) or cell_is_crate(counts):
+    if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
         return False
     return (
         _is_cave_void(counts)
@@ -832,7 +837,7 @@ def classify_cells(
                 for x in range(x0, x0 + CELL):
                     counts[_col(*px[x, y])] += 1
             # Crates and bookcases sit in the foreground and are never collision.
-            if cell_is_crate(counts) or bookcase[cy][cx]:
+            if cell_is_crate(counts) or cell_is_item_chrome(counts) or bookcase[cy][cx]:
                 fg[cy][cx] = 1
             if fg[cy][cx]:
                 if cell_is_ladder(px, cx, cy):
@@ -992,7 +997,7 @@ def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int, px) ->
             if _biome_at(biomes, sx_n, cx, cy) != "cave":
                 continue
             counts = _cell_counts(px, cx, cy)
-            if _is_cave_paper(counts) or cell_is_crate(counts):
+            if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
                 continue
             solid[cy][cx] = 1
 
@@ -1089,7 +1094,7 @@ def _clear_walkable_decor(px, solid: list[list[int]]) -> int:
             if not solid[cy][cx]:
                 continue
             counts = _cell_counts(px, cx, cy)
-            if _is_cave_paper(counts) or cell_is_crate(counts):
+            if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
                 solid[cy][cx] = 0
                 cleared += 1
     return cleared

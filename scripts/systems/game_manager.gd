@@ -18,6 +18,13 @@ var fail_reason: String = ""
 # next to the layout it covers. Default matches the Stage 2 hall: sabotage →
 # exit is 3360 world px / 110 px/s ≈ 31 s of sprinting plus turn-around slack.
 var bomb_fuse_time: float = 50.0
+var seen_codes: Array[String] = []
+var has_lift_code: bool = false
+var interlock_cut: bool = false
+var alarmed: bool = false
+
+const LIFT_CODE_LABELS := ["02", "06", "11"]
+const ALARM_FUSE_CAP := 35.0
 
 
 func _ready() -> void:
@@ -34,7 +41,14 @@ func _process(delta: float) -> void:
 		bomb_timer -= delta
 		if bomb_timer <= 0.0:
 			bomb_timer = 0.0
-			fail_mission("The bomb exploded")
+			fail_mission("The complex collapsed")
+
+
+func reset_mission_progress() -> void:
+	seen_codes.clear()
+	has_lift_code = false
+	interlock_cut = false
+	alarmed = false
 
 
 func reset_inventory() -> void:
@@ -43,6 +57,39 @@ func reset_inventory() -> void:
 	has_bomb = false
 	bomb_planted = false
 	bomb_timer = 0.0
+	reset_mission_progress()
+
+
+func note_code(label: String) -> void:
+	if label.is_empty() or label in seen_codes:
+		return
+	seen_codes.append(label)
+	EventBus.marker_seen.emit(label)
+	_check_lift_code()
+
+
+func cut_interlock() -> void:
+	if interlock_cut:
+		return
+	interlock_cut = true
+
+
+func raise_alarm() -> void:
+	if alarmed:
+		return
+	alarmed = true
+	bomb_fuse_time = minf(bomb_fuse_time, ALARM_FUSE_CAP)
+	if bomb_planted:
+		bomb_timer = minf(bomb_timer, ALARM_FUSE_CAP)
+	EventBus.alarm_raised.emit()
+
+
+func _check_lift_code() -> void:
+	for label in LIFT_CODE_LABELS:
+		if label not in seen_codes:
+			has_lift_code = false
+			return
+	has_lift_code = true
 
 
 func add_score(points: int) -> void:

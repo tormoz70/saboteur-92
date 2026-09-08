@@ -69,10 +69,10 @@ func test_lose_mission_decrements_lives_then_game_over() -> void:
 
 
 func test_fail_mission_zeros_lives() -> void:
-	GameManager.fail_mission("The bomb exploded")
+	GameManager.fail_mission("The complex collapsed")
 	assert_eq(GameManager.state, GameManager.GameState.LOST)
 	assert_eq(GameManager.lives, 0)
-	assert_eq(GameManager.fail_reason, "The bomb exploded")
+	assert_eq(GameManager.fail_reason, "The complex collapsed")
 
 
 func test_planting_starts_fuse_and_process_expires_it() -> void:
@@ -88,7 +88,7 @@ func test_planting_starts_fuse_and_process_expires_it() -> void:
 	GameManager._process(0.2)
 	assert_eq(GameManager.state, GameManager.GameState.LOST)
 	assert_eq(GameManager.bomb_timer, 0.0)
-	assert_eq(GameManager.fail_reason, "The bomb exploded")
+	assert_eq(GameManager.fail_reason, "The complex collapsed")
 
 
 func test_reset_run_state_restores_a_fresh_mission() -> void:

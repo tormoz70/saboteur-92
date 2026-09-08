@@ -15,6 +15,9 @@ var patrol_origin: float
 var patrol_dir: int = 1
 var target: Node2D = null
 var attack_cooldown: float = 0.0
+var _chase_time: float = 0.0
+
+const ALARM_CHASE_SEC := 0.45
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var sight: Area2D = $SightArea
@@ -32,6 +35,12 @@ func _physics_process(delta: float) -> void:
 
 	attack_cooldown = maxf(attack_cooldown - delta, 0.0)
 	_detect_player()
+	if ai_state == AiState.CHASE:
+		_chase_time += delta
+		if _chase_time >= ALARM_CHASE_SEC:
+			GameManager.raise_alarm()
+	else:
+		_chase_time = 0.0
 
 	match ai_state:
 		AiState.PATROL:

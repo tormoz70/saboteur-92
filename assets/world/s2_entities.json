@@ -3,6 +3,7 @@
   "coord_space_note": "Every x/y in this file is mosaic/PNG pixels (0..8192 × 0..4608), the same space as solids/ladders/lifts in s2_collision.json. Runtime multiplies by the scale from s2_collision.json (currently 2) to get world pixels (16384 × 9216). Do not mix in pre-scaled world coordinates — that is how spawn used to sit at half the intended place. Player and guard origins are sprite top-left (48×56). Pickup, sabotage and exit origins are Area2D centres. This file is hand-authored; s2_collision.json is generated.",
   "spawn": [2240, 792],
   "fuse": 50,
+  "locked_lift": { "x": 2592, "y": 2264 },
   "items": [
     {
       "id": "key",
@@ -21,13 +22,30 @@
     {
       "id": "bomb",
       "type": "bomb",
-      "x": 3360,
-      "y": 840,
+      "x": 3580,
+      "y": 3460,
       "required": "document"
     }
   ],
-  "sabotage": { "x": 3480, "y": 832 },
-  "exit": { "x": 1800, "y": 808 },
+  "sabotage": { "x": 3680, "y": 3460 },
+  "exit": { "x": 640, "y": 4100 },
+  "markers": [
+    { "id": "m02", "label": "02", "x": 808, "y": 1536 },
+    { "id": "m06", "label": "06", "x": 1920, "y": 392 },
+    { "id": "m11", "label": "11", "x": 4312, "y": 1104 }
+  ],
+  "passages": [
+    {
+      "id": "shelf_east",
+      "x": 2780,
+      "y": 808,
+      "to_x": 2976,
+      "to_y": 856,
+      "need_crouch": true
+    }
+  ],
+  "interlock": { "x": 2520, "y": 2180 },
+  "alarm_guard": { "x": 720, "y": 4080, "patrol": 48 },
   "guards": [
     {
       "id": "ground",
@@ -46,6 +64,12 @@
       "x": 3200,
       "y": 792,
       "patrol": 48
+    },
+    {
+      "id": "lift",
+      "x": 3650,
+      "y": 2380,
+      "patrol": 40
     }
   ]
 }

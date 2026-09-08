@@ -9,6 +9,7 @@ var top_y: float = 0.0
 var bottom_y: float = 0.0
 var dir: int = 0
 var rider: CharacterBody2D = null
+var requires_lift_code: bool = false
 
 var _step_acc: float = 0.0
 var _width: float = 96.0
@@ -43,6 +44,8 @@ func at_bottom() -> bool:
 
 
 func start_ride(player: CharacterBody2D, want_dir: int) -> bool:
+	if requires_lift_code and not GameManager.has_lift_code:
+		return false
 	if want_dir == 0 or dir != 0:
 		return false
 	if not is_centered(player):

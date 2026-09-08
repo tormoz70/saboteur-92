@@ -469,6 +469,10 @@ func _wants_low_stance() -> bool:
 	)
 
 
+func is_low_stance() -> bool:
+	return _wants_low_stance()
+
+
 func _update_animation() -> void:
 	_set_body_crouch(
 		current_state == State.CROUCH

@@ -7,3 +7,5 @@ signal player_died
 signal mission_complete
 signal score_changed(new_score: int)
 signal energy_changed(current: int, max_energy: int)
+signal marker_seen(label: String)
+signal alarm_raised
