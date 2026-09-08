@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from build_s2_world import (
     _apply_cave_gaps,
+    _apply_cave_ground,
     _apply_cave_tunnels,
     _clear_red_pillars,
     _clear_walkable_decor,
@@ -326,11 +327,47 @@ def test_clear_paper_then_tunnel_keeps_lining() -> None:
         assert all(solid[cy][cx] == 0 for cy in range(3, 7))
 
 
+def test_cave_hall_black_is_ground() -> None:
+    # Taller than a thin tunnel: blue brick hall, black ceiling on the right,
+    # black floor below. Void must be rock so the jagged edges are walkable
+    # surfaces; wallpaper stays air.
+    layout = [
+        "kkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkk",
+        "bbbbbbbbkkkkkkkk",
+        "bbbbbbbbbbkkkkkk",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "bbbbbbbbbbbbbbbb",
+        "kkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK}
+    px = CellGridPx(layout, tiles)
+    w, h = 16, 16
+    solid = [[0] * w for _ in range(h)]
+    added = _apply_cave_ground(px, solid, ["cave"])
+    assert added > 0
+    assert solid[0][8] == 1
+    assert solid[2][12] == 1, "ceiling mass on the right"
+    assert solid[14][8] == 1, "floor mass"
+    assert solid[6][4] == 0, "blue brick hall stays walkable"
+    assert solid[3][2] == 0
+
+
 if __name__ == "__main__":
     test_diamond_slab_is_floor()
     test_diamond_rejects_rails_windows_and_bars()
     test_cave_paper_and_void_counts()
     test_cave_tunnel_floor_and_ceiling()
+    test_cave_tunnel_rejects_wallpaper_beside_green_room()
     test_cave_tunnel_rejects_cyan_and_short_runs()
     test_flooded_gap_has_floor_and_ceiling()
     test_red_post_is_brick_but_not_a_floor()
@@ -338,4 +375,5 @@ if __name__ == "__main__":
     test_crate_counts_as_furniture()
     test_blue_brick_and_crates_are_not_cave_rock()
     test_clear_paper_then_tunnel_keeps_lining()
+    test_cave_hall_black_is_ground()
     print("test_floor_classify: ok")

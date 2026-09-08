@@ -223,6 +223,13 @@ def _is_cave_fringe(counts: dict[str, int]) -> bool:
     return counts["b"] >= 6 and counts["k"] >= 16
 
 
+def _is_cave_ground(counts: dict[str, int]) -> bool:
+    """Black cave earth, jagged lining, or speckled rock — not wallpaper."""
+    if _is_cave_paper(counts) or cell_is_crate(counts):
+        return False
+    return _is_cave_void(counts) or _is_cave_fringe(counts) or _is_speckled_earth(counts)
+
+
 # Thin cave corridor: enough cells for a crouch (24px) between 8px lining.
 _TUNNEL_MIN_H = 5
 _TUNNEL_MAX_H = 10
@@ -702,7 +709,8 @@ def classify_cells(
     # Slabs after thicken: growing them down would hang 24px into the room
     # below and turn the underside of a floor into an invisible wall.
     _apply_diamond_floors(px, solid)
-    # After thicken: a 1-cell ceiling must not grow down into the corridor.
+    # After thicken: hall ceilings must not grow down into the room.
+    _apply_cave_ground(px, solid, biomes)
     _apply_cave_tunnels(px, solid, biomes)
     _apply_cave_gaps(px, solid, biomes)
     punch_ladder_shafts(solid, keep)
@@ -1382,6 +1390,31 @@ def _apply_cave_gaps(px, solid: list[list[int]], biomes: list[str]) -> tuple[int
     return added_ceil, added_floor, punched
 
 
+def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
+    """Black cave masses are impermeable ground: floor on top, ceiling below.
+
+    Thin corridors are 5–10 cells and get lining from `_apply_cave_tunnels`.
+    Taller blue-brick halls have the same black earth, but the tunnel finder
+    skips them, so flood-fill treats connected void as air. Mark it here,
+    after thicken, so a ceiling mass is not grown down into the room.
+    Flooded black gaps are opened again by `_apply_cave_gaps`.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = max(1, (cw * CELL) // SCREEN_W)
+    added = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if solid[cy][cx]:
+                continue
+            if _biome_at(biomes, sx_n, cx, cy) != "cave":
+                continue
+            if _is_cave_ground(_cell_counts(px, cx, cy)):
+                solid[cy][cx] = 1
+                added += 1
+    return added
+
+
 def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     """Add diamond slabs and cave-tunnel linings without re-thickening."""
     px = im.load()
@@ -1393,6 +1426,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     decor = _clear_walkable_decor(px, solid)
     added = _apply_diamond_floors(px, solid)
     biomes = _detect_biomes(px, sx_n, sy_n)
+    ground = _apply_cave_ground(px, solid, biomes)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
     g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     pillars = _clear_red_pillars(px, solid)
@@ -1403,6 +1437,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     path.write_text(json.dumps(data), encoding="utf-8")
     print(f"walkable decor cleared {decor}")
     print(f"diamond floor cells added {added} -> {len(rects)} solid rects")
+    print(f"cave ground cells added {ground}")
     print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
     print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
     print(f"red posts cleared {pillars}")

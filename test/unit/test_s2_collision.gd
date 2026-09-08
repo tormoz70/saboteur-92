@@ -190,6 +190,25 @@ func test_blue_wallpaper_above_diamond_is_not_a_floor() -> void:
 	)
 
 
+func test_cave_hall_black_is_ground() -> void:
+	var data := _collision_data()
+	# Mosaic 28,10: tall blue-brick cave hall. Black ceiling mass on the
+	# right, black floor below — not a thin 8-cell tunnel, so lining used
+	# to be missing and Nina walked through the rock.
+	assert_true(
+		_point_in_any_rect(Vector2i(7372, 1932), data["solids"]),
+		"cave hall ceiling mass should be solid"
+	)
+	assert_true(
+		_point_in_any_rect(Vector2i(7332, 2044), data["solids"]),
+		"cave hall floor mass should be solid"
+	)
+	assert_false(
+		_point_in_any_rect(Vector2i(7236, 1948), data["solids"]),
+		"blue brick hall interior must stay walkable"
+	)
+
+
 func _point_in_any_rect(p: Vector2i, rects: Array) -> bool:
 	for rect in rects:
 		if (
