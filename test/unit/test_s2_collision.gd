@@ -218,6 +218,12 @@ func test_cave_hall_ladder_is_reachable_at_standing_height() -> void:
 		Vector2i(7244, 1964),
 		Vector2i(7260, 1964),
 		Vector2i(7284, 1956),
+		# Leftover 8px hall-step stubs sat in the standing volume and blocked
+		# the last walk to the white ladder (and the matching hall at mosaic 22,10).
+		Vector2i(7236, 1980),
+		Vector2i(7252, 1972),
+		Vector2i(5612, 1980),
+		Vector2i(5628, 1972),
 	]
 	for p in air:
 		assert_false(

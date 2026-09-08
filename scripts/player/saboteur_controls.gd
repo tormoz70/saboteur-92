@@ -4,15 +4,15 @@ extends RefCounted
 ## Static Saboteur II inlay table.
 ## https://worldofspectrum.net/pub/sinclair/games-info/s/SaboteurII.txt
 ##
-## UP if still = kick. MOVE+UP = running jump. FIRE if still = punch.
-## MOVE+FIRE = flying kick. DOWN if still = duck. DOWN+MOVE = crawl.
+## UP if still = kick. MOVE+UP = long jump with a somersault (the original
+## running jump). FIRE if still = punch. MOVE+FIRE = flying kick.
+## DOWN if still = duck. DOWN+MOVE = floor roll (original SOM1C–SOM4C).
 ## jump is an UP synonym.
 ## FIRE in the air does nothing; the flying kick starts on the ground.
 ##
-## Two remake moves extend the table rather than replace a row of it:
-## DUCK+FIRE = low punch, and MOVE+UP+FIRE = long jump with a somersault.
-## Both arrive as optional arguments so a caller that only wants the 1987
-## table can leave them out.
+## One remake chord extends the table rather than replace a row of it:
+## DUCK+FIRE = low punch. MOVE+UP+FIRE is the same long jump as MOVE+UP,
+## so either tap order still works on the pad.
 
 enum GroundAction { NONE, STAND_KICK, RUNNING_JUMP, FLYING_KICK, PUNCH, CROUCH_PUNCH, SOMERSAULT }
 
@@ -47,12 +47,12 @@ static func resolve_ground(
 ) -> GroundAction:
 	if lift_takes_up and up_tap:
 		return GroundAction.NONE
-	# Outranks the running jump and the flying kick: both of those are one half
-	# of this chord, so holding both buttons has to beat either on its own.
-	if moving and up_and_fire and (up_tap or punch_tap):
-		return GroundAction.SOMERSAULT
+	# Original running jump is the long somersault. MOVE+UP+FIRE is the same
+	# move, so a thumb that also hits FIRE still gets the flip.
 	if moving and up_tap:
-		return GroundAction.RUNNING_JUMP
+		return GroundAction.SOMERSAULT
+	if moving and up_and_fire and punch_tap:
+		return GroundAction.SOMERSAULT
 	if can_climb and up_tap:
 		return GroundAction.NONE
 	if up_tap:

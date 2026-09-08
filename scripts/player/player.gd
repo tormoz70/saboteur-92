@@ -19,6 +19,8 @@ enum State {
 # Tuned to Saboteur II feel, still using CharacterBody2D physics.
 # Original logic is ~5.5 ticks/s and 1 tile/tick; our tiles are 16px.
 # Combat/jump chords match the 1987 inlay (see SaboteurControls).
+# One mosaic cell is 16 world px; add a little skin so the hop clears the lip.
+const STEP_UP_PX := 20.0
 const BODY_STAND_SIZE := Vector2(14, 42)
 const BODY_STAND_POS := Vector2(24, 35)
 const BODY_CROUCH_SIZE := Vector2(14, 24)
@@ -37,15 +39,15 @@ const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
-@export var crawl_speed: float = 55.0
+@export var crawl_speed: float = 80.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0
 @export var punch_duration: float = 0.32
 @export var kick_duration: float = 0.42
-## Long jump with a somersault: MOVE + UP + FIRE.
+## Long jump with a somersault: MOVE + UP (NW/NE on the pad).
 @export var somersault_speed_scale: float = 1.7
-@export var somersault_jump_scale: float = 1.0
+@export var somersault_jump_scale: float = 1.4
 @export var max_energy: int = 100
 @export var iframe_time: float = 0.55
 @export var regen_delay: float = 1.25
@@ -154,7 +156,40 @@ func _physics_process(delta: float) -> void:
 	if on_lift and _lifts.is_riding():
 		return
 	move_and_slide()
-	_try_unstuck()
+	_try_step_up()
+
+
+func _try_step_up() -> void:
+	# Original S2 walks up one character cell (16 world px). Vertical cave
+	# steps are walls to CharacterBody2D, so hop that height when a run
+	# stalls against them.
+	if (
+		not is_on_floor()
+		or _is_striking()
+		or current_state == State.SOMERSAULT
+		or on_ladder
+		or on_lift
+	):
+		return
+	var direction := TiltSteer.move_axis()
+	if direction == 0.0:
+		return
+	if not is_on_wall() and absf(velocity.x) > 8.0:
+		return
+	var up := Vector2(0.0, -STEP_UP_PX)
+	if test_move(global_transform, up):
+		return
+	# Test forward from the lifted pose so a tall wall stays a wall. A diagonal
+	# sweep from the stall clips the step's corner and would reject a real stair.
+	var lifted := global_transform
+	lifted.origin += up
+	if test_move(lifted, Vector2(signf(direction) * 8.0, 0.0)):
+		return
+	global_position += up
+	velocity.y = 0.0
+	var onto := Vector2(signf(direction) * 4.0, 0.0)
+	if not test_move(global_transform, onto):
+		global_position += onto
 
 
 func _tick_attack(delta: float) -> void:
@@ -184,6 +219,15 @@ func _handle_attack_input(just_landed: bool = false) -> void:
 		# FIRE went in first; UP finishing the chord still means the flip.
 		if _flip_upgrade_wanted():
 			_start_somersault()
+			return
+		# Holding NW/NE must keep flipping after each landing.
+		if (
+			current_state == State.SOMERSAULT
+			and just_landed
+			and absf(TiltSteer.move_axis()) > 0.0
+			and SaboteurControls.wants_up()
+		):
+			_start_somersault()
 		return
 	if not is_on_floor():
 		# UP went in first; FIRE finishing the chord still means the flip.
@@ -198,8 +242,7 @@ func _handle_attack_input(just_landed: bool = false) -> void:
 
 	var up_tap := SaboteurControls.just_up()
 	# Diagonal pad holds UP with MOVE. just_pressed is only the first frame,
-	# so land-and-hold must still start another running jump. A stale UP from
-	# an earlier kick must not become a jump (or a flip) when MOVE is added.
+	# so land-and-hold must still start another long jump.
 	if (
 		not up_tap
 		and moving
@@ -221,14 +264,12 @@ func _handle_attack_input(just_landed: bool = false) -> void:
 	):
 		SaboteurControls.GroundAction.STAND_KICK:
 			_start_stand_kick()
-		SaboteurControls.GroundAction.RUNNING_JUMP:
-			_start_running_jump(direction)
+		SaboteurControls.GroundAction.RUNNING_JUMP, SaboteurControls.GroundAction.SOMERSAULT:
+			_start_somersault()
 		SaboteurControls.GroundAction.FLYING_KICK:
 			_start_jump_kick()
 		SaboteurControls.GroundAction.CROUCH_PUNCH:
 			_start_crouch_punch()
-		SaboteurControls.GroundAction.SOMERSAULT:
-			_start_somersault()
 		SaboteurControls.GroundAction.PUNCH:
 			_start_punch()
 		_:
@@ -241,8 +282,13 @@ func _process_somersault(delta: float) -> void:
 		_flip_left_ground = true
 		velocity.y += gravity * delta
 		return
-	if _flip_left_ground:
-		current_state = State.IDLE
+	if not _flip_left_ground:
+		return
+	# Holding NW/NE: take off again instead of standing up between flips.
+	if absf(TiltSteer.move_axis()) > 0.0 and SaboteurControls.wants_up():
+		_start_somersault()
+		return
+	current_state = State.IDLE
 
 
 func _process_platformer(delta: float) -> void:
@@ -283,37 +329,8 @@ func is_riding_lift() -> bool:
 	return _lifts.is_riding()
 
 
-func _try_unstuck() -> void:
-	if (
-		not is_on_floor()
-		or _is_striking()
-		or current_state == State.CROUCH
-		or current_state == State.CRAWL
-		or current_state == State.SOMERSAULT
-		or on_ladder
-		or on_lift
-	):
-		return
-	var direction := TiltSteer.move_axis()
-	if direction == 0.0 or absf(velocity.x) > 8.0:
-		return
-	var escape := Vector2(direction * 6.0, -10.0)
-	if not test_move(global_transform, escape):
-		global_position += escape
-
-
 func get_climb_axis() -> float:
 	return SaboteurControls.climb_axis()
-
-
-func _start_running_jump(direction: float) -> void:
-	if direction != 0.0:
-		velocity.x = direction * speed
-		apply_facing(int(sign(direction)))
-	else:
-		velocity.x = float(facing) * speed
-	velocity.y = jump_velocity
-	current_state = State.JUMP
 
 
 func get_world_mask() -> int:
@@ -475,8 +492,10 @@ func _update_animation() -> void:
 			_play_anim(&"jump")
 		State.RUN:
 			_play_anim(&"run")
-		State.CROUCH, State.CRAWL:
+		State.CROUCH:
 			_play_anim(&"crouch")
+		State.CRAWL:
+			_play_anim(&"roll")
 		State.DEAD:
 			_play_anim(&"death")
 		_:

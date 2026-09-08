@@ -8,6 +8,7 @@ from build_s2_world import (
     _apply_cave_tunnels,
     _band_is_hall_side_step,
     _clear_hall_bites,
+    _clear_standing_stubs,
     _clear_red_pillars,
     _clear_walkable_decor,
     _floor_is_hall_step,
@@ -462,6 +463,25 @@ def test_interior_speckled_next_to_paper_stays_solid() -> None:
         assert solid[5][cx] == 1, cx
 
 
+def test_standing_stub_above_hall_floor_is_cleared() -> None:
+    """Lone cell two rows above a floor, with air beside it, is not a wall."""
+    h, w = 8, 8
+    solid = [[0] * w for _ in range(h)]
+    for cx in range(w):
+        solid[6][cx] = 1
+    solid[3][3] = 1
+    biomes = ["cave"]
+    cleared = _clear_standing_stubs(solid, biomes)
+    assert cleared == 1
+    assert solid[3][3] == 0
+    assert solid[6][3] == 1
+    # A real 2-cell step stays: connected down into the floor stack.
+    solid[5][4] = 1
+    solid[6][4] = 1
+    assert _clear_standing_stubs(solid, biomes) == 0
+    assert solid[5][4] == 1
+
+
 def test_paper_on_row_mask_reach() -> None:
     paper = [[False] * 10 for _ in range(3)]
     paper[1][2] = True
@@ -489,4 +509,5 @@ if __name__ == "__main__":
     test_tunnel_beside_hall_keeps_lining()
     test_interior_speckled_next_to_paper_stays_solid()
     test_paper_on_row_mask_reach()
+    test_standing_stub_above_hall_floor_is_cleared()
     print("test_floor_classify: ok")

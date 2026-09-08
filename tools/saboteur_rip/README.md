@@ -66,7 +66,8 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 | `extract_scr.py` | any `*.scr` / `*.SCR` next to the TAP | `extracted/` |
 | `extract_split.py` | snapshot via `extract_from_z80` | split frames |
 | `curate_refs.py` | `extracted/split/` | `curated/` |
-| `extract_saboteur2.py` | `SABOT2-DISASM/*.MAC` + `SpriteRotate/` | `ripped_s2/` + in-game sheets |
+| `extract_saboteur2.py` | `SABOT2-DISASM/*.MAC` + `SpriteRotate/` | `ripped_s2/` + in-game sheets (includes SOM1C–SOM4C as `nina_somersault_1..4`) |
+| `tools/sprites/build_player_moves.py` | player sheet + optional ripped SOM frames | `saboteur93_player_moves.png` |
 | `extract_s2_map.py` | `S2ROOM.MAC` | `maps/` JSON index |
 | `build_game_sheets.py` | `ripped/` | `assets/sprites/` |
 | `build_saboteur93_player.py` | `ripped/` | player sheet |
