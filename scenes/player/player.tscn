@@ -75,8 +75,8 @@ region = Rect2(576, 0, 48, 56)
 atlas = ExtResource("2")
 region = Rect2(624, 0, 48, 56)
 
-; saboteur93_player_moves.png: crouch punch, then eight somersault spin cells
-; (tools/sprites/build_player_moves.py).
+; saboteur93_player_moves.png: crouch punch, original SOM1C–SOM4C in the air
+; (cells 1–4), then the same four dropped to the floor for the roll (cells 5–8).
 [sub_resource type="AtlasTexture" id="AtlasTexture_cp0"]
 atlas = ExtResource("3")
 region = Rect2(0, 0, 48, 56)
@@ -160,15 +160,15 @@ animations = [{
 "name": &"crouch_punch",
 "speed": 1.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}],
 "loop": true,
 "name": &"somersault",
-"speed": 14.0
+"speed": 10.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
 "loop": true,
 "name": &"roll",
-"speed": 12.0
+"speed": 8.0
 }, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_d0")}],
 "loop": false,

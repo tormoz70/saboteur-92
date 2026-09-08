@@ -51,8 +51,9 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
    - Left/right + FIRE: flying kick
    - DOWN while still: duck (S, ▼)
    - DOWN + FIRE: low punch. Stays ducked and hits at knee height.
-   - Left/right + DOWN (SW/SE on the pad): roll on the floor in the tucked
-     embryo pose from the original crouch sprite.
+   - Left/right + DOWN (SW/SE on the pad): roll on the floor using the
+     original SOM1C–SOM4C tucked frames (same four as the jump, sitting on
+     the floor).
    - Climb: UP / DOWN on a ladder, including the NW/NE diagonals while the
      rungs overlap. You mount from the floor; a jump or fall through a shaft
      does not grab the rungs. One-cell cave steps are walked up.

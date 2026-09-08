@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## UP if still = kick. MOVE+UP = long jump with a somersault (the original
 ## running jump). FIRE if still = punch. MOVE+FIRE = flying kick.
-## DOWN if still = duck. DOWN+MOVE = floor roll (tucked embryo pose).
+## DOWN if still = duck. DOWN+MOVE = floor roll (original SOM1C–SOM4C).
 ## jump is an UP synonym.
 ## FIRE in the air does nothing; the flying kick starts on the ground.
 ##

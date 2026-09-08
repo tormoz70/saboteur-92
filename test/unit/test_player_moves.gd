@@ -173,6 +173,22 @@ func test_crawl_uses_the_embryo_roll() -> void:
 	await _press("move_right")
 	assert_eq(_player.current_state, Player.State.CRAWL, "down plus move rolls")
 	assert_eq(_player.anim.animation, &"roll")
+	assert_eq(
+		_player.anim.sprite_frames.get_frame_count(&"roll"),
+		4,
+		"floor roll uses original SOM1C–SOM4C"
+	)
+
+
+func test_somersault_uses_the_original_four_tucks() -> void:
+	_player._start_somersault()
+	await _step(1)
+	assert_eq(_player.anim.animation, &"somersault")
+	assert_eq(
+		_player.anim.sprite_frames.get_frame_count(&"somersault"),
+		4,
+		"air flip uses original SOM1C–SOM4C"
+	)
 
 
 func _measure_jump(with_flip: bool) -> float:
