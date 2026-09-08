@@ -247,6 +247,20 @@ func test_cave_hall_black_is_ground() -> void:
 	)
 
 
+func test_dungeon_cracked_earth_is_the_floor() -> void:
+	var data := _collision_data()
+	# Mosaic 18,10: blue crack lines on black under the wallpaper. That cell
+	# used to be punched so Nina stood a cell down in the dirt.
+	assert_true(
+		_point_in_any_rect(Vector2i(4788, 1996), data["solids"]),
+		"cracked dungeon dirt should be the walkable floor"
+	)
+	assert_false(
+		_point_in_any_rect(Vector2i(4788, 1988), data["solids"]),
+		"blue brick above the cracks stays wallpaper"
+	)
+
+
 func test_cave_hall_ladder_is_reachable_at_standing_height() -> void:
 	var data := _collision_data()
 	# Mosaic 28,10: the jagged right edge of the hall used to get a tunnel

@@ -7,6 +7,7 @@ extends Control
 ## so this Control maps the touch angle itself and reuses ChordTouchButton's
 ## hold counts so sliding from Left onto Jump-Left does not drop `move_left`.
 
+const ChordPad := preload("res://scripts/ui/chord_touch_button.gd")
 const DEAD_ZONE := 12.0
 const IDLE := Color(1.0, 1.0, 1.0, 0.88)
 const ACTIVE := Color(1.0, 0.92, 0.28, 0.98)
@@ -112,14 +113,14 @@ func _hold_octant(oct: int) -> void:
 	if oct < 0:
 		return
 	for action in chord_for(oct):
-		ChordTouchButton.retain(StringName(action))
+		ChordPad.retain(StringName(action))
 
 
 func _release_octant(oct: int) -> void:
 	if oct < 0:
 		return
 	for action in chord_for(oct):
-		ChordTouchButton.drop(StringName(action))
+		ChordPad.drop(StringName(action))
 
 
 func _radius() -> float:

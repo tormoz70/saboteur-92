@@ -39,7 +39,7 @@ const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
-@export var crawl_speed: float = 80.0
+@export var crawl_speed: float = 100.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0

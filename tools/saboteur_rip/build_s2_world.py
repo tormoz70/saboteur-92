@@ -214,6 +214,30 @@ def _is_speckled_earth(counts: dict[str, int]) -> bool:
     )
 
 
+def _is_cracked_earth(counts: dict[str, int]) -> bool:
+    """Dungeon dirt with blue crack lines — still ground, not wallpaper.
+
+    More blue than a speck, less than a brick face. Empty void (b==0) is not
+    this: that is air or a hall bite.
+    """
+    return (
+        counts["k"] >= 40
+        and 9 <= counts["b"] < 20
+        and counts["g"] < 8
+        and counts["r"] < 8
+        and counts["c"] < 8
+    )
+
+
+def _is_earth_surface(counts: dict[str, int]) -> bool:
+    """Top of dungeon dirt: specks, crack lines, or jagged lining."""
+    return (
+        _is_speckled_earth(counts)
+        or _is_cracked_earth(counts)
+        or _is_cave_fringe(counts)
+    )
+
+
 def _is_cave_fringe(counts: dict[str, int]) -> bool:
     """Jagged black/blue lining on a tunnel's ceiling or floor."""
     if counts["g"] >= 8 or counts["c"] >= 8 or counts["r"] >= 8 or counts["y"] >= 4:
@@ -224,10 +248,15 @@ def _is_cave_fringe(counts: dict[str, int]) -> bool:
 
 
 def _is_cave_ground(counts: dict[str, int]) -> bool:
-    """Black cave earth, jagged lining, or speckled rock — not wallpaper."""
+    """Black cave earth, jagged lining, or speckled/cracked rock — not wallpaper."""
     if _is_cave_paper(counts) or cell_is_crate(counts):
         return False
-    return _is_cave_void(counts) or _is_cave_fringe(counts) or _is_speckled_earth(counts)
+    return (
+        _is_cave_void(counts)
+        or _is_cave_fringe(counts)
+        or _is_speckled_earth(counts)
+        or _is_cracked_earth(counts)
+    )
 
 
 # Thin cave corridor: enough cells for a crouch (24px) between 8px lining.
@@ -236,8 +265,8 @@ _TUNNEL_MAX_H = 10
 _TUNNEL_MIN_WIDTH = 6
 # Last paper cell used to be the walkable surface. Nina is 42px (~5.25 cells)
 # and a typical 8-cell brick band only leaves 6 cells inside, so her head
-# snags the jagged ceiling. Drop the floor this many cells into the fringe
-# / earth below the wallpaper so she stands on the visual lining.
+# snags the jagged ceiling. Drop at most this many cells under the wallpaper
+# when there is no cracked dirt to stand on; stop on the first earth cell.
 _TUNNEL_FLOOR_DROP = 2
 # Black gap between two blue-brick masses (air, or air over water).
 _GAP_MIN_H = 5
@@ -995,6 +1024,10 @@ def _clear_hall_bites(
             if _is_speckled_earth(_cell_counts(px, cx, cy)):
                 continue
             if _void_is_hall_step(paper, cx, cy, cw, ch):
+                # Cracked dungeon floor sits on the dirt mass; a hall bite
+                # has air under it. Do not punch the visual floor.
+                if cy + 1 < ch and solid[cy + 1][cx]:
+                    continue
                 solid[cy][cx] = 0
                 cleared += 1
     return cleared
@@ -1584,19 +1617,25 @@ def _apply_diamond_floors(px, solid: list[list[int]]) -> int:
 
 
 def _tunnel_floor_cell(
-    paper: list[list[bool]], cx: int, y1: int, ch: int
+    px, paper: list[list[bool]], cx: int, y1: int, ch: int
 ) -> int:
-    """Walkable surface for a corridor whose last paper cell is `y1`.
+    """Walkable surface for a corridor whose finder cell is `y1`.
 
-    Drop into the black/fringe lining under the wallpaper, but stop before
-    another paper band (the next room or a stacked tunnel).
+    `find_cave_tunnels` already grows `y1` through fringe. If that cell is
+    cracked earth, stand on it. Otherwise drop into the black under the
+    last wallpaper, but stop on the first dirt/crack cell so the visual
+    floor is not punched away. Never cross another paper band.
     """
+    if _is_earth_surface(_cell_counts(px, cx, y1)):
+        return y1
     drop = 0
     for d in range(1, _TUNNEL_FLOOR_DROP + 1):
         ny = y1 + d
         if ny >= ch or paper[ny][cx]:
             break
         drop = d
+        if _is_earth_surface(_cell_counts(px, cx, ny)):
+            break
     return y1 + drop
 
 
@@ -1610,9 +1649,9 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
     floor/ceiling; skip only the stepped end so it does not become a
     chest-high wall in front of the ladder.
 
-    The walkable floor is two cells below the last wallpaper cell so Nina's
-    42px body fits under the jagged ceiling instead of standing on the
-    bricks and snagging her head.
+    The walkable floor is the cracked dirt under the last wallpaper cell.
+    Empty black under a brick lip still drops up to two cells so Nina's
+    42px body fits under the jagged ceiling.
     """
     ch = len(solid)
     cw = len(solid[0])
@@ -1626,7 +1665,7 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
             added_ceil += 1
         solid[y0][cx] = 1
         hall_step = _floor_is_hall_step(paper, cx, y0, y1, cw, ch)
-        floor_y = y1 if hall_step else _tunnel_floor_cell(paper, cx, y1, ch)
+        floor_y = y1 if hall_step else _tunnel_floor_cell(px, paper, cx, y1, ch)
         if not hall_step:
             if not solid[floor_y][cx]:
                 added_floor += 1
@@ -1728,6 +1767,7 @@ def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
             if (
                 _is_cave_void(counts)
                 and not _is_speckled_earth(counts)
+                and not _is_cracked_earth(counts)
                 and _void_is_hall_step(paper, cx, cy, cw, ch)
             ):
                 continue

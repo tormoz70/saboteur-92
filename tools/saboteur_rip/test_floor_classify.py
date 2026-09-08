@@ -14,6 +14,7 @@ from build_s2_world import (
     _floor_is_hall_step,
     _is_cave_paper,
     _is_cave_void,
+    _is_cracked_earth,
     _is_diamond_floor_tile,
     _is_sky_rail_tile,
     _is_speckled_earth,
@@ -79,6 +80,14 @@ VOID = [list("kkkkkkkk") for _ in range(8)]
 # Speckled earth is also `_is_cave_void` (k>=24, b<20). Hall-bite punches
 # must not treat it as empty cave air.
 SPECKLED = [list("kkkkkkkk") for _ in range(7)] + [list("kbkkkkkk")]
+# Dungeon floor cracks: more blue than a speck, still not wallpaper.
+CRACKED = (
+    [list("kkkkkkkk") for _ in range(4)]
+    + [list("kkbbbbkk")]
+    + [list("kbbbbbbk")]
+    + [list("kkbkkbkk")]
+    + [list("kkkkkkkk")]
+)
 CYAN = [list("cccccccc") for _ in range(8)]
 GREEN = [list("gggggggg") for _ in range(5)] + [list("kkkkkkkk") for _ in range(3)]
 INK_RGB = {
@@ -110,7 +119,11 @@ def test_cave_paper_and_void_counts() -> None:
     assert _is_cave_paper(_counts(BRICK))
     assert _is_cave_void(_counts(VOID))
     assert _is_speckled_earth(_counts(SPECKLED))
+    assert _is_cracked_earth(_counts(CRACKED))
+    assert not _is_speckled_earth(_counts(CRACKED))
     assert _is_cave_void(_counts(SPECKLED))
+    assert _is_cave_void(_counts(CRACKED))
+    assert not _is_cave_paper(_counts(CRACKED))
     assert not _is_cave_paper(_counts(VOID))
     assert not _is_cave_paper(_counts(CYAN))
     assert not _is_cave_void(_counts(BRICK))
@@ -148,6 +161,34 @@ def test_cave_tunnel_floor_and_ceiling() -> None:
         assert solid[7][cx] == 0, "old paper lip is no longer the floor"
         assert solid[9][cx] == 1, "floor is two cells below the last brick"
         assert all(solid[cy][cx] == 0 for cy in range(3, 9))
+
+
+def test_cracked_earth_is_the_dungeon_floor() -> None:
+    """Blue crack lines under wallpaper are the walkable dirt, not air.
+
+    Dropping two cells past that lip stands Nina in the black mass.
+    """
+    layout = [
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kcccccccccck",
+        "kkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK, "c": CRACKED}
+    px = CellGridPx(layout, tiles)
+    biomes = ["cave"]
+    solid = [[1] * 12 for _ in range(10)]
+    _apply_cave_tunnels(px, solid, biomes)
+    _clear_hall_bites(px, solid, biomes)
+    for cx in range(1, 11):
+        assert solid[7][cx] == 0, "wallpaper lip stays walkable %s" % cx
+        assert solid[8][cx] == 1, "cracked dirt is the floor %s" % cx
 
 
 def test_cave_tunnel_rejects_wallpaper_beside_green_room() -> None:
@@ -563,6 +604,7 @@ if __name__ == "__main__":
     test_diamond_rejects_rails_windows_and_bars()
     test_cave_paper_and_void_counts()
     test_cave_tunnel_floor_and_ceiling()
+    test_cracked_earth_is_the_dungeon_floor()
     test_cave_tunnel_rejects_wallpaper_beside_green_room()
     test_cave_tunnel_rejects_cyan_and_short_runs()
     test_speckled_under_paper_is_not_a_floor_lip()
