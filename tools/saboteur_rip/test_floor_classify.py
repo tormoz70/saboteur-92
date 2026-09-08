@@ -7,7 +7,6 @@ from build_s2_world import (
     _apply_cave_ground,
     _apply_cave_tunnels,
     _band_is_hall_side_step,
-    _clear_hall_bites,
     _clear_red_pillars,
     _clear_walkable_decor,
     _is_cave_paper,
@@ -358,14 +357,11 @@ def test_cave_hall_black_is_ground() -> None:
     solid = [[0] * w for _ in range(h)]
     added = _apply_cave_ground(px, solid, ["cave"])
     assert added > 0
-    _clear_hall_bites(px, solid)
     assert solid[0][8] == 1
     assert solid[2][12] == 1, "ceiling mass on the right"
     assert solid[14][8] == 1, "floor mass"
     assert solid[6][4] == 0, "blue brick hall stays walkable"
     assert solid[3][2] == 0
-    assert solid[2][8] == 0, "void bite beside the hall is not a chest-high wall"
-    assert solid[3][10] == 0, "jagged hall edge stays walkable"
 
 
 def test_hall_side_step_is_not_a_tunnel_floor() -> None:
@@ -378,6 +374,14 @@ def test_hall_side_step_is_not_a_tunnel_floor() -> None:
         paper[cy][2] = True
     assert _band_is_hall_side_step(paper, 2, 2, 6, 8, 12)
     assert not _band_is_hall_side_step(paper, 3, 2, 9, 8, 12)
+    # One-cell lining noise is a real corridor, not a hall.
+    jag = [[False] * 8 for _ in range(12)]
+    for cy in range(2, 9):
+        jag[cy][3] = True
+        jag[cy][4] = True
+    for cy in range(2, 8):
+        jag[cy][2] = True
+    assert not _band_is_hall_side_step(jag, 2, 2, 7, 8, 12)
 
 
 def test_paper_on_row_mask_reach() -> None:

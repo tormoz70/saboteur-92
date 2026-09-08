@@ -371,8 +371,6 @@ def find_cave_tunnels(
                 continue
             if _floor_slab_along_row(px, cx, y1 + 1, cw, biomes, sx_n):
                 continue
-            if _band_is_hall_side_step(paper, cx, y0, y1, cw, ch):
-                continue
             raw.append((cx, y0, y1))
     out: list[tuple[int, int, int]] = []
     for members in _wide_horizontal_groups(raw, _TUNNEL_MIN_WIDTH):
@@ -388,27 +386,52 @@ def find_cave_tunnels(
 _HALL_BITE_REACH = 4
 
 
-def _band_is_hall_side_step(
+def _neighbour_shares_band(
+    paper: list[list[bool]], nx: int, y0: int, y1: int
+) -> bool:
+    return any(paper[y][nx] for y in range(y0, y1 + 1))
+
+
+def _ceiling_is_hall_step(
     paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
 ) -> bool:
-    """True if this column's band is a bite in a taller neighbouring hall.
+    """Neighbour wallpaper continues two+ cells above this band."""
+    for dx in (-1, 1):
+        nx = cx + dx
+        if nx < 0 or nx >= cw:
+            continue
+        if not _neighbour_shares_band(paper, nx, y0, y1):
+            continue
+        if any(paper[y][nx] for y in range(max(0, y0 - 4), y0 - 1)):
+            return True
+    return False
 
-    A real tunnel's floor has void under every column. A cave hall's jagged
-    right edge looks the same in one column — paper 5–10 cells, void below —
-    but the next column still has wallpaper at y1+1. Treating y1 as a floor
-    there puts a chest-high slab through the room and blocks the ladder.
+
+def _floor_is_hall_step(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
+) -> bool:
+    """Neighbour wallpaper continues two+ cells below this band.
+
+    That is a hall's jagged side, not a tunnel floor. One-cell lining noise
+    still counts as a corridor.
     """
     for dx in (-1, 1):
         nx = cx + dx
         if nx < 0 or nx >= cw:
             continue
-        for y in range(max(0, y0 - 2), y0):
-            if paper[y][nx]:
-                return True
-        for y in range(y1 + 1, min(ch, y1 + 3)):
-            if paper[y][nx]:
-                return True
+        if not _neighbour_shares_band(paper, nx, y0, y1):
+            continue
+        if any(paper[y][nx] for y in range(y1 + 2, min(ch, y1 + 5))):
+            return True
     return False
+
+
+def _band_is_hall_side_step(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
+) -> bool:
+    return _ceiling_is_hall_step(paper, cx, y0, y1, cw, ch) or _floor_is_hall_step(
+        paper, cx, y0, y1, cw, ch
+    )
 
 
 def _paper_on_row_mask(
@@ -421,6 +444,25 @@ def _paper_on_row_mask(
         if 0 <= nx < cw and row[nx]:
             return True
     return False
+
+
+def _void_is_hall_step(
+    paper: list[list[bool]], cx: int, cy: int, cw: int, ch: int
+) -> bool:
+    """True if this void is a step in a wallpaper column, not a rock wall.
+
+    Tunnel side walls are void columns with no paper. A hall bite sits in a
+    column that has wallpaper on another row, with wallpaper still beside it.
+    """
+    if paper[cy][cx]:
+        return False
+    if not _paper_on_row_mask(paper, cx, cy, cw):
+        return False
+    return any(
+        paper[y][cx]
+        for y in range(max(0, cy - 12), min(ch, cy + 13))
+        if y != cy
+    )
 
 
 def _floor_slab_along_row(
@@ -846,11 +888,12 @@ def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int, px) ->
 
 
 def _clear_hall_bites(px, solid: list[list[int]]) -> int:
-    """Void beside wallpaper is a jagged room edge, not a chest-high wall.
+    """Void in a wallpaper column, stepped into a taller neighbour, is air.
 
-    `fill_cave_earth` / a previous `--floors-only` pass can leave those bites
-    solid. Punch them after ground and tunnel lining so the standing volume
-    to a hall ladder stays open.
+    A tunnel's side wall is a void *column* beside paper — keep it. A hall's
+    jagged edge is void in a column that *has* paper, two or more cells away
+    from that paper, with wallpaper still beside it. Filling that bite puts a
+    chest-high wall in front of the ladder.
     """
     ch = len(solid)
     cw = len(solid[0])
@@ -860,7 +903,7 @@ def _clear_hall_bites(px, solid: list[list[int]]) -> int:
         for cx in range(cw):
             if not solid[cy][cx] or not void[cy][cx]:
                 continue
-            if _paper_on_row_mask(paper, cx, cy, cw):
+            if _void_is_hall_step(paper, cx, cy, cw, ch):
                 solid[cy][cx] = 0
                 cleared += 1
     return cleared
@@ -1408,10 +1451,15 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
 
     `fill_cave_earth` can seal an unreached corridor as rock; the interior is
     punched open here. Not thickened — growing the ceiling would fill the gap.
+
+    A hall's jagged side looks like a short tunnel column. Keep the real
+    floor/ceiling; skip only the stepped end so it does not become a
+    chest-high wall in front of the ladder.
     """
     ch = len(solid)
     cw = len(solid[0])
     sx_n = (cw * CELL) // SCREEN_W
+    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
     added_ceil = 0
     added_floor = 0
     punched = 0
@@ -1419,9 +1467,10 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
         if not solid[y0][cx]:
             added_ceil += 1
         solid[y0][cx] = 1
-        if not solid[y1][cx]:
-            added_floor += 1
-        solid[y1][cx] = 1
+        if not _floor_is_hall_step(paper, cx, y0, y1, cw, ch):
+            if not solid[y1][cx]:
+                added_floor += 1
+            solid[y1][cx] = 1
         for cy in range(y0 + 1, y1):
             if solid[cy][cx]:
                 punched += 1
@@ -1482,7 +1531,7 @@ def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
             counts = _cell_counts(px, cx, cy)
             if not _is_cave_ground(counts):
                 continue
-            if _is_cave_void(counts) and _paper_on_row_mask(paper, cx, cy, cw):
+            if _is_cave_void(counts) and _void_is_hall_step(paper, cx, cy, cw, ch):
                 continue
             solid[cy][cx] = 1
             added += 1
