@@ -105,6 +105,8 @@ func _leave() -> void:
 	_p.apply_world_mask()
 	_p.floor_snap_length = 16.0
 	_p.velocity = Vector2.ZERO
+	if _head_in_world_solid():
+		_unstick_from_solids()
 	_snap_onto_support()
 
 
@@ -132,7 +134,13 @@ func _snap_onto_support() -> void:
 	if n.y > -0.5:
 		return
 	var feet_off := (Player.BODY_STAND_POS.y + Player.BODY_STAND_SIZE.y * 0.5) * _p.scale.y
+	# A ray that starts in a lid can report the underside as a floor. Only
+	# snap when the hit is actually under the soles, otherwise fall.
+	if hit.position.y + 4.0 < _feet_y() - 8.0:
+		return
 	_p.global_position.y = hit.position.y - feet_off
+	if _head_in_world_solid():
+		_unstick_from_solids()
 
 
 func _take_step(axis: float) -> bool:
@@ -151,13 +159,7 @@ func _take_step(axis: float) -> bool:
 			_dismount_to_y(floor_y)
 			return false
 	else:
-		var ceil_y := _blocking_ceiling_y(step.y)
-		if ceil_y < INF:
-			# Climbing up: y decreases. Dismount when feet rise to the lid.
-			if _feet_y() + step.y <= ceil_y + 2.0:
-				_dismount_to_y(ceil_y)
-			else:
-				_dismount_if_landing()
+		if not _try_climb_up_past_lid(step):
 			return false
 	_p.move_and_collide(step)
 	sync_pose()
@@ -177,6 +179,13 @@ func _feet_y() -> float:
 	return (
 		_p.global_position.y
 		+ (Player.BODY_STAND_POS.y + Player.BODY_STAND_SIZE.y * 0.5) * _p.scale.y
+	)
+
+
+func _head_y() -> float:
+	return (
+		_p.global_position.y
+		+ (Player.BODY_STAND_POS.y - Player.BODY_STAND_SIZE.y * 0.5) * _p.scale.y
 	)
 
 
@@ -211,13 +220,21 @@ func _hits(center: Vector2, size: Vector2) -> bool:
 
 
 func _query(shape: Shape2D, xf: Transform2D) -> bool:
+	return _shape_hits(
+		shape, xf, _p.ladder_detector.collision_mask, true, false
+	)
+
+
+func _shape_hits(
+	shape: Shape2D, xf: Transform2D, mask: int, areas: bool, bodies: bool
+) -> bool:
 	# Reused query keeps leftover fields. Set every field the four old
 	# functions wrote, every call, or a prior detector/probe leaks in.
 	_probe_query.shape = shape
 	_probe_query.transform = xf
-	_probe_query.collision_mask = _p.ladder_detector.collision_mask
-	_probe_query.collide_with_areas = true
-	_probe_query.collide_with_bodies = false
+	_probe_query.collision_mask = mask
+	_probe_query.collide_with_areas = areas
+	_probe_query.collide_with_bodies = bodies
 	_probe_query.exclude = [_p.get_rid()]
 	return _p.get_world_2d().direct_space_state.intersect_shape(_probe_query, 1).size() > 0
 
@@ -233,19 +250,56 @@ func _blocking_floor_y(dy: float) -> float:
 	return fy
 
 
-func _blocking_ceiling_y(dy: float) -> float:
-	var head := _p.global_position.y + 2.0
-	var hit := _vertical_solid(head, head + dy - 2.0)
+func _try_climb_up_past_lid(step: Vector2) -> bool:
+	# True: take the step. False: blocked or already dismounted.
+	var head := _head_y()
+	var hit := _vertical_solid(head + 1.0, head + step.y - 2.0)
 	if hit.is_empty():
-		return INF
-	var cy: float = hit.position.y
-	# Shaft continues through the lid — keep climbing.
-	if _at_world(Vector2(_body_cx(), cy - 32.0)):
-		return INF
-	# Landing lid (ladder ends here): keep climbing through until feet reach it.
-	if _at_world(Vector2(_body_cx(), cy + 2.0)) and _feet_y() + dy > cy + 2.0:
-		return INF
-	return cy
+		return true
+	var bottom: float = hit.position.y
+	# Shaft continues through the lid.
+	if _at_world(Vector2(_body_cx(), bottom - 32.0)):
+		return true
+	# Thin walkable floor (document hatch): rungs often stop at the slab.
+	# Climb through until the feet reach the TOP, never the underside.
+	var top := _walkable_top(bottom)
+	if top < INF:
+		if _feet_y() + step.y <= top + 2.0:
+			_dismount_to_y(top)
+			return false
+		return true
+	# Dead-end mass: stay on the last rung. Do not plant feet on the underside.
+	_dismount_if_landing()
+	return false
+
+
+func _walkable_top(bottom_y: float) -> float:
+	# Probe up from just inside the solid. A hatch is a thin slab with empty
+	# space on top. A thick ceiling mass never emerges.
+	var y := bottom_y - 2.0
+	var end := bottom_y - 64.0 * maxf(_p.scale.y, 1.0)
+	var inside := false
+	while y > end:
+		if _point_is_world_solid(Vector2(_body_cx(), y)):
+			inside = true
+			y -= 4.0
+			continue
+		if not inside:
+			y -= 4.0
+			continue
+		# First empty sample sits just above the slab. Planting feet on the
+		# last solid pixel (y+4) embeds the collider in the brick.
+		if _point_is_world_solid(Vector2(_body_cx(), y - 8.0)):
+			return INF
+		return y
+	return INF
+
+
+func _point_is_world_solid(point: Vector2) -> bool:
+	_probe_shape.size = Vector2(6.0, 4.0)
+	return _shape_hits(
+		_probe_shape, Transform2D(0.0, point), _p.get_world_mask(), false, true
+	)
 
 
 func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
@@ -265,6 +319,8 @@ func _dismount_to_y(floor_y: float) -> void:
 	_p.velocity = Vector2.ZERO
 	_p.global_position.y = floor_y - feet_off
 	_p.current_state = Player.State.IDLE
+	if _head_in_world_solid():
+		_unstick_from_solids()
 
 
 func _dismount_if_close_floor() -> void:
@@ -298,6 +354,36 @@ func _dismount_if_landing() -> bool:
 		_dismount_to_y(fy)
 		return true
 	return false
+
+
+func _body_overlaps_world() -> bool:
+	var col := _p.body_collision
+	if col == null or col.shape == null:
+		return false
+	return _shape_hits(col.shape, col.global_transform, _p.get_world_mask(), false, true)
+
+
+func _head_in_world_solid() -> bool:
+	_probe_shape.size = Vector2(10.0, 8.0) * _p.scale
+	var center := Vector2(_body_cx(), _head_y() + 4.0 * _p.scale.y)
+	return _shape_hits(
+		_probe_shape, Transform2D(0.0, center), _p.get_world_mask(), false, true
+	)
+
+
+func _unstick_from_solids() -> void:
+	# Climbing has world collision off, so a leave under a lid can restore
+	# the mask while the head is still inside the brick. Slide down until the
+	# collider is free. Do not run this for a normal floor rest: soles overlap
+	# the slab by a safe-margin and shoving down would drop through it.
+	if not _head_in_world_solid():
+		return
+	var step := 4.0 * _p.scale.y
+	for _i in 40:
+		_p.global_position.y += step
+		if not _body_overlaps_world():
+			_p.velocity.y = maxf(_p.velocity.y, 0.0)
+			return
 
 
 func _detector_shape() -> CollisionShape2D:

@@ -247,6 +247,7 @@ func _handle_attack_input(just_landed: bool = false) -> void:
 		not up_tap
 		and moving
 		and just_landed
+		and not is_on_ceiling()
 		and SaboteurControls.wants_up()
 		and current_state != State.JUMP_KICK
 		and current_state != State.SOMERSAULT
@@ -278,7 +279,11 @@ func _handle_attack_input(just_landed: bool = false) -> void:
 
 func _process_somersault(delta: float) -> void:
 	velocity.x = float(facing) * speed * somersault_speed_scale
-	if not is_on_floor():
+	if is_on_ceiling() and velocity.y < 0.0:
+		velocity.y = 0.0
+	# A lid is not a landing. Restarting the flip here wedges the body in the
+	# brick and freezes the somersault pose.
+	if not is_on_floor() or is_on_ceiling():
 		_flip_left_ground = true
 		velocity.y += gravity * delta
 		return
