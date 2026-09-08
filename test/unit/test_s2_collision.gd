@@ -74,8 +74,14 @@ func test_diamond_slabs_are_walkable_solids() -> void:
 func test_cave_tunnels_have_floor_and_ceiling() -> void:
 	var data := _collision_data()
 	# Thin blue-brick cave corridors: jagged lining is solid, wallpaper inside
-	# stays empty. Samples are mosaic pixels (cell centres).
+	# stays empty. Floor is two cells below the last brick so Nina's 42px
+	# body fits under the ceiling. Samples are mosaic pixels (cell centres).
 	var floors: Array[Vector2i] = [
+		Vector2i(2692, 3732),
+		Vector2i(1028, 2868),
+		Vector2i(940, 3588),
+	]
+	var old_lips: Array[Vector2i] = [
 		Vector2i(2692, 3716),
 		Vector2i(1028, 2852),
 		Vector2i(940, 3572),
@@ -94,6 +100,11 @@ func test_cave_tunnels_have_floor_and_ceiling() -> void:
 		assert_true(
 			_point_in_any_rect(p, data["solids"]),
 			"cave tunnel floor at %s should be solid" % p
+		)
+	for p in old_lips:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"last wallpaper cell at %s must not be the floor" % p
 		)
 	for p in ceils:
 		assert_true(
@@ -256,3 +267,7 @@ func test_level_builds_one_shape_per_json_entry() -> void:
 	assert_eq(solids.get_child_count(), data["solids"].size())
 	assert_eq(ladders.get_child_count(), data["ladders"].size())
 	assert_eq(lifts.get_child_count(), data["lifts"].size())
+	assert_null(
+		level.get_node_or_null("Letterbox"),
+		"side letterbox bars hide playable width the D-pad should sit in"
+	)
