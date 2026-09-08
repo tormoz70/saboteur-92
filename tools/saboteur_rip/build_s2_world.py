@@ -870,6 +870,7 @@ def classify_cells(
     _apply_cave_ground(px, solid, biomes)
     _apply_cave_tunnels(px, solid, biomes)
     _clear_hall_bites(px, solid, biomes)
+    _clear_standing_stubs(solid, biomes)
     _apply_cave_gaps(px, solid, biomes)
     punch_ladder_shafts(solid, keep)
     cap_ladder_hatches(solid, keep)
@@ -988,6 +989,52 @@ def _clear_hall_bites(
             if _void_is_hall_step(paper, cx, cy, cw, ch):
                 solid[cy][cx] = 0
                 cleared += 1
+    return cleared
+
+
+def _clear_standing_stubs(
+    solid: list[list[int]], biomes: list[str] | None = None
+) -> int:
+    """Punch a lone cell hanging in a cave hall's standing volume.
+
+    Hall-step bites the void classifier missed are one solid with air under
+    them and a real floor two to four cells below. Walking into that stub is
+    a chest-high wall in front of the ladder.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = max(1, (cw * CELL) // SCREEN_W) if biomes else 1
+    cleared = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if not solid[cy][cx]:
+                continue
+            if biomes is not None and _biome_at(biomes, sx_n, cx, cy) != "cave":
+                continue
+            if cy + 1 < ch and solid[cy + 1][cx]:
+                continue
+            if cy > 0 and solid[cy - 1][cx]:
+                continue
+            floor_dy = 0
+            for dy in range(2, 5):
+                ny = cy + dy
+                if ny >= ch:
+                    break
+                if solid[ny][cx]:
+                    floor_dy = dy
+                    break
+            if floor_dy == 0:
+                continue
+            side_air = False
+            for dx in (-1, 1):
+                nx = cx + dx
+                if 0 <= nx < cw and not solid[cy][nx]:
+                    side_air = True
+                    break
+            if not side_air:
+                continue
+            solid[cy][cx] = 0
+            cleared += 1
     return cleared
 
 
@@ -1638,6 +1685,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     ground = _apply_cave_ground(px, solid, biomes)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
     bites = _clear_hall_bites(px, solid, biomes)
+    stubs = _clear_standing_stubs(solid, biomes)
     g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     pillars = _clear_red_pillars(px, solid)
     cap_ladder_hatches(solid, detect_ladder_grid(im))
@@ -1650,6 +1698,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     print(f"cave ground cells added {ground}")
     print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
     print(f"cave hall bites cleared {bites}")
+    print(f"cave hall standing stubs cleared {stubs}")
     print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
     print(f"red posts cleared {pillars}")
     print(f"updated {path}")
