@@ -11,9 +11,10 @@ const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
 const SABOTAGE_SCENE := preload("res://scenes/items/sabotage_target.tscn")
 const EXIT_SCENE := preload("res://scenes/items/exit_zone.tscn")
-# Side bars used to hide extra camera width at 16:9. They ate the space the
-# touch pad needs and hid playable map; the camera now uses that width.
-const LETTERBOX_PX := 0.0
+# Side bars trim a slice of the extra 16:9 width so the playfield is not
+# edge-to-edge. 160 hid the whole surplus; 80 leaves a bit of map and a
+# margin for the D-pad.
+const LETTERBOX_PX := 80.0
 # Camera stays put while Nina is more than this fraction of the playfield away
 # from any edge. Crossing that band pushes the view; standing still recenters.
 const CAMERA_EDGE_FRACTION := 1.0 / 3.0
@@ -120,8 +121,8 @@ func _load_original_world() -> void:
 	_add_lifts(data)
 
 	# Vertical view is one 192px Spectrum screen (384 world px at zoom
-	# viewport_height/384). Extra horizontal pixels show more of the map
-	# instead of being covered by letterbox bars.
+	# viewport_height/384). Extra horizontal pixels show a little more map;
+	# LETTERBOX_PX covers the outer strip.
 	var world_px := _world_size * _scale
 	camera.limit_left = 0
 	camera.limit_top = 0

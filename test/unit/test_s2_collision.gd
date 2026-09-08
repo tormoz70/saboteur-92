@@ -267,7 +267,7 @@ func test_level_builds_one_shape_per_json_entry() -> void:
 	assert_eq(solids.get_child_count(), data["solids"].size())
 	assert_eq(ladders.get_child_count(), data["ladders"].size())
 	assert_eq(lifts.get_child_count(), data["lifts"].size())
-	assert_null(
-		level.get_node_or_null("Letterbox"),
-		"side letterbox bars hide playable width the D-pad should sit in"
-	)
+	var box: CanvasLayer = level.get_node_or_null("Letterbox")
+	assert_not_null(box, "side bars should trim a slice of extra 16:9 width")
+	var left_bar: ColorRect = box.get_child(0)
+	assert_eq(left_bar.offset_right, 80.0)

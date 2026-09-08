@@ -39,8 +39,9 @@ func test_diagonal_pad_has_jump_and_crawl_chords() -> void:
 	assert_true(ui.get_node("Root/LeftPad") is OctantTouchPad)
 	var left: Control = ui.get_node("Root/LeftPad")
 	var right: Control = ui.get_node("Root/RightPad")
-	assert_lt(left.offset_left, 0.0, "D-pad hangs off the left of the viewport")
-	assert_gt(left.offset_right, 80.0, "the right half of the disc stays on-screen")
+	assert_lt(left.offset_left, 0.0, "D-pad still peeks past the left edge")
+	assert_gt(left.offset_left, -90.0, "but the hub stays on-screen")
+	assert_gt(left.offset_right, 200.0, "most of the disc stays on-screen")
 	assert_gt(right.offset_right, -24.0, "HIT/JMP should sit on the right edge")
 
 
