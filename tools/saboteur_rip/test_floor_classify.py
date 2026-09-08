@@ -194,6 +194,36 @@ def test_cave_tunnel_rejects_cyan_and_short_runs() -> None:
     assert hits == []
 
 
+def test_speckled_under_paper_is_not_a_floor_lip() -> None:
+    """Gap finding climbs through hall earth; the lid must not be wallpaper."""
+    layout = [
+        "kkkkkkkkkkkk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kssssssssssk",
+        "kssssssssssk",
+        "kssssssssssk",
+        "kssssssssssk",
+        "kssssssssssk",
+        "kssssssssssk",
+        "kbbbbbbbbbbk",
+        "kbbbbbbbbbbk",
+        "kkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK, "s": SPECKLED}
+    px = CellGridPx(layout, tiles)
+    solid = [[0] * 12 for _ in range(16)]
+    _apply_cave_ground(px, solid, ["cave"])
+    _apply_cave_gaps(px, solid, ["cave"])
+    for cx in range(1, 11):
+        assert solid[6][cx] == 0, "last wallpaper cell must stay walkable %s" % cx
+        assert solid[7][cx] == 1, "speckled earth is the hall floor %s" % cx
+
+
 def test_flooded_gap_has_floor_and_ceiling() -> None:
     # Brick masses sandwich a black gap (air over water). Ceiling is the
     # underside of the upper mass; floor is the top of the lower mass.
@@ -535,6 +565,7 @@ if __name__ == "__main__":
     test_cave_tunnel_floor_and_ceiling()
     test_cave_tunnel_rejects_wallpaper_beside_green_room()
     test_cave_tunnel_rejects_cyan_and_short_runs()
+    test_speckled_under_paper_is_not_a_floor_lip()
     test_flooded_gap_has_floor_and_ceiling()
     test_stacked_tunnels_keep_dropped_floor_after_gaps()
     test_red_post_is_brick_but_not_a_floor()
