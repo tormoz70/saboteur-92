@@ -165,6 +165,11 @@ animations = [{
 "name": &"somersault",
 "speed": 14.0
 }, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
+"loop": true,
+"name": &"roll",
+"speed": 12.0
+}, {
 "frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_d0")}],
 "loop": false,
 "name": &"death",

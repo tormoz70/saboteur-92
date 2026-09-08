@@ -15,17 +15,17 @@ func test_still_up_is_stand_kick() -> void:
 	)
 
 
-func test_moving_up_is_running_jump() -> void:
+func test_moving_up_is_long_jump() -> void:
 	assert_eq(
 		SaboteurControls.resolve_ground(true, true, false, false, false),
-		SaboteurControls.GroundAction.RUNNING_JUMP
+		SaboteurControls.GroundAction.SOMERSAULT
 	)
 
 
-func test_moving_up_on_ladder_is_still_running_jump() -> void:
+func test_moving_up_on_ladder_is_still_the_long_jump_chord() -> void:
 	assert_eq(
 		SaboteurControls.resolve_ground(true, true, false, true, false),
-		SaboteurControls.GroundAction.RUNNING_JUMP
+		SaboteurControls.GroundAction.SOMERSAULT
 	)
 
 
@@ -50,10 +50,10 @@ func test_up_on_dead_end_lift_is_stand_kick() -> void:
 	)
 
 
-func test_moving_up_on_dead_end_lift_is_running_jump() -> void:
+func test_moving_up_on_dead_end_lift_is_long_jump() -> void:
 	assert_eq(
 		SaboteurControls.resolve_ground(true, true, false, false, false),
-		SaboteurControls.GroundAction.RUNNING_JUMP
+		SaboteurControls.GroundAction.SOMERSAULT
 	)
 
 
@@ -128,11 +128,11 @@ func test_somersault_needs_movement_a_fresh_tap_and_a_free_lift() -> void:
 
 
 func test_inlay_rows_are_unchanged_without_the_new_arguments() -> void:
-	# The 1987 table is the default: callers that pass only the original five
-	# arguments must see exactly the original five outcomes.
+	# Five-argument callers still see the original table, with MOVE+UP as
+	# the long somersault the Spectrum jump actually was.
 	assert_eq(
 		SaboteurControls.resolve_ground(true, true, false, false, false),
-		SaboteurControls.GroundAction.RUNNING_JUMP
+		SaboteurControls.GroundAction.SOMERSAULT
 	)
 	assert_eq(
 		SaboteurControls.resolve_ground(true, false, true, false, false),

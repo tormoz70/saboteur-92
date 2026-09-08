@@ -92,8 +92,7 @@ func test_standing_punch_is_unchanged() -> void:
 func test_running_jump_plus_punch_somersaults() -> void:
 	await _run_right()
 	await _press("jump")
-	await _press("punch")
-	assert_eq(_player.current_state, Player.State.SOMERSAULT, "UP then FIRE while running")
+	assert_eq(_player.current_state, Player.State.SOMERSAULT, "MOVE + UP is the long jump")
 	assert_gt(
 		absf(_player.velocity.x), _player.speed, "the somersault carries more speed than a run"
 	)
@@ -138,17 +137,14 @@ func test_somersault_needs_a_direction() -> void:
 	assert_ne(_player.current_state, Player.State.SOMERSAULT, "standing still cannot long jump")
 
 
-func test_somersault_clears_more_ground_than_a_plain_jump() -> void:
-	var plain := await _measure_jump(false)
-	await _reset_player()
+func test_somersault_clears_more_ground_than_a_run() -> void:
 	var flip := await _measure_jump(true)
-	assert_gt(flip, plain * 1.4, "the long jump is worth pressing two buttons for")
+	assert_gt(flip, 80.0, "the long jump covers real distance")
 
 
 func test_somersault_lands_back_on_its_feet() -> void:
 	await _run_right()
 	await _press("jump")
-	await _press("punch")
 	_release_all()
 	await _step(120)
 	assert_true(_player.is_on_floor(), "the flip ends on the floor")
@@ -170,6 +166,13 @@ func test_punching_after_walking_off_a_ledge_stays_a_fall() -> void:
 	Input.action_press("move_right")
 	await _press("punch")
 	assert_eq(_player.current_state, Player.State.JUMP, "falling + FIRE does nothing")
+
+
+func test_crawl_uses_the_embryo_roll() -> void:
+	await _press("move_down")
+	await _press("move_right")
+	assert_eq(_player.current_state, Player.State.CRAWL, "down plus move rolls")
+	assert_eq(_player.anim.animation, &"roll")
 
 
 func _measure_jump(with_flip: bool) -> float:

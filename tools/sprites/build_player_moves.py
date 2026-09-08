@@ -6,8 +6,9 @@ silhouette, palette and 48x56 cell of the sheet the player scene already uses:
 
 - crouch punch: the crouch pose with the standing punch's arm grafted on at
   crouch shoulder height.
-- somersault: the crouch pose tucked into a ball and rotated in 45 degree
-  steps, authored for a right-facing flip (the scene mirrors it for left).
+- somersault / floor roll: original crouch (K47212) is the tucked embryo
+  pose. Rotate that ball in 45 degree steps for a right-facing flip (the
+  scene mirrors it for left) and for SW/SE rolls on the floor.
 """
 
 from __future__ import annotations

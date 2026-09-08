@@ -35,12 +35,6 @@ func overlaps() -> bool:
 func update_state(climb_axis: float) -> void:
 	var h_axis := TiltSteer.move_axis()
 	var want_climb := absf(climb_axis) > 0.0
-	var running_jump := (
-		not _p.on_ladder
-		and _p.is_on_floor()
-		and absf(h_axis) > 0.0
-		and SaboteurControls.wants_up()
-	)
 	var on_floor := _p.is_on_floor()
 	if not SaboteurControls.wants_up():
 		_up_spent_on_jump = false
@@ -56,10 +50,12 @@ func update_state(climb_axis: float) -> void:
 			return
 		return
 	# Mount only from the floor. Airborne grab is off on purpose: a jump,
-	# fall, or hatch fly-through must not become a climb.
+	# fall, or hatch fly-through must not become a climb. Overlapping a
+	# shaft still mounts even with MOVE held: NW/NE on the rungs is climb,
+	# not a running jump that leaves Nina stuck at the foot of the ladder.
 	if not _p.is_on_floor():
 		return
-	if running_jump or not _p.can_climb or not want_climb:
+	if not _p.can_climb or not want_climb:
 		return
 	# Leftover UP after a jump is not a new climb press.
 	if climb_axis < 0.0 and _up_spent_on_jump:

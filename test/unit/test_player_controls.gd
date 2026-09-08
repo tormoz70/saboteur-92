@@ -25,13 +25,13 @@ func test_space_while_still_is_also_a_kick() -> void:
 	assert_eq(player.current_state, Player.State.KICK)
 
 
-func test_run_plus_up_starts_running_jump() -> void:
+func test_run_plus_up_starts_long_jump() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	Input.action_press("move_up")
 	await wait_physics_frames(1)
-	assert_eq(player.current_state, Player.State.JUMP)
+	assert_eq(player.current_state, Player.State.SOMERSAULT)
 	assert_gt(player.velocity.x, 0.0)
 	assert_lt(player.velocity.y, 0.0)
 
@@ -41,15 +41,15 @@ func test_held_run_and_up_jumps_again_after_landing() -> void:
 	Input.action_press("move_right")
 	Input.action_press("move_up")
 	await wait_physics_frames(2)
-	assert_eq(player.current_state, Player.State.JUMP)
+	assert_eq(player.current_state, Player.State.SOMERSAULT)
 	var saw_air := false
-	for _i in 50:
+	for _i in 90:
 		await wait_physics_frames(1)
 		if not player.is_on_floor():
 			saw_air = true
 		elif saw_air:
-			await wait_physics_frames(2)
-			assert_eq(player.current_state, Player.State.JUMP, "held MOVE+UP jumps again")
+			await wait_physics_frames(3)
+			assert_eq(player.current_state, Player.State.SOMERSAULT, "held MOVE+UP flips again")
 			assert_lt(player.velocity.y, 0.0)
 			return
 	assert_true(saw_air, "should have left the slab")
@@ -77,14 +77,28 @@ func test_run_plus_fire_starts_flying_kick() -> void:
 
 func test_running_jump_does_not_grab_ladder_in_air() -> void:
 	var player := await _spawn_on_floor()
-	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	Input.action_press("move_up")
-	await wait_physics_frames(8)
+	await wait_physics_frames(4)
 	assert_false(player.is_on_floor(), "jump should have left the slab")
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	await wait_physics_frames(4)
 	assert_false(player.on_ladder, "held UP must not mount a shaft mid-jump")
-	assert_eq(player.current_state, Player.State.JUMP)
+	assert_eq(player.current_state, Player.State.SOMERSAULT)
+
+
+func test_move_plus_up_on_ladder_climbs() -> void:
+	# NW/NE on the rungs is climb, not a long jump that leaves Nina at the foot.
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
+	await wait_physics_frames(1)
+	assert_true(player.can_climb)
+	Input.action_press("move_right")
+	Input.action_press("move_up")
+	await wait_physics_frames(3)
+	assert_true(player.on_ladder)
+	assert_eq(player.current_state, Player.State.CLIMB)
 
 
 func test_still_up_on_ladder_still_climbs() -> void:
@@ -100,11 +114,12 @@ func test_still_up_on_ladder_still_climbs() -> void:
 
 func test_held_up_after_jump_does_not_mount_on_landing() -> void:
 	var player := await _spawn_on_floor()
-	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	Input.action_press("move_up")
 	await wait_physics_frames(4)
+	assert_false(player.is_on_floor())
+	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	Input.action_release("move_right")
 	var saw_air := false
 	for _i in 40:
@@ -120,20 +135,22 @@ func test_held_up_after_jump_does_not_mount_on_landing() -> void:
 
 func test_fresh_up_after_jump_still_climbs() -> void:
 	var player := await _spawn_on_floor()
-	_add_ladder(Vector2(140, -40), Vector2(160, 200))
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	Input.action_press("move_up")
 	await wait_physics_frames(4)
+	assert_false(player.is_on_floor())
 	Input.action_release("move_right")
 	var saw_air := false
-	for _i in 40:
+	for _i in 80:
 		await wait_physics_frames(1)
 		if not player.is_on_floor():
 			saw_air = true
 		elif saw_air:
 			break
 	assert_true(player.is_on_floor())
+	_add_ladder(Vector2(player.global_position.x + 24.0, 20.0), Vector2(160, 200))
+	await wait_physics_frames(1)
 	Input.action_release("move_up")
 	await wait_physics_frames(1)
 	Input.action_press("move_up")
@@ -206,7 +223,7 @@ func test_airborne_fire_does_not_start_a_kick() -> void:
 	Input.action_release("move_right")
 	Input.action_press("punch")
 	await wait_physics_frames(1)
-	assert_eq(player.current_state, Player.State.JUMP)
+	assert_eq(player.current_state, Player.State.SOMERSAULT)
 	assert_ne(player.current_state, Player.State.JUMP_KICK)
 
 
@@ -218,17 +235,31 @@ func test_down_while_still_ducks() -> void:
 	assert_eq(player.velocity.x, 0.0)
 
 
-func test_down_plus_move_crawls() -> void:
+func test_down_plus_move_rolls() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_down")
 	await wait_physics_frames(2)
 	Input.action_press("move_right")
 	await wait_physics_frames(2)
 	assert_eq(player.current_state, Player.State.CRAWL)
+	assert_eq(player.anim.animation, &"roll")
 	assert_gt(player.velocity.x, 0.0)
 	assert_lt(player.velocity.x, player.speed)
 	var shape := player.body_collision.shape as RectangleShape2D
 	assert_eq(shape.size, Player.BODY_CROUCH_SIZE)
+
+
+func test_walks_up_a_one_cell_step() -> void:
+	var player := await _spawn_on_floor()
+	_add_step(200.0, 16.0)
+	var start_y := player.global_position.y
+	Input.action_press("move_right")
+	for _i in 80:
+		await wait_physics_frames(1)
+		if player.global_position.x >= 200.0:
+			break
+	assert_gt(player.global_position.x, 190.0, "should have reached the step")
+	assert_lt(player.global_position.y, start_y - 8.0, "feet should rise onto the step")
 
 
 func _spawn_on_floor() -> Player:
@@ -276,6 +307,20 @@ func _spawn_on_dead_end_lift() -> Player:
 	assert_true(player.is_on_floor(), "player should stand on the cabin")
 	assert_true(player.on_lift)
 	return player
+
+
+func _add_step(left_x: float, height: float) -> void:
+	var body := StaticBody2D.new()
+	body.collision_layer = CollisionLayers.LAYER_WORLD
+	body.collision_mask = 0
+	var col := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(160.0, height)
+	col.shape = rect
+	# _spawn_on_floor slab: center (240, 80), size 480x16, top at y=72.
+	col.position = Vector2(left_x + 80.0, 72.0 - height * 0.5)
+	body.add_child(col)
+	add_child_autofree(body)
 
 
 func _add_ladder(center: Vector2, size: Vector2) -> void:

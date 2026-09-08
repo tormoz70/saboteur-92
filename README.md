@@ -43,16 +43,19 @@ Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
 3. Controls (Saboteur II stick + FIRE; Space / JMP are aliases for UP):
    - Left / right: walk (arrows, A/D, touch ◀ ▶)
    - UP while still: standing kick (W, Space, ▲, JMP)
-   - Left/right + UP: running jump. FIRE in the air does nothing;
+   - Left/right + UP (NW/NE on the pad): long high jump with a somersault.
+     Hold the diagonal to keep flipping after each landing.
+   - FIRE in the air does nothing;
      the flying kick starts on the ground as left/right + FIRE.
    - FIRE while still: punch (Z/X, HIT)
    - Left/right + FIRE: flying kick
    - DOWN while still: duck (S, ▼)
    - DOWN + FIRE: low punch. Stays ducked and hits at knee height.
-   - Left/right + UP + FIRE: long jump with a somersault. Either button may
-     land first; the two count as one gesture inside 0.25 s.
-   - Climb: UP / DOWN on a ladder. You mount from the floor; a jump or
-     fall through a shaft does not grab the rungs.
+   - Left/right + DOWN (SW/SE on the pad): roll on the floor in the tucked
+     embryo pose from the original crouch sprite.
+   - Climb: UP / DOWN on a ladder, including the NW/NE diagonals while the
+     rungs overlap. You mount from the floor; a jump or fall through a shaft
+     does not grab the rungs. One-cell cave steps are walked up.
    - Lift: UP / DOWN only if the cabin can move that way
    - Optional phone tilt: tap **TILT** (top-right). Lean the screen's left or
      right edge down to walk that way; the angle you hold when you switch it on
