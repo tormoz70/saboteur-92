@@ -6,13 +6,18 @@ from build_s2_world import (
     _apply_cave_gaps,
     _apply_cave_ground,
     _apply_cave_tunnels,
+    _band_is_hall_side_step,
+    _clear_hall_bites,
     _clear_red_pillars,
     _clear_walkable_decor,
+    _floor_is_hall_step,
     _is_cave_paper,
     _is_cave_void,
     _is_diamond_floor_tile,
     _is_sky_rail_tile,
+    _is_speckled_earth,
     _is_x_lattice_tile,
+    _paper_on_row_mask,
     cell_is_crate,
     cell_is_diamond_floor,
     cell_is_red_brick,
@@ -70,6 +75,9 @@ def _counts(rows: list[list[str]]) -> dict[str, int]:
 
 BRICK = [list("bbbbbbbb") for _ in range(7)] + [list("kkkkkkkk")]
 VOID = [list("kkkkkkkk") for _ in range(8)]
+# Speckled earth is also `_is_cave_void` (k>=24, b<20). Hall-bite punches
+# must not treat it as empty cave air.
+SPECKLED = [list("kkkkkkkk") for _ in range(7)] + [list("kbkkkkkk")]
 CYAN = [list("cccccccc") for _ in range(8)]
 GREEN = [list("gggggggg") for _ in range(5)] + [list("kkkkkkkk") for _ in range(3)]
 INK_RGB = {
@@ -100,6 +108,8 @@ class CellGridPx:
 def test_cave_paper_and_void_counts() -> None:
     assert _is_cave_paper(_counts(BRICK))
     assert _is_cave_void(_counts(VOID))
+    assert _is_speckled_earth(_counts(SPECKLED))
+    assert _is_cave_void(_counts(SPECKLED))
     assert not _is_cave_paper(_counts(VOID))
     assert not _is_cave_paper(_counts(CYAN))
     assert not _is_cave_void(_counts(BRICK))
@@ -362,6 +372,104 @@ def test_cave_hall_black_is_ground() -> None:
     assert solid[3][2] == 0
 
 
+def test_hall_side_step_is_not_a_tunnel_floor() -> None:
+    """Shorter paper column next to a taller hall is an edge, not a floor."""
+    paper = [[False] * 8 for _ in range(12)]
+    for cy in range(2, 10):
+        paper[cy][3] = True
+        paper[cy][4] = True
+    for cy in range(2, 7):
+        paper[cy][2] = True
+    assert _band_is_hall_side_step(paper, 2, 2, 6, 8, 12)
+    assert not _band_is_hall_side_step(paper, 3, 2, 9, 8, 12)
+    # One-cell lining noise is a real corridor, not a hall.
+    jag = [[False] * 8 for _ in range(12)]
+    for cy in range(2, 9):
+        jag[cy][3] = True
+        jag[cy][4] = True
+    for cy in range(2, 8):
+        jag[cy][2] = True
+    assert not _band_is_hall_side_step(jag, 2, 2, 7, 8, 12)
+
+
+def test_wide_tunnel_beside_hall_is_not_a_hall_step() -> None:
+    """A real corridor keeps its floor even when a taller hall is next door."""
+    paper = [[False] * 16 for _ in range(14)]
+    for cy in range(2, 8):
+        for cx in range(1, 9):
+            paper[cy][cx] = True
+    for cy in range(2, 13):
+        for cx in range(9, 14):
+            paper[cy][cx] = True
+    assert not _floor_is_hall_step(paper, 8, 2, 7, 16, 14)
+    assert not _band_is_hall_side_step(paper, 8, 2, 7, 16, 14)
+    # Two short columns on the hall's own edge are still a step.
+    jag = [[False] * 16 for _ in range(14)]
+    for cy in range(2, 13):
+        for cx in range(1, 11):
+            jag[cy][cx] = True
+    for cy in range(2, 8):
+        jag[cy][11] = True
+        jag[cy][12] = True
+    assert _floor_is_hall_step(jag, 11, 2, 7, 16, 14)
+
+
+def test_tunnel_beside_hall_keeps_lining() -> None:
+    layout = [
+        "kkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkk",
+        "kbbbbbbbbbbbbbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kbbbbbbbbbbbbbbk",
+        "kkkkkkkkkkbbbbbk",
+        "kkkkkkkkkkbbbbbk",
+        "kkkkkkkkkkbbbbbk",
+        "kkkkkkkkkkbbbbbk",
+        "kkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkk",
+    ]
+    tiles = {"k": VOID, "b": BRICK}
+    px = CellGridPx(layout, tiles)
+    solid = [[0] * 16 for _ in range(14)]
+    _apply_cave_tunnels(px, solid, ["cave"])
+    for cx in range(1, 9):
+        assert solid[2][cx] == 1, cx
+        assert solid[7][cx] == 1, cx
+    _clear_hall_bites(px, solid, ["cave"])
+    for cx in range(1, 9):
+        assert solid[7][cx] == 1, "tunnel floor beside hall must stay %s" % cx
+
+
+def test_interior_speckled_next_to_paper_stays_solid() -> None:
+    """Interior earth is also `_is_cave_void`; hall-bite punch must skip it."""
+    layout = [
+        "kkkkkkkkkk",
+        "bbbbbbbbkk",
+        "bbbbbbbbkk",
+        "bbbbbbbbkk",
+        "ssssssssss",
+        "ssssssssss",
+    ]
+    tiles = {"k": VOID, "b": BRICK, "s": SPECKLED}
+    px = CellGridPx(layout, tiles)
+    solid = [[1] * 10 for _ in range(6)]
+    _clear_hall_bites(px, solid, ["interior"])
+    for cx in range(10):
+        assert solid[4][cx] == 1, cx
+        assert solid[5][cx] == 1, cx
+
+
+def test_paper_on_row_mask_reach() -> None:
+    paper = [[False] * 10 for _ in range(3)]
+    paper[1][2] = True
+    assert _paper_on_row_mask(paper, 5, 1, 10, reach=4)
+    assert not _paper_on_row_mask(paper, 8, 1, 10, reach=4)
+    assert not _paper_on_row_mask(paper, 5, 0, 10, reach=4)
+
+
 if __name__ == "__main__":
     test_diamond_slab_is_floor()
     test_diamond_rejects_rails_windows_and_bars()
@@ -376,4 +484,9 @@ if __name__ == "__main__":
     test_blue_brick_and_crates_are_not_cave_rock()
     test_clear_paper_then_tunnel_keeps_lining()
     test_cave_hall_black_is_ground()
+    test_hall_side_step_is_not_a_tunnel_floor()
+    test_wide_tunnel_beside_hall_is_not_a_hall_step()
+    test_tunnel_beside_hall_keeps_lining()
+    test_interior_speckled_next_to_paper_stays_solid()
+    test_paper_on_row_mask_reach()
     print("test_floor_classify: ok")

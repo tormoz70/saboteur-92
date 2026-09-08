@@ -209,6 +209,23 @@ func test_cave_hall_black_is_ground() -> void:
 	)
 
 
+func test_cave_hall_ladder_is_reachable_at_standing_height() -> void:
+	var data := _collision_data()
+	# Mosaic 28,10: the jagged right edge of the hall used to get a tunnel
+	# floor / cave-ground slab at chest height, so Nina could see the white
+	# ladder but could not walk to it.
+	var air: Array[Vector2i] = [
+		Vector2i(7244, 1964),
+		Vector2i(7260, 1964),
+		Vector2i(7284, 1956),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"path to the hall ladder at %s must stay walkable" % p
+		)
+
+
 func _point_in_any_rect(p: Vector2i, rects: Array) -> bool:
 	for rect in rects:
 		if (

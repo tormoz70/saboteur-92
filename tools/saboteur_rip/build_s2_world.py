@@ -380,6 +380,163 @@ def find_cave_tunnels(
     return out
 
 
+# How far a wallpaper hall may indent before the bite is still "in the room".
+# Standing body is 14px (~2 cells); a 4-cell lookaround covers the jagged
+# edge without opening the rock mass a couple of metres into the mountain.
+_HALL_BITE_REACH = 4
+
+
+def _neighbour_shares_band(
+    paper: list[list[bool]], nx: int, y0: int, y1: int
+) -> bool:
+    return any(paper[y][nx] for y in range(y0, y1 + 1))
+
+
+def _column_band_end(
+    paper: list[list[bool]], nx: int, y0: int, y1: int, ch: int, end: str
+) -> int | None:
+    """Bottom (floor) or top (ceiling) of the paper band that overlaps [y0, y1]."""
+    y = 0
+    while y < ch:
+        if not paper[y][nx]:
+            y += 1
+            continue
+        a = y
+        while y < ch and paper[y][nx]:
+            y += 1
+        b = y - 1
+        if a <= y1 and b >= y0:
+            return a if end == "ceiling" else b
+    return None
+
+
+def _short_band_run_width(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int, end: str
+) -> int:
+    """How many consecutive columns share this short floor or ceiling."""
+    width = 1
+    ref = y0 if end == "ceiling" else y1
+    for dx in (-1, 1):
+        nx = cx + dx
+        while 0 <= nx < cw:
+            other = _column_band_end(paper, nx, y0, y1, ch, end)
+            if other is None or abs(other - ref) > 1:
+                break
+            width += 1
+            nx += dx
+    return width
+
+
+def _ceiling_is_hall_step(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
+) -> bool:
+    """Neighbour wallpaper continues two+ cells above this band.
+
+    A wide corridor of the same height is a tunnel, even if a taller hall
+    sits beside it — that lining must stay. A 1–5 column indent is a hall edge.
+    """
+    taller = False
+    for dx in (-1, 1):
+        nx = cx + dx
+        if nx < 0 or nx >= cw:
+            continue
+        if not _neighbour_shares_band(paper, nx, y0, y1):
+            continue
+        if any(paper[y][nx] for y in range(max(0, y0 - 4), y0 - 1)):
+            taller = True
+            break
+    if not taller:
+        return False
+    return _short_band_run_width(paper, cx, y0, y1, cw, ch, "ceiling") < _TUNNEL_MIN_WIDTH
+
+
+def _floor_is_hall_step(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
+) -> bool:
+    """Neighbour wallpaper continues two+ cells below this band.
+
+    That is a hall's jagged side, not a tunnel floor. One-cell lining noise
+    still counts as a corridor. A run as wide as a tunnel is a corridor even
+    when a taller hall stands next to it.
+    """
+    taller = False
+    for dx in (-1, 1):
+        nx = cx + dx
+        if nx < 0 or nx >= cw:
+            continue
+        if not _neighbour_shares_band(paper, nx, y0, y1):
+            continue
+        if any(paper[y][nx] for y in range(y1 + 2, min(ch, y1 + 5))):
+            taller = True
+            break
+    if not taller:
+        return False
+    return _short_band_run_width(paper, cx, y0, y1, cw, ch, "floor") < _TUNNEL_MIN_WIDTH
+
+
+def _band_is_hall_side_step(
+    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
+) -> bool:
+    return _ceiling_is_hall_step(paper, cx, y0, y1, cw, ch) or _floor_is_hall_step(
+        paper, cx, y0, y1, cw, ch
+    )
+
+
+def _paper_on_row_mask(
+    paper: list[list[bool]], cx: int, cy: int, cw: int, reach: int = _HALL_BITE_REACH
+) -> bool:
+    """True if cave wallpaper sits on this row within `reach` cells."""
+    row = paper[cy]
+    for dx in range(-reach, reach + 1):
+        nx = cx + dx
+        if 0 <= nx < cw and row[nx]:
+            return True
+    return False
+
+
+def _void_is_hall_step(
+    paper: list[list[bool]], cx: int, cy: int, cw: int, ch: int
+) -> bool:
+    """True if this void is a step in a wallpaper column, not a rock wall.
+
+    Tunnel side walls are void columns with no paper. A hall bite sits in a
+    column that has wallpaper on another row, with wallpaper still beside it.
+    Rock under a wide corridor that merely abuts a taller hall stays rock.
+    """
+    if paper[cy][cx]:
+        return False
+    if not _paper_on_row_mask(paper, cx, cy, cw):
+        return False
+    bands: list[tuple[int, int]] = []
+    y = 0
+    while y < ch:
+        if not paper[y][cx]:
+            y += 1
+            continue
+        y0 = y
+        while y < ch and paper[y][cx]:
+            y += 1
+        bands.append((y0, y - 1))
+    if not bands:
+        return False
+    for y0, y1 in bands:
+        if y0 < cy < y1:
+            return True
+        if (
+            cy > y1
+            and cy <= y1 + 12
+            and _floor_is_hall_step(paper, cx, y0, y1, cw, ch)
+        ):
+            return True
+        if (
+            cy < y0
+            and cy >= y0 - 12
+            and _ceiling_is_hall_step(paper, cx, y0, y1, cw, ch)
+        ):
+            return True
+    return False
+
+
 def _floor_slab_along_row(
     px, cx: int, cy: int, cw: int, biomes: list[str], sx_n: int, reach: int = 16
 ) -> bool:
@@ -712,6 +869,7 @@ def classify_cells(
     # After thicken: hall ceilings must not grow down into the room.
     _apply_cave_ground(px, solid, biomes)
     _apply_cave_tunnels(px, solid, biomes)
+    _clear_hall_bites(px, solid, biomes)
     _apply_cave_gaps(px, solid, biomes)
     punch_ladder_shafts(solid, keep)
     cap_ladder_hatches(solid, keep)
@@ -799,6 +957,38 @@ def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int, px) ->
             if _is_cave_paper(counts) or cell_is_crate(counts):
                 continue
             solid[cy][cx] = 1
+
+
+def _clear_hall_bites(
+    px, solid: list[list[int]], biomes: list[str] | None = None
+) -> int:
+    """Void in a wallpaper column, stepped into a taller neighbour, is air.
+
+    A tunnel's side wall is a void *column* beside paper — keep it. A hall's
+    jagged edge is void in a column that *has* paper, two or more cells away
+    from that paper, with wallpaper still beside it. Filling that bite puts a
+    chest-high wall in front of the ladder.
+
+    Speckled earth is mountain even when `_is_cave_void` matches it. Interior
+    screens keep that earth; only cave halls get their jagged bites opened.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = max(1, (cw * CELL) // SCREEN_W)
+    paper, void, _fringe = _cave_cell_masks(px, cw, ch)
+    cleared = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if not solid[cy][cx] or not void[cy][cx]:
+                continue
+            if biomes is not None and _biome_at(biomes, sx_n, cx, cy) != "cave":
+                continue
+            if _is_speckled_earth(_cell_counts(px, cx, cy)):
+                continue
+            if _void_is_hall_step(paper, cx, cy, cw, ch):
+                solid[cy][cx] = 0
+                cleared += 1
+    return cleared
 
 
 def _clear_walkable_decor(px, solid: list[list[int]]) -> int:
@@ -1343,10 +1533,15 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
 
     `fill_cave_earth` can seal an unreached corridor as rock; the interior is
     punched open here. Not thickened — growing the ceiling would fill the gap.
+
+    A hall's jagged side looks like a short tunnel column. Keep the real
+    floor/ceiling; skip only the stepped end so it does not become a
+    chest-high wall in front of the ladder.
     """
     ch = len(solid)
     cw = len(solid[0])
     sx_n = (cw * CELL) // SCREEN_W
+    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
     added_ceil = 0
     added_floor = 0
     punched = 0
@@ -1354,9 +1549,10 @@ def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[
         if not solid[y0][cx]:
             added_ceil += 1
         solid[y0][cx] = 1
-        if not solid[y1][cx]:
-            added_floor += 1
-        solid[y1][cx] = 1
+        if not _floor_is_hall_step(paper, cx, y0, y1, cw, ch):
+            if not solid[y1][cx]:
+                added_floor += 1
+            solid[y1][cx] = 1
         for cy in range(y0 + 1, y1):
             if solid[cy][cx]:
                 punched += 1
@@ -1398,10 +1594,15 @@ def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
     skips them, so flood-fill treats connected void as air. Mark it here,
     after thicken, so a ceiling mass is not grown down into the room.
     Flooded black gaps are opened again by `_apply_cave_gaps`.
+
+    Void that sits on the same row as nearby wallpaper is a jagged bite in
+    the hall, not the mountain: filling it puts an invisible wall through
+    the standing volume and blocks the ladder in the room.
     """
     ch = len(solid)
     cw = len(solid[0])
     sx_n = max(1, (cw * CELL) // SCREEN_W)
+    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
     added = 0
     for cy in range(ch):
         for cx in range(cw):
@@ -1409,9 +1610,17 @@ def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
                 continue
             if _biome_at(biomes, sx_n, cx, cy) != "cave":
                 continue
-            if _is_cave_ground(_cell_counts(px, cx, cy)):
-                solid[cy][cx] = 1
-                added += 1
+            counts = _cell_counts(px, cx, cy)
+            if not _is_cave_ground(counts):
+                continue
+            if (
+                _is_cave_void(counts)
+                and not _is_speckled_earth(counts)
+                and _void_is_hall_step(paper, cx, cy, cw, ch)
+            ):
+                continue
+            solid[cy][cx] = 1
+            added += 1
     return added
 
 
@@ -1428,6 +1637,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     biomes = _detect_biomes(px, sx_n, sy_n)
     ground = _apply_cave_ground(px, solid, biomes)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
+    bites = _clear_hall_bites(px, solid, biomes)
     g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     pillars = _clear_red_pillars(px, solid)
     cap_ladder_hatches(solid, detect_ladder_grid(im))
@@ -1439,6 +1649,7 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     print(f"diamond floor cells added {added} -> {len(rects)} solid rects")
     print(f"cave ground cells added {ground}")
     print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
+    print(f"cave hall bites cleared {bites}")
     print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
     print(f"red posts cleared {pillars}")
     print(f"updated {path}")
