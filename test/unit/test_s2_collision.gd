@@ -3,6 +3,10 @@ extends GutTest
 
 
 func after_each() -> void:
+	if Input.is_action_pressed("move_left"):
+		Input.action_release("move_left")
+	if Input.is_action_pressed("move_down"):
+		Input.action_release("move_down")
 	GameManager.reset_run_state()
 	GameManager.bomb_fuse_time = 50.0
 
@@ -297,6 +301,175 @@ func test_cave_hall_ladder_is_reachable_at_standing_height() -> void:
 			_point_in_any_rect(p, data["solids"]),
 			"path to the hall ladder at %s must stay walkable" % p
 		)
+
+
+func test_document_balcony_is_open() -> void:
+	var data := _collision_data()
+	# Document-room hatch (mosaic 8,3): dithered night sky beside the red lip
+	# used to read as cave earth and block the balcony drop.
+	var air: Array[Vector2i] = [
+		Vector2i(2100, 704),
+		Vector2i(2140, 704),
+		Vector2i(2200, 704),
+		Vector2i(2100, 720),
+		Vector2i(2248, 768),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"night sky beside the document hatch at %s must stay walkable" % p
+		)
+	assert_true(
+		_point_in_any_rect(Vector2i(2248, 736), data["solids"]),
+		"outdoor girder lip below the hatch should stay walkable"
+	)
+
+
+func test_code02_balcony_is_open() -> void:
+	var data := _collision_data()
+	# Marker 02 room (mosaic 3,8): interior screen, night sky to the west.
+	# The leftmost speckle column (x=768) used to be cave earth.
+	var air: Array[Vector2i] = [
+		Vector2i(760, 1536),
+		Vector2i(736, 1520),
+		Vector2i(700, 1536),
+		Vector2i(1276, 1536),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"night sky beside crate 02 at %s must stay walkable" % p
+		)
+	assert_true(
+		_point_in_any_rect(Vector2i(800, 1560), data["solids"]),
+		"red floor of the 02 room should stay solid"
+	)
+
+
+func test_code02_hatch_has_no_lip_wall() -> void:
+	var data := _collision_data()
+	# Hatch at 948: a 1-cell lid next to a 24px thickened floor made an 8px
+	# cliff. Floor-snap caught it as a wall before the rungs.
+	var air: Array[Vector2i] = [
+		Vector2i(1000, 1544),
+		Vector2i(976, 1544),
+		Vector2i(960, 1544),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"approach to the 02 hatch at %s must stay walkable" % p
+		)
+	assert_true(
+		_point_in_any_rect(Vector2i(960, 1560), data["solids"]),
+		"hatch lid should be walkable"
+	)
+	assert_true(
+		_point_in_any_rect(Vector2i(960, 1568), data["solids"]),
+		"hatch lid should be as thick as the neighbouring floor"
+	)
+	assert_false(
+		_point_in_any_rect(Vector2i(960, 1592), data["solids"]),
+		"shaft under the hatch must stay open to climb down"
+	)
+
+
+func test_outdoor_lattice_scaffold_is_open() -> void:
+	var data := _collision_data()
+	# White X-lattice A-frames used to be painted as girder decks, so the
+	# posts and hanging braces were 8px invisible walls in front of the ladder.
+	var air: Array[Vector2i] = [
+		Vector2i(3472, 200),
+		Vector2i(6048, 576),
+		Vector2i(6028, 688),
+		Vector2i(6036, 688),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"outdoor lattice / A-frame at %s must stay walkable" % p
+		)
+	assert_true(
+		_point_in_any_rect(Vector2i(2248, 736), data["solids"]),
+		"document balcony girder lip should stay walkable"
+	)
+
+
+func test_office_crates_are_walkable() -> void:
+	var data := _collision_data()
+	# Yellow crate stacks in the spawn office (marker 03): furniture, not walls.
+	var air: Array[Vector2i] = [
+		Vector2i(2568, 800),
+		Vector2i(2600, 824),
+		Vector2i(2136, 816),
+	]
+	for p in air:
+		assert_false(
+			_point_in_any_rect(p, data["solids"]),
+			"office crate at %s must stay walkable" % p
+		)
+
+
+func test_code02_walk_left_among_desks() -> void:
+	# Live physics: standing east of the 02 hatch, walking left must pass the
+	# desks and the hatch. JSON is empty there, but floor-snap used to catch
+	# an 8px lid as a wall before the rungs.
+	GameManager.reset_run_state()
+	GameManager.state = GameManager.GameState.PLAYING
+	var packed: PackedScene = load("res://scenes/levels/level_01.tscn")
+	var level: Node2D = packed.instantiate()
+	add_child_autofree(level)
+	await get_tree().process_frame
+	var player: Player = level.get_node("Player")
+	# Origin is mosaic top-left. Floor at 1560; spawn uses y = floor - 56.
+	player.global_position = Vector2(1040, 1560 - 56) * 2.0
+	player.velocity = Vector2.ZERO
+	await wait_physics_frames(8)
+	assert_true(player.is_on_floor(), "should stand on the 02 office floor")
+	var start_x := player.global_position.x
+	Input.action_press("move_left")
+	Input.action_press("move_down")
+	for _i in 180:
+		await wait_physics_frames(1)
+		if player.global_position.x <= 900.0 * 2.0:
+			break
+	Input.action_release("move_left")
+	Input.action_release("move_down")
+	assert_false(player.on_ladder, "left+down must not drop into the 02 hatch")
+	assert_lt(player.global_position.x, start_x - 40.0, "should have walked left")
+	assert_lt(player.global_position.x, start_x - 40.0, "should have walked left")
+	assert_lt(
+		player.global_position.x,
+		948.0 * 2.0,
+		"should pass the 02 hatch toward the west opening"
+	)
+	assert_gt(player.global_position.y, (1560.0 - 80.0) * 2.0, "should stay on this floor")
+
+
+func test_code02_walk_left_from_east_desks() -> void:
+	# Same office, starting at the right-hand desks (the screenshot pose).
+	GameManager.reset_run_state()
+	GameManager.state = GameManager.GameState.PLAYING
+	var packed: PackedScene = load("res://scenes/levels/level_01.tscn")
+	var level: Node2D = packed.instantiate()
+	add_child_autofree(level)
+	await get_tree().process_frame
+	var player: Player = level.get_node("Player")
+	player.global_position = Vector2(1180, 1560 - 56) * 2.0
+	player.velocity = Vector2.ZERO
+	await wait_physics_frames(8)
+	assert_true(player.is_on_floor())
+	Input.action_press("move_left")
+	for _i in 220:
+		await wait_physics_frames(1)
+		if player.global_position.x <= 820.0 * 2.0:
+			break
+	Input.action_release("move_left")
+	assert_lt(
+		player.global_position.x,
+		900.0 * 2.0,
+		"east desks must not hide a wall before the 02 crate"
+	)
 
 
 func _point_in_any_rect(p: Vector2i, rects: Array) -> bool:

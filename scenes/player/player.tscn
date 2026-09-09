@@ -188,9 +188,9 @@ shape = SubResource("RectangleShape2D_body")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 texture_filter = 0
+position = Vector2(24, 28)
 sprite_frames = SubResource("SpriteFrames_player")
 animation = &"idle"
-centered = false
 
 [node name="PunchArea" type="Area2D" parent="."]
 collision_layer = 0

@@ -48,6 +48,11 @@ func update_state(climb_axis: float) -> void:
 		if absf(h_axis) > 0.0 and not want_climb:
 			_leave()
 			return
+		# Touch pads send left+down together. That must walk across a hatch,
+		# not trap Nina in the shaft (02 office). MOVE+UP still climbs.
+		if climb_axis > 0.0 and absf(h_axis) >= climb_axis:
+			_leave()
+			return
 		return
 	# Mount only from the floor. Airborne grab is off on purpose: a jump,
 	# fall, or hatch fly-through must not become a climb. Overlapping a
@@ -59,6 +64,9 @@ func update_state(climb_axis: float) -> void:
 		return
 	# Leftover UP after a jump is not a new climb press.
 	if climb_axis < 0.0 and _up_spent_on_jump:
+		return
+	# Same hatch rule: a mostly-horizontal pad walks, pure DOWN drops.
+	if climb_axis > 0.0 and absf(h_axis) >= climb_axis:
 		return
 	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.
 	if climb_axis > 0.0 and _below_feet():
@@ -244,8 +252,12 @@ func _blocking_floor_y(dy: float) -> float:
 	if hit.is_empty():
 		return INF
 	var fy: float = hit.position.y
-	# Hatch: rungs continue under the lid, so the floor is walkable but climbable-through.
-	if _at_world(Vector2(_body_cx(), fy + 32.0)):
+	# Already on or inside this slab: keep climbing so a hatch mount from
+	# the floor can pass the lid. Approaching a floor from above must land
+	# even when rungs continue — another DOWN from the floor enters the
+	# next shaft. Riding every hatch in one hold drops Nina through the
+	# 02 office into the basement.
+	if fy <= _feet_y() + 2.0:
 		return INF
 	return fy
 

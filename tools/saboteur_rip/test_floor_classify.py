@@ -6,8 +6,10 @@ from build_s2_world import (
     _apply_cave_gaps,
     _apply_cave_ground,
     _apply_cave_tunnels,
+    _apply_sky_girder_decks,
     _band_is_hall_side_step,
     _clear_hall_bites,
+    _clear_sky_scaffold_walls,
     _clear_standing_stubs,
     _clear_red_pillars,
     _clear_walkable_decor,
@@ -17,7 +19,9 @@ from build_s2_world import (
     _is_cracked_earth,
     _is_diamond_floor_tile,
     _is_sky_rail_tile,
+    _is_sky_girder_deck,
     _is_speckled_earth,
+    _opens_onto_night_sky,
     _is_x_lattice_tile,
     _paper_on_row_mask,
     cell_is_crate,
@@ -28,6 +32,7 @@ from build_s2_world import (
     find_cave_gaps,
     find_cave_tunnels,
     find_red_pillars,
+    cap_ladder_hatches,
 )
 from test_ladder_classify import SKY_LEFT, X_LATTICE, FakePx
 
@@ -66,6 +71,98 @@ def test_diamond_rejects_rails_windows_and_bars() -> None:
     assert not _is_diamond_floor_tile(WINDOW)
     assert not _is_sky_rail_tile(DIAMOND_FLOOR)
     assert not _is_x_lattice_tile(DIAMOND_FLOOR)
+
+
+def test_sky_girder_deck_and_speckle() -> None:
+    assert _is_sky_girder_deck({"w": 47, "b": 17, "r": 0, "k": 0, "g": 0, "c": 0, "y": 0, "m": 0, "o": 0})
+    assert not _is_sky_girder_deck({"w": 0, "b": 2, "r": 0, "k": 62, "g": 0, "c": 0, "y": 0, "m": 0, "o": 0})
+    assert _is_speckled_earth({"w": 0, "b": 2, "r": 0, "k": 62, "g": 0, "c": 0, "y": 0, "m": 0, "o": 0})
+    # Lattice ink counts match a girder lip; the tile is still a ladder.
+    assert _is_sky_girder_deck(_counts(X_LATTICE))
+    assert _is_x_lattice_tile(X_LATTICE)
+
+
+GIRDER_LIP = [
+    list("bbbbbwww"),
+    list("bbbwwwww"),
+    list("bbwwwwwb"),
+    list("bwwwwwww"),
+    list("bwwwwwwb"),
+    list("wwwwwwbw"),
+    list("wwwwwwwb"),
+    list("wwwwwwbw"),
+]
+SKY_BLUE = [list("bbbbbbbb") for _ in range(8)]
+
+
+def _sky_biomes_for(solid: list[list[int]]) -> list[str]:
+    return ["sky"]
+
+
+def test_sky_girder_skips_lattice_and_hanging_braces() -> None:
+    # Outdoor A-frame: lattice post, balcony lip, then hanging brace under it.
+    layout = [
+        "bbbb",
+        "bXGb",
+        "bbGb",
+        "bbbb",
+        "bbGb",
+    ]
+    tiles = {"b": SKY_BLUE, "X": X_LATTICE, "G": GIRDER_LIP}
+    px = CellGridPx(layout, tiles)
+    solid = [[0] * 4 for _ in range(5)]
+    biomes = _sky_biomes_for(solid)
+    added = _apply_sky_girder_decks(px, solid, biomes)
+    assert added == 1
+    assert solid[1][1] == 0
+    assert solid[1][2] == 1
+    assert solid[2][2] == 0
+    # Gap under the lip must not turn the next brace into a new balcony.
+    assert solid[4][2] == 0
+
+
+def test_sky_scaffold_clear_strips_overpainted_lattice() -> None:
+    layout = [
+        "bbbb",
+        "bXGb",
+        "bbGb",
+        "bbbb",
+        "bbGb",
+    ]
+    tiles = {"b": SKY_BLUE, "X": X_LATTICE, "G": GIRDER_LIP}
+    px = CellGridPx(layout, tiles)
+    solid = [[0] * 4 for _ in range(5)]
+    solid[1][1] = 1
+    solid[1][2] = 1
+    solid[2][2] = 1
+    solid[4][2] = 1
+    biomes = _sky_biomes_for(solid)
+    cleared = _clear_sky_scaffold_walls(px, solid, biomes)
+    assert cleared == 3
+    assert solid[1][1] == 0
+    assert solid[1][2] == 1
+    assert solid[2][2] == 0
+    assert solid[4][2] == 0
+
+
+def test_interior_speckle_opening_onto_sky_is_not_a_wall() -> None:
+    # Green room, dithered night strip, then pure sky — the 02 hatch.
+    layout = [
+        "ggggssbbbb",
+        "ggggssbbbb",
+        "ggggrrbbbb",
+    ]
+    tiles = {
+        "g": GREEN,
+        "s": SPECKLED,
+        "b": [list("bbbbbbbb") for _ in range(8)],
+        "r": [list("rrrrrrrr") for _ in range(8)],
+    }
+    px = CellGridPx(layout, tiles)
+    assert _opens_onto_night_sky(px, 4, 0, 10)
+    assert _opens_onto_night_sky(px, 5, 1, 10)
+    assert not _opens_onto_night_sky(px, 0, 0, 10)
+    assert not _opens_onto_night_sky(px, 1, 2, 10)
 
 
 def _counts(rows: list[list[str]]) -> dict[str, int]:
@@ -621,9 +718,35 @@ def test_paper_on_row_mask_reach() -> None:
     assert not _paper_on_row_mask(paper, 5, 0, 10, reach=4)
 
 
+def test_hatch_cap_matches_floor_thickness() -> None:
+    solid = [[0] * 8 for _ in range(8)]
+    ladders = [[0] * 8 for _ in range(8)]
+    for x in (0, 1, 2, 5, 6, 7):
+        for y in range(2, 5):
+            solid[y][x] = 1
+    for x in (3, 4):
+        for y in range(2, 8):
+            ladders[y][x] = 1
+        solid[2][x] = 1
+    cap_ladder_hatches(solid, ladders, depth=3)
+    for x in (3, 4):
+        assert solid[2][x] == 1
+        assert solid[3][x] == 1
+        assert solid[4][x] == 1
+        assert solid[5][x] == 0
+    # Neighbour columns keep a 3-cell lip; no 8px cliff beside the hatch.
+    assert solid[3][2] == 1
+    assert solid[3][5] == 1
+
+
 if __name__ == "__main__":
     test_diamond_slab_is_floor()
     test_diamond_rejects_rails_windows_and_bars()
+    test_sky_girder_deck_and_speckle()
+    test_sky_girder_skips_lattice_and_hanging_braces()
+    test_sky_scaffold_clear_strips_overpainted_lattice()
+    test_interior_speckle_opening_onto_sky_is_not_a_wall()
+    test_hatch_cap_matches_floor_thickness()
     test_cave_paper_and_void_counts()
     test_cave_tunnel_floor_and_ceiling()
     test_cracked_earth_is_the_dungeon_floor()

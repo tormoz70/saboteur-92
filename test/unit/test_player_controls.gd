@@ -115,6 +115,32 @@ func test_still_up_on_ladder_still_climbs() -> void:
 	assert_eq(player.current_state, Player.State.CLIMB)
 
 
+func test_move_plus_down_on_hatch_walks_across() -> void:
+	# 02 office: the hatch sits among the desks. A touch-pad left+down used
+	# to mount the shaft so Nina could not walk past it.
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, 90), Vector2(160, 200))
+	await wait_physics_frames(1)
+	assert_true(player.can_climb)
+	var start_x := player.global_position.x
+	Input.action_press("move_left")
+	Input.action_press("move_down")
+	await wait_physics_frames(20)
+	assert_false(player.on_ladder, "left+down across a hatch must walk, not drop")
+	assert_lt(player.global_position.x, start_x - 8.0, "should have walked left")
+	assert_true(player.is_on_floor())
+
+
+func test_still_down_on_hatch_still_climbs() -> void:
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, 90), Vector2(160, 200))
+	await wait_physics_frames(1)
+	assert_true(player.can_climb)
+	Input.action_press("move_down")
+	await wait_physics_frames(4)
+	assert_true(player.on_ladder, "pure DOWN still enters the hatch")
+
+
 func test_held_up_after_jump_does_not_mount_on_landing() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_right")
@@ -302,6 +328,27 @@ func test_climb_through_hatch_still_emerges() -> void:
 		if player.global_position.y < -20.0:
 			break
 	assert_lt(player.global_position.y, -8.0, "should climb through the hatch")
+
+
+func test_climb_down_lands_on_next_hatch_floor() -> void:
+	# 02 office: rungs continue through every landing. Holding DOWN used to
+	# ride the shaft into the basement. Land on the next floor; another DOWN
+	# from there is what enters the hatch below.
+	var player := await _spawn_on_floor()
+	# Starting slab top is y=72. Next landing, then a basement to fall into.
+	_add_solid(Vector2(240, 176), Vector2(480, 16))
+	_add_solid(Vector2(240, 280), Vector2(480, 16))
+	_add_ladder(Vector2(140, 140), Vector2(160, 280))
+	await wait_physics_frames(1)
+	Input.action_press("move_down")
+	for _i in 150:
+		await wait_physics_frames(1)
+		if not player.on_ladder and player.is_on_floor() and player.global_position.y > 40.0:
+			break
+	assert_false(player.on_ladder)
+	assert_true(player.is_on_floor(), "should stand on the next landing")
+	assert_lt(player.global_position.y, 180.0, "must not drop through to the basement")
+	assert_gt(player.global_position.y, 40.0, "should have left the starting slab")
 
 
 func test_climb_through_hatch_when_rungs_end_at_the_floor() -> void:

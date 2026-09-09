@@ -219,6 +219,46 @@ def _is_speckled_earth(counts: dict[str, int]) -> bool:
     )
 
 
+def _is_sky_girder_deck(counts: dict[str, int]) -> bool:
+    """Outdoor balcony / girder lip: white bars on blue, not dithered night sky."""
+    return (
+        counts["w"] >= 16
+        and counts["b"] >= 8
+        and counts["r"] < 8
+        and counts["k"] < 8
+        and counts["g"] < 8
+    )
+
+
+def _is_open_sky(counts: dict[str, int]) -> bool:
+    """Pure night-sky paper: full blue, no cave-brick lining."""
+    return counts["b"] >= 40 and counts["k"] < 6 and counts["g"] < 8 and counts["r"] < 8
+
+
+def _opens_onto_night_sky(px, cx: int, cy: int, cw: int, reach: int = 12) -> bool:
+    """True if dithered speckle on this row reaches open sky.
+
+    Interior screens can include a strip of night backdrop at a balcony
+    drop. That pattern matches cave earth, but walking into it is an
+    invisible wall. Stop at wallpaper, brick, or furniture.
+    """
+    for step in (-1, 1):
+        x = cx
+        for _ in range(reach):
+            x += step
+            if x < 0 or x >= cw:
+                break
+            counts = _cell_counts(px, x, cy)
+            if _is_open_sky(counts):
+                return True
+            if _is_speckled_earth(counts):
+                continue
+            if counts["k"] >= 40 and counts["g"] < 8 and counts["r"] < 8 and counts["w"] < 8:
+                continue
+            break
+    return False
+
+
 def _is_cracked_earth(counts: dict[str, int]) -> bool:
     """Dungeon dirt with blue crack lines — still ground, not wallpaper.
 
@@ -852,17 +892,19 @@ def classify_cells(
             speckled_earth = _is_speckled_earth(counts)
             black_wall = counts["k"] >= 40 and counts["g"] < 20
             if biome == "sky":
-                if counts["b"] >= 40:
-                    pass
-                elif red_brick or black_wall or speckled_earth:
+                # Dithered black/blue speckle is the night backdrop, not cave
+                # earth. Outdoor girder lips are added after thicken.
+                if red_brick:
                     solid[cy][cx] = 1
             elif biome == "interior":
                 if red_brick:
                     solid[cy][cx] = 1
                 elif speckled_earth:
                     # Biome is per flip-screen, so interior rooms still contain
-                    # cave earth. Sky/cave already mark it solid; this branch did not.
-                    solid[cy][cx] = 1
+                    # cave earth. Night-sky dither at a balcony opening is the
+                    # same speckle — leave it empty so Nina can walk out.
+                    if not _opens_onto_night_sky(px, cx, cy, cw):
+                        solid[cy][cx] = 1
                 elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
                     # cw/ch are the mosaic, so this is the world border, not
                     # each 256×192 screen edge. Per-screen walls would solidify
@@ -905,6 +947,7 @@ def classify_cells(
     # Slabs after thicken: growing them down would hang 24px into the room
     # below and turn the underside of a floor into an invisible wall.
     _apply_diamond_floors(px, solid)
+    _apply_sky_girder_decks(px, solid, biomes)
     # After thicken: hall ceilings must not grow down into the room.
     _apply_cave_ground(px, solid, biomes)
     # Gaps before tunnels: a stacked brick corridor looks like a black gap
@@ -1145,8 +1188,20 @@ def punch_ladder_shafts(solid: list[list[int]], ladders: list[list[int]]) -> Non
                     solid[y][xx] = 0
 
 
-def cap_ladder_hatches(solid: list[list[int]], ladders: list[list[int]]) -> None:
-    """Fill the hatch so a floor opening with a ladder is still walkable."""
+def cap_ladder_hatches(
+    solid: list[list[int]], ladders: list[list[int]], depth: int = 3
+) -> None:
+    """Fill the hatch so a floor opening with a ladder is still walkable.
+
+    Adjacent floors are thickened `depth` cells. A 1-cell lid next to that
+    mass leaves an 8px cliff under the lip; floor-snap catches it as a wall
+    before Nina reaches the rungs. Seal the hatch to the same depth, including
+    the one-cell neighbours `punch_ladder_shafts` cleared. Climb still goes
+    through: on-ladder sets collision_mask to 0.
+
+    Only the top lid is sealed. A thicken stub under the hatch looks like a
+    second floor and must not grow another `depth` into the shaft.
+    """
     ch = len(solid)
     cw = len(solid[0])
     for y in range(ch):
@@ -1158,6 +1213,8 @@ def cap_ladder_hatches(solid: list[list[int]], ladders: list[list[int]]) -> None
             x0 = x
             while x < cw and ladders[y][x]:
                 x += 1
+            if y > 0 and any(solid[y - 1][xx] for xx in range(x0, x)):
+                continue
             beside_floor = False
             for xx in (x0 - 1, x):
                 if 0 <= xx < cw and solid[y][xx] and (y == 0 or not solid[y - 1][xx]):
@@ -1165,8 +1222,18 @@ def cap_ladder_hatches(solid: list[list[int]], ladders: list[list[int]]) -> None
                     break
             if not beside_floor:
                 continue
+            xx0 = max(0, x0 - 1)
+            xx1 = min(cw, x + 1)
+            for xx in range(xx0, xx1):
+                for d in range(depth):
+                    yy = y + d
+                    if yy < ch:
+                        solid[yy][xx] = 1
             for xx in range(x0, x):
-                solid[y][xx] = 1
+                for yy in range(y + depth, ch):
+                    if not ladders[yy][xx]:
+                        break
+                    solid[yy][xx] = 0
 
 
 def greedy_rects(grid: list[list[int]]) -> list[list[int]]:
@@ -1621,6 +1688,94 @@ def _apply_diamond_floors(px, solid: list[list[int]]) -> int:
     return added
 
 
+def _girder_hangs_under_deck(px, cx: int, cy: int, solid: list[list[int]]) -> bool:
+    """True if this white-on-blue cell is hanging under a lip, not the lip.
+
+    Skipping only `solid[cy-1]` is not enough: the cell above may already
+    have been left empty, and this brace then looks like a new balcony.
+    Look a few cells up through empty sky. Lattice above a deck is a ladder,
+    not a brace — keep that lid.
+    """
+    if cy <= 0:
+        return False
+    for dy in range(1, 4):
+        yy = cy - dy
+        if yy < 0:
+            return False
+        if cell_is_ladder(px, cx, yy):
+            return False
+        if cell_is_diamond_floor(px, cx, yy) or _is_sky_girder_deck(
+            _cell_counts(px, cx, yy)
+        ):
+            return True
+        if solid[yy][cx]:
+            return True
+    return False
+
+
+def _apply_sky_girder_decks(
+    px, solid: list[list[int]], biomes: list[str]
+) -> int:
+    """Mark outdoor balcony lips solid without thickening them.
+
+    X-lattice towers and hanging A-frame braces share the white-on-blue
+    ink counts of a girder lip, but they are climbable scenery. Skip
+    ladder cells, and only the top of a girder stack is a walkable deck.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = max(1, (cw * CELL) // SCREEN_W)
+    added = 0
+    for cy in range(ch):
+        for cx in range(cw):
+            if _biome_at(biomes, sx_n, cx, cy) != "sky":
+                continue
+            if cell_is_ladder(px, cx, cy):
+                continue
+            if not _is_sky_girder_deck(_cell_counts(px, cx, cy)):
+                continue
+            if _girder_hangs_under_deck(px, cx, cy, solid):
+                continue
+            if not solid[cy][cx]:
+                added += 1
+            solid[cy][cx] = 1
+    return added
+
+
+def _clear_sky_scaffold_walls(
+    px, solid: list[list[int]], biomes: list[str]
+) -> int:
+    """Un-solid X-lattice, sky rails, and hanging braces under a deck.
+
+    `_apply_sky_girder_decks` only adds cells. An incremental floors pass
+    must strip the previous over-paint before the lip is put back.
+    """
+    ch = len(solid)
+    cw = len(solid[0])
+    sx_n = max(1, (cw * CELL) // SCREEN_W)
+    cleared = 0
+    for cy in range(ch - 1, -1, -1):
+        for cx in range(cw):
+            if _biome_at(biomes, sx_n, cx, cy) != "sky":
+                continue
+            if not solid[cy][cx]:
+                continue
+            counts = _cell_counts(px, cx, cy)
+            if cell_is_diamond_floor(px, cx, cy) or cell_is_red_brick(counts):
+                continue
+            drop = False
+            if cell_is_ladder(px, cx, cy):
+                drop = True
+            elif _is_sky_girder_deck(counts) and _girder_hangs_under_deck(
+                px, cx, cy, solid
+            ):
+                drop = True
+            if drop:
+                solid[cy][cx] = 0
+                cleared += 1
+    return cleared
+
+
 def _tunnel_floor_cell(
     px, paper: list[list[bool]], cx: int, y1: int, ch: int
 ) -> int:
@@ -1781,6 +1936,29 @@ def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
     return added
 
 
+def update_collision_sky_scaffold(im: Image.Image) -> list[list[int]]:
+    """Strip lattice / A-frame solids and restore balcony lips. No cave pass."""
+    px = im.load()
+    cw, ch = im.width // CELL, im.height // CELL
+    sx_n, sy_n = im.width // SCREEN_W, im.height // SCREEN_H
+    path = OUT_DIR / "s2_collision.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    solid = _paint_solid_rects(data["solids"], cw, ch)
+    biomes = _detect_biomes(px, sx_n, sy_n)
+    scaffold = _clear_sky_scaffold_walls(px, solid, biomes)
+    girders = _apply_sky_girder_decks(px, solid, biomes)
+    rects = greedy_rects(solid)
+    rects.extend(_world_border_pads(im.width, im.height))
+    data["solids"] = rects
+    path.write_text(json.dumps(data), encoding="utf-8")
+    print(
+        f"sky scaffold walls cleared {scaffold} girder lips added {girders} "
+        f"-> {len(rects)} solid rects"
+    )
+    print(f"updated {path}")
+    return rects
+
+
 def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     """Add diamond slabs and cave-tunnel linings without re-thickening."""
     px = im.load()
@@ -1792,6 +1970,8 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     decor = _clear_walkable_decor(px, solid)
     added = _apply_diamond_floors(px, solid)
     biomes = _detect_biomes(px, sx_n, sy_n)
+    scaffold = _clear_sky_scaffold_walls(px, solid, biomes)
+    girders = _apply_sky_girder_decks(px, solid, biomes)
     ground = _apply_cave_ground(px, solid, biomes)
     g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
     ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
@@ -1804,7 +1984,8 @@ def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
     data["solids"] = rects
     path.write_text(json.dumps(data), encoding="utf-8")
     print(f"walkable decor cleared {decor}")
-    print(f"diamond floor cells added {added} -> {len(rects)} solid rects")
+    print(f"sky scaffold walls cleared {scaffold}")
+    print(f"diamond floor cells added {added} sky girder cells {girders} -> {len(rects)} solid rects")
     print(f"cave ground cells added {ground}")
     print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
     print(f"cave hall bites cleared {bites}")
@@ -2090,6 +2271,8 @@ if __name__ == "__main__":
 
     if "--ladders-only" in sys.argv:
         update_collision_ladders(load_world_image())
+    elif "--scaffold-only" in sys.argv:
+        update_collision_sky_scaffold(load_world_image())
     elif "--floors-only" in sys.argv:
         update_collision_diamond_floors(load_world_image())
     elif SRC.exists():
