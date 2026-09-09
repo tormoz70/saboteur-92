@@ -91,68 +91,83 @@ func _ready() -> void:
 
 
 func _load_layout() -> bool:
+	var err := _read_layout()
+	if not err.is_empty():
+		_fail(err)
+		return false
+	return true
+
+
+func _read_layout() -> String:
 	var entities := _parse_json(ENTITIES_PATH)
 	var collision := _parse_json(COLLISION_PATH)
 	if entities.is_empty() or collision.is_empty():
-		_fail("could not read layout JSON")
-		return false
+		return "could not read layout JSON"
 	_scale = float(collision.get("scale", 2))
 	_ladders = collision.get("ladders", [])
+	var err := _read_spawn_and_doc(entities)
+	if not err.is_empty():
+		return err
+	err = _read_lift_and_markers(entities, collision)
+	if not err.is_empty():
+		return err
+	return _read_lab_targets(entities)
+
+
+func _read_spawn_and_doc(entities: Dictionary) -> String:
 	var spawn: Array = entities.get("spawn", [])
 	if spawn.size() < 2:
-		_fail("entities JSON missing spawn")
-		return false
+		return "entities JSON missing spawn"
 	_ground_player_y = float(spawn[1]) * _scale
 	var doc := _item_png(entities, "document")
 	if doc == Vector2.INF:
-		_fail("entities JSON missing document")
-		return false
+		return "entities JSON missing document"
 	_upper_player_y = (doc.y - 48.0) * _scale
 	_ladder_doc_x = _ladder_center_near(doc, _ladders)
 	if _ladder_doc_x <= 0.0:
-		_fail("no ladder covers the document")
-		return false
+		return "no ladder covers the document"
+	return ""
+
+
+func _read_lift_and_markers(entities: Dictionary, collision: Dictionary) -> String:
 	var lifts: Array = collision.get("lifts", [])
 	var lock: Dictionary = entities.get("locked_lift", {})
 	if not lock.has("x"):
-		_fail("entities JSON missing locked_lift")
-		return false
+		return "entities JSON missing locked_lift"
 	var lift_spec := _lift_spec_near(float(lock["x"]), lifts)
 	if lift_spec.is_empty():
-		_fail("no lift matches locked_lift x=%s" % lock["x"])
-		return false
+		return "no lift matches locked_lift x=%s" % lock["x"]
 	for spec in entities.get("markers", []):
 		var label := str(spec.get("label", ""))
 		if label.is_empty() or not spec.has("x") or not spec.has("y"):
 			continue
 		_marker_world[label] = _png_to_world(float(spec["x"]), float(spec["y"]))
 	if _marker_world.size() < 3:
-		_fail("entities JSON missing crate code markers")
-		return false
+		return "entities JSON missing crate code markers"
 	_service_lift_x = (float(lift_spec["x"]) + float(lift_spec["w"]) * 0.5) * _scale
 	_service_lift_top_y = float(lift_spec["top"]) * _scale
 	_service_lift_bottom_y = float(lift_spec["bottom"]) * _scale
+	return ""
+
+
+func _read_lab_targets(entities: Dictionary) -> String:
 	var interlock: Dictionary = entities.get("interlock", {})
 	if interlock.is_empty():
-		_fail("entities JSON missing interlock")
-		return false
+		return "entities JSON missing interlock"
 	_interlock_world = _png_to_world(float(interlock["x"]), float(interlock["y"]))
 	var bomb := _item_png(entities, "bomb")
 	if bomb == Vector2.INF:
-		_fail("entities JSON missing bomb/card")
-		return false
+		return "entities JSON missing bomb/card"
 	_card_world = _png_to_world(bomb.x, bomb.y)
 	var sab: Dictionary = entities.get("sabotage", {})
 	if sab.is_empty():
-		_fail("entities JSON missing sabotage console")
-		return false
+		return "entities JSON missing sabotage console"
 	_plant_world = _png_to_world(float(sab["x"]), float(sab["y"]))
 	var ex: Dictionary = entities.get("exit", {})
 	if ex.is_empty():
-		_fail("entities JSON missing exit")
-		return false
+		return "entities JSON missing exit"
 	_exit_world = _png_to_world(float(ex["x"]), float(ex["y"]))
-	return true
+	return ""
 
 
 func _item_png(entities: Dictionary, item_id: String) -> Vector2:
@@ -553,7 +568,10 @@ func _log_step() -> void:
 func _log_progress() -> void:
 	print(
 		(
-			"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s lift=%s codes=%s interlock=%s key=%s doc=%s bomb=%s planted=%s"
+			(
+				"[Demo] pos=(%.0f, %.0f) floor=%s ladder=%s lift=%s "
+				+ "codes=%s interlock=%s key=%s doc=%s bomb=%s planted=%s"
+			)
 			% [
 				_player.global_position.x,
 				_player.global_position.y,

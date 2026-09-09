@@ -3,6 +3,8 @@ extends Node
 enum GameState { PLAYING, WON, LOST }
 
 const ESCAPE_BONUS := 500
+const LIFT_CODE_LABELS := ["02", "06", "11"]
+const ALARM_FUSE_CAP := 35.0
 
 var state: GameState = GameState.PLAYING
 var lives: int = 3
@@ -22,9 +24,6 @@ var seen_codes: Array[String] = []
 var has_lift_code: bool = false
 var interlock_cut: bool = false
 var alarmed: bool = false
-
-const LIFT_CODE_LABELS := ["02", "06", "11"]
-const ALARM_FUSE_CAP := 35.0
 
 
 func _ready() -> void:

@@ -2,6 +2,8 @@ extends CharacterBody2D
 
 enum AiState { PATROL, CHASE, ATTACK, DEAD }
 
+const ALARM_CHASE_SEC := 0.45
+
 @export var patrol_speed: float = 60.0
 @export var chase_speed: float = 110.0
 @export var attack_range: float = 45.0
@@ -16,8 +18,6 @@ var patrol_dir: int = 1
 var target: Node2D = null
 var attack_cooldown: float = 0.0
 var _chase_time: float = 0.0
-
-const ALARM_CHASE_SEC := 0.45
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var sight: Area2D = $SightArea

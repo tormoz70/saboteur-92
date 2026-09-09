@@ -46,7 +46,10 @@ func test_bookcase_passage_needs_crouch() -> void:
 	passage.need_crouch = true
 	add_child_autofree(passage)
 	var mock := GDScript.new()
-	mock.source_code = "extends CharacterBody2D\nvar low := false\nfunc is_low_stance() -> bool:\n\treturn low"
+	mock.source_code = (
+		"extends CharacterBody2D\nvar low := false\n"
+		+ "func is_low_stance() -> bool:\n\treturn low"
+	)
 	assert_eq(mock.reload(), OK)
 	var player := CharacterBody2D.new()
 	player.set_script(mock)
