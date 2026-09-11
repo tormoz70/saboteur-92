@@ -186,7 +186,12 @@ def is_blue_brick_char(rows: list[list[str]]) -> bool:
 
 
 def is_earth_char(rows: list[list[str]]) -> bool:
-    """Speckled / cracked dirt: black with blue, not wallpaper, not sky."""
+    """Black field with blue specks/cracks — ground, not sky, not wallpaper.
+
+    Night sky is blue paper (all-blue, or mostly-blue dither). Earth is the
+    opposite: a black cell with blue dots. Majority-black is the fingerprint;
+    do not punch it to air because a neighbour is open sky.
+    """
     inks = _inks(rows)
     if inks - {"k", "b"}:
         return False
@@ -194,7 +199,8 @@ def is_earth_char(rows: list[list[str]]) -> bool:
         return False
     if is_blue_brick_char(rows):
         return False
-    return True
+    flat = [p for row in rows for p in row]
+    return sum(p == "k" for p in flat) > sum(p == "b" for p in flat)
 
 
 def is_girder_char(rows: list[list[str]]) -> bool:
@@ -316,35 +322,6 @@ def is_open_sky_char(rows: list[list[str]]) -> bool:
     return all(p == "b" for row in rows for p in row)
 
 
-def _earth_reaches_sky(
-    earth: list[list[int]],
-    sky: list[list[int]],
-    occupied: list[list[int]],
-    px,
-    cx: int,
-    cy: int,
-    cw: int,
-    reach: int = 12,
-) -> bool:
-    """True if this earth cell's row meets open sky through speckle or black air."""
-    for step in (-1, 1):
-        x = cx
-        for _ in range(reach):
-            x += step
-            if x < 0 or x >= cw:
-                break
-            if sky[cy][x]:
-                return True
-            if occupied[cy][x]:
-                break
-            if earth[cy][x]:
-                continue
-            if _inks(cell_rows(px, x, cy)) <= {"k", "b"}:
-                continue
-            break
-    return False
-
-
 def scan_objects(im) -> list[dict]:
     """Find world objects as {type, x, y, w, h} in cell units."""
     px = im.load()
@@ -378,16 +355,6 @@ def scan_objects(im) -> list[dict]:
     _mark_occupied(occupied, girders)
 
     earth_mask = _mask(cw, ch, is_earth_char, px)
-    sky_mask = _mask(cw, ch, is_open_sky_char, px)
-    sky_dither: list[tuple[int, int]] = []
-    for cy in range(ch):
-        for cx in range(cw):
-            if not earth_mask[cy][cx] or occupied[cy][cx]:
-                continue
-            if _earth_reaches_sky(earth_mask, sky_mask, occupied, px, cx, cy, cw):
-                sky_dither.append((cx, cy))
-    for cx, cy in sky_dither:
-        earth_mask[cy][cx] = 0
     for p in _connected_rects(earth_mask, min_cells=1):
         cells = [(x, y) for x, y in p["_cells"] if not occupied[y][x]]
         if not cells:

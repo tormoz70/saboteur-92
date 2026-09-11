@@ -255,30 +255,6 @@ def _is_open_sky(counts: dict[str, int]) -> bool:
     return counts["b"] >= 40 and counts["k"] < 6 and counts["g"] < 8 and counts["r"] < 8
 
 
-def _opens_onto_night_sky(px, cx: int, cy: int, cw: int, reach: int = 12) -> bool:
-    """True if dithered speckle on this row reaches open sky.
-
-    Interior screens can include a strip of night backdrop at a balcony
-    drop. That pattern matches cave earth, but walking into it is an
-    invisible wall. Stop at wallpaper, brick, or furniture.
-    """
-    for step in (-1, 1):
-        x = cx
-        for _ in range(reach):
-            x += step
-            if x < 0 or x >= cw:
-                break
-            counts = _cell_counts(px, x, cy)
-            if _is_open_sky(counts):
-                return True
-            if _is_speckled_earth(counts):
-                continue
-            if counts["k"] >= 40 and counts["g"] < 8 and counts["r"] < 8 and counts["w"] < 8:
-                continue
-            break
-    return False
-
-
 def _is_cracked_earth(counts: dict[str, int]) -> bool:
     """Dungeon dirt with blue crack lines — still ground, not wallpaper.
 
@@ -443,7 +419,6 @@ def classify_cells(
         is_open_sky=_is_open_sky,
         is_cracked_earth=_is_cracked_earth,
         biome_at=_biome_at,
-        opens_onto_night_sky=_opens_onto_night_sky,
     )
     refine_ladder_roles(px, layer_grid, roles)
     placements = scan_objects(im)
@@ -1024,7 +999,6 @@ def export_layered_world(
         is_open_sky=_is_open_sky,
         is_cracked_earth=_is_cracked_earth,
         biome_at=_biome_at,
-        opens_onto_night_sky=_opens_onto_night_sky,
     )
     refine_ladder_roles(px, layer_grid, roles)
     fill_unassigned_layers(px, world_rgb, layer_grid, roles, sx_n, biomes)

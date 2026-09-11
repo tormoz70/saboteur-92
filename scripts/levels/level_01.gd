@@ -235,6 +235,8 @@ func _fill_visual_layer(
 	# Visual layer only — passability stays in s2_collision.json (object bounds).
 	layer.tile_set = tileset
 	layer.collision_enabled = false
+	layer.navigation_enabled = false
+	layer.rendering_quadrant_size = 32
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.scale = Vector2(_scale, _scale)
 	layer.z_index = z

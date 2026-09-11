@@ -262,19 +262,22 @@ func test_document_balcony_is_open() -> void:
 
 func test_code02_balcony_is_open() -> void:
 	var data := _collision_data()
-	# Marker 02 room (mosaic 3,8): interior screen, night sky to the west.
-	# The leftmost speckle column (x=768) used to be cave earth.
-	var air: Array[Vector2i] = [
+	# Marker 02 room (mosaic 3,8). Black + blue dots is earth, not night sky.
+	# Pure blue paper is the drop; speckle beside the crate is ground.
+	var earth: Array[Vector2i] = [
 		Vector2i(760, 1536),
 		Vector2i(736, 1520),
-		Vector2i(700, 1536),
 		Vector2i(1276, 1536),
 	]
-	for p in air:
-		assert_false(
+	for p in earth:
+		assert_true(
 			_point_in_any_rect(p, data["solids"]),
-			"night sky beside crate 02 at %s must stay walkable" % p
+			"speckle earth at %s must be solid" % p
 		)
+	assert_false(
+		_point_in_any_rect(Vector2i(700, 1536), data["solids"]),
+		"pure blue sky west of crate 02 must stay a drop"
+	)
 	assert_true(
 		_point_in_any_rect(Vector2i(800, 1560), data["solids"]),
 		"red floor of the 02 room should stay solid"

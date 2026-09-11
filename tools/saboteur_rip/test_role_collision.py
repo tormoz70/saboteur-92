@@ -129,11 +129,40 @@ def test_earth_is_not_blue_brick() -> None:
         "wwwwwwwb",
         "wwwwwwbw",
     )]
+    night = [list(r) for r in (
+        "bbbbbbbb",
+        "bbkbbbbb",
+        "bbbbbbbb",
+        "bbbbkbbb",
+        "bbbbbbbb",
+        "bbbbbbkb",
+        "bbbbbbbb",
+        "bbbbbbbb",
+    )]
     assert is_earth_char(speckle)
     assert not is_blue_brick_char(speckle)
     assert is_blue_brick_char(paper)
     assert not is_earth_char(paper)
     assert is_girder_char(girder)
+    assert not is_earth_char(night)
+
+
+def test_earth_next_to_sky_stays_solid() -> None:
+    from object_types import stamp_collision
+
+    placements = [
+        {
+            "type": "earth",
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "_cells": [(0, 0), (1, 0)],
+        },
+        {"type": "sky", "x": 2, "y": 0, "w": 1, "h": 1},
+    ]
+    solid, _ = stamp_collision(placements, 3, 1)
+    assert solid[0] == [1, 1, 0]
 
 
 def main() -> None:
@@ -144,6 +173,7 @@ def main() -> None:
     test_earth_stamps_cells_not_aabb()
     test_rasterize_and_catalog()
     test_earth_is_not_blue_brick()
+    test_earth_next_to_sky_stays_solid()
     print("test_role_collision: OK")
 
 

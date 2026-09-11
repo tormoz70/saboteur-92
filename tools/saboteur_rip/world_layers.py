@@ -183,7 +183,6 @@ def assign_visual_layers(
     is_open_sky,
     is_cracked_earth,
     biome_at,
-    opens_onto_night_sky,
 ) -> tuple[list[list[int]], list[list[str]]]:
     """Per-cell authoring layer and gameplay role from the mosaic.
 
@@ -247,12 +246,8 @@ def assign_visual_layers(
                     layers[cy][cx] = STRUCTURE
                     roles[cy][cx] = "brick_red"
                 elif speckled_earth or cracked:
-                    if not opens_onto_night_sky(px, cx, cy, cw):
-                        layers[cy][cx] = EARTH
-                        roles[cy][cx] = "speckled"
-                    else:
-                        layers[cy][cx] = SKY
-                        roles[cy][cx] = "sky"
+                    layers[cy][cx] = EARTH
+                    roles[cy][cx] = "speckled"
                 elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
                     layers[cy][cx] = STRUCTURE
                     roles[cy][cx] = "solid"

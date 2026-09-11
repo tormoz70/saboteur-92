@@ -83,14 +83,21 @@ func process_climb(delta: float, axis: float) -> void:
 	_snap_to_ladder()
 	if absf(axis) < 0.1:
 		_step_timer = 0.0
+		# Hatch lids sit inside the ladder AABB. Collision is off while
+		# climbing, so is_on_floor() is false and Nina looks standing but
+		# cannot walk. Leave as soon as the soles rest on a slab.
+		if _idle_on_walkable_floor():
+			_leave()
 		return
 	var step_time := CLIMB_STEP_PX / maxf(_p.climb_speed, 1.0)
 	_step_timer += delta
-	while _step_timer >= step_time and _p.on_ladder:
+	var steps := 0
+	while _step_timer >= step_time and _p.on_ladder and steps < 3:
 		if not _take_step(axis):
 			_step_timer = 0.0
 			break
 		_step_timer -= step_time
+		steps += 1
 
 
 func sync_pose() -> void:
@@ -321,6 +328,14 @@ func _vertical_solid(from_y: float, to_y: float) -> Dictionary:
 	q.collision_mask = _p.get_world_mask()
 	q.exclude = [_p.get_rid()]
 	return space.intersect_ray(q)
+
+
+func _idle_on_walkable_floor() -> bool:
+	var hit := _vertical_solid(_feet_y() - 2.0, _feet_y() + 6.0)
+	if hit.is_empty():
+		return false
+	var n: Vector2 = hit.normal
+	return n.y <= -0.5
 
 
 func _dismount_to_y(floor_y: float) -> void:
