@@ -1,8 +1,11 @@
 extends Node2D
 
+const WorldLayers := preload("res://scripts/world/world_layers.gd")
+
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
 const TILES_PATH := "res://assets/world/s2_world_tiles.json"
+const OBJECTS_PATH := "res://assets/world/s2_objects.json"
 const WORLD_TILESET_PATH := "res://assets/tilesets/s2_world_tileset.tres"
 const FG_TILESET_PATH := "res://assets/tilesets/s2_fg_tileset.tres"
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
@@ -31,11 +34,16 @@ var _cam_still := 0.0
 var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
 var _alarm_guard_spawned := false
+var _map_layers: Dictionary = {}
 
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var world: Node2D = $World
-@onready var visual_layer: TileMapLayer = $Visual
+@onready var sky_layer: TileMapLayer = $Sky
+@onready var earth_layer: TileMapLayer = $Earth
+@onready var structure_layer: TileMapLayer = $Structure
+@onready var wallpaper_layer: TileMapLayer = $Wallpaper
+@onready var interior_layer: TileMapLayer = $Interior
 @onready var fg_layer: TileMapLayer = $Foreground
 
 
@@ -49,7 +57,7 @@ func _ready() -> void:
 		player.scale = Vector2(_scale, _scale)
 		player.spawn_point = _spawn
 		player.global_position = _spawn
-		player.z_index = 8
+		player.z_index = WorldLayers.Z_ACTORS
 	_setup_ink_outline()
 	camera.position_smoothing_enabled = false
 	camera.make_current()
@@ -145,8 +153,67 @@ func _add_map_layers() -> void:
 	var tiles := _load_json(TILES_PATH)
 	if tiles.is_empty():
 		return
-	_fill_visual_layer(visual_layer, WORLD_TILESET_PATH, tiles, tiles.get("world", {}), -20)
-	_fill_visual_layer(fg_layer, FG_TILESET_PATH, tiles, tiles.get("fg", {}), 12)
+	_map_layers.clear()
+	var layer_nodes := {
+		"sky": sky_layer,
+		"earth": earth_layer,
+		"structure": structure_layer,
+		"wallpaper": wallpaper_layer,
+		"interior": interior_layer,
+		"fg": fg_layer,
+	}
+	var layers_spec: Dictionary = tiles.get("layers", {})
+	var world_spec: Dictionary = tiles.get("world", {})
+	if layers_spec.is_empty() or not _per_layer_export_ready(layers_spec):
+		_hide_tile_layers(layer_nodes)
+		structure_layer.visible = true
+		fg_layer.visible = true
+		_fill_visual_layer(
+			structure_layer,
+			str(world_spec.get("tileset", WORLD_TILESET_PATH)),
+			tiles,
+			world_spec,
+			WorldLayers.Z_STRUCTURE,
+		)
+		var fg_spec: Dictionary = layers_spec.get("fg", tiles.get("fg", {}))
+		_fill_visual_layer(
+			fg_layer,
+			str(fg_spec.get("tileset", FG_TILESET_PATH)),
+			tiles,
+			fg_spec,
+			WorldLayers.Z_FG,
+		)
+		_map_layers["structure"] = structure_layer
+		_map_layers["fg"] = fg_layer
+		return
+	for layer_name in WorldLayers.TILE_LAYER_ORDER:
+		var layer: TileMapLayer = layer_nodes.get(layer_name)
+		var spec: Dictionary = layers_spec.get(layer_name, {})
+		if layer == null or spec.is_empty():
+			push_error("Missing map layer %s" % layer_name)
+			continue
+		var tileset_path: String = str(spec.get("tileset", ""))
+		var z: int = int(spec.get("z", WorldLayers.TILE_LAYER_Z.get(layer_name, 0)))
+		_fill_visual_layer(layer, tileset_path, tiles, spec, z)
+		_map_layers[layer_name] = layer
+
+
+func _per_layer_export_ready(layers_spec: Dictionary) -> bool:
+	# Per-layer TileMaps need empty_id on RGB layers so black cells do not cover the stack.
+	for layer_name in ["sky", "earth", "structure", "wallpaper", "interior"]:
+		var spec: Dictionary = layers_spec.get(layer_name, {})
+		if spec.is_empty():
+			return false
+		if spec.get("empty") == null:
+			return false
+	return true
+
+
+func _hide_tile_layers(layer_nodes: Dictionary) -> void:
+	for layer_name in layer_nodes:
+		var node: TileMapLayer = layer_nodes[layer_name]
+		if node:
+			node.visible = false
 
 
 func _fill_visual_layer(
@@ -165,8 +232,7 @@ func _fill_visual_layer(
 	if tileset == null:
 		push_error("Could not load tileset %s" % tileset_path)
 		return
-	# Visual layer only — passability stays in s2_collision.json. Identical
-	# pictures can still collide differently (fill_cave_earth, thicken_floors).
+	# Visual layer only — passability stays in s2_collision.json (object bounds).
 	layer.tile_set = tileset
 	layer.collision_enabled = false
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -214,7 +280,7 @@ func _rle_to_tile_map_data(spec: Dictionary, cw: int) -> PackedByteArray:
 		var ay: int = tid / atlas_cols
 		for _n in count:
 			data.encode_s16(off, cell_i % cw)
-			data.encode_s16(off + 2, cell_i / cw)
+			data.encode_s16(off + 2, int(cell_i / cw))
 			data.encode_u16(off + 4, 0)
 			data.encode_s16(off + 6, ax)
 			data.encode_s16(off + 8, ay)
@@ -254,7 +320,7 @@ func _add_lifts(data: Dictionary) -> void:
 	for spec in data.get("lifts", []):
 		var lift := AnimatableBody2D.new()
 		lift.set_script(script)
-		lift.z_index = 6
+		lift.z_index = WorldLayers.Z_MACHINES
 		var size := Vector2(float(spec["w"]), float(spec["h"])) * _scale
 		lift.global_position = Vector2(float(spec["x"]), float(spec["y"])) * _scale
 		var sprite := Sprite2D.new()
@@ -318,6 +384,7 @@ func _add_entities() -> void:
 
 	var items_root := Node2D.new()
 	items_root.name = "Items"
+	items_root.z_index = WorldLayers.Z_ARTIFACTS
 	add_child(items_root)
 	for spec in data.get("items", []):
 		var item: Area2D = PICKUP_SCENE.instantiate()
@@ -332,6 +399,7 @@ func _add_entities() -> void:
 	var sabotage: Area2D = SABOTAGE_SCENE.instantiate()
 	sabotage.name = "SabotageTarget"
 	sabotage.scale = Vector2(_scale, _scale)
+	sabotage.z_index = WorldLayers.Z_ARTIFACTS
 	sabotage.position = _xy_world(sab, "sabotage")
 	add_child(sabotage)
 
@@ -339,11 +407,13 @@ func _add_entities() -> void:
 	var exit_zone: Area2D = EXIT_SCENE.instantiate()
 	exit_zone.name = "ExitZone"
 	exit_zone.scale = Vector2(_scale, _scale)
+	exit_zone.z_index = WorldLayers.Z_ARTIFACTS
 	exit_zone.position = _xy_world(ex, "exit")
 	add_child(exit_zone)
 
 	var guards_root := Node2D.new()
 	guards_root.name = "Guards"
+	guards_root.z_index = WorldLayers.Z_ACTORS
 	add_child(guards_root)
 	var gi := 1
 	for spec in data.get("guards", []):
@@ -355,6 +425,7 @@ func _add_entities() -> void:
 		guard.patrol_distance = float(spec.get("patrol", 40)) * _scale
 		# Position before add_child: guard._ready() snapshots patrol_origin.
 		guard.position = _xy_world(spec, "guard %s" % gid)
+		guard.z_index = WorldLayers.Z_ACTORS
 		guards_root.add_child(guard)
 		gi += 1
 
@@ -645,3 +716,28 @@ func _connect_punch_areas() -> void:
 func _on_player_punch_hit(body: Node2D) -> void:
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		body.take_damage()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Debug: digit keys 0–4 and 8 toggle authoring tile layers (sky … interior, fg).
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	var layer_name := ""
+	match event.keycode:
+		KEY_0:
+			layer_name = "sky"
+		KEY_1:
+			layer_name = "earth"
+		KEY_2:
+			layer_name = "structure"
+		KEY_3:
+			layer_name = "wallpaper"
+		KEY_4:
+			layer_name = "interior"
+		KEY_8:
+			layer_name = "fg"
+		_:
+			return
+	var layer: TileMapLayer = _map_layers.get(layer_name)
+	if layer:
+		layer.visible = not layer.visible

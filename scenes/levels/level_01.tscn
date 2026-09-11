@@ -10,9 +10,29 @@ script = ExtResource("1")
 position_smoothing_enabled = false
 zoom = Vector2(1.875, 1.875)
 
-[node name="Visual" type="TileMapLayer" parent="."]
+[node name="Sky" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = -30
+collision_enabled = false
+
+[node name="Earth" type="TileMapLayer" parent="."]
 texture_filter = 1
 z_index = -20
+collision_enabled = false
+
+[node name="Structure" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = -10
+collision_enabled = false
+
+[node name="Wallpaper" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = -5
+collision_enabled = false
+
+[node name="Interior" type="TileMapLayer" parent="."]
+texture_filter = 1
+z_index = 0
 collision_enabled = false
 
 [node name="Foreground" type="TileMapLayer" parent="."]

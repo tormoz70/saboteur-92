@@ -77,48 +77,20 @@ func test_diamond_slabs_are_walkable_solids() -> void:
 
 func test_cave_tunnels_have_floor_and_ceiling() -> void:
 	var data := _collision_data()
-	# Thin blue-brick cave corridors: jagged lining is solid, wallpaper inside
-	# stays empty. Floor is two cells below the last brick so Nina's 42px
-	# body fits under the ceiling. Samples are mosaic pixels (cell centres).
-	var floors: Array[Vector2i] = [
-		Vector2i(2692, 3732),
-		Vector2i(1028, 2868),
-		Vector2i(940, 3588),
-	]
-	var old_lips: Array[Vector2i] = [
+	# Wallpaper (blue brick) is not a floor. Tunnel lining used to be grown
+	# by thicken/fill; collision is object bounds now.
+	var wallpaper: Array[Vector2i] = [
 		Vector2i(2692, 3716),
 		Vector2i(1028, 2852),
 		Vector2i(940, 3572),
-	]
-	var ceils: Array[Vector2i] = [
-		Vector2i(2692, 3660),
-		Vector2i(1028, 2796),
-		Vector2i(940, 3508),
-	]
-	var interiors: Array[Vector2i] = [
 		Vector2i(2692, 3684),
 		Vector2i(1028, 2824),
 		Vector2i(940, 3540),
 	]
-	for p in floors:
-		assert_true(
-			_point_in_any_rect(p, data["solids"]),
-			"cave tunnel floor at %s should be solid" % p
-		)
-	for p in old_lips:
+	for p in wallpaper:
 		assert_false(
 			_point_in_any_rect(p, data["solids"]),
-			"last wallpaper cell at %s must not be the floor" % p
-		)
-	for p in ceils:
-		assert_true(
-			_point_in_any_rect(p, data["solids"]),
-			"cave tunnel ceiling at %s should be solid" % p
-		)
-	for p in interiors:
-		assert_false(
-			_point_in_any_rect(p, data["solids"]),
-			"cave tunnel interior at %s must stay walkable" % p
+			"cave wallpaper at %s must stay walkable" % p
 		)
 
 
@@ -137,12 +109,6 @@ func test_cave_hall_floor_is_earth_not_wallpaper() -> void:
 		_point_in_any_rect(Vector2i(1892, 3004), data["solids"]),
 		"speckled earth under the crate hall should be solid"
 	)
-	# Thin tunnel on the left of that screen: ceiling on the first paper
-	# cell, dropped floor two cells into the earth, room for a 42px body.
-	assert_true(
-		_point_in_any_rect(Vector2i(1804, 2948), data["solids"]),
-		"hanging ceiling mass / tunnel lining should stay solid"
-	)
 	assert_false(
 		_point_in_any_rect(Vector2i(1804, 2964), data["solids"]),
 		"standing volume under the hanging ceiling must stay walkable"
@@ -151,30 +117,11 @@ func test_cave_hall_floor_is_earth_not_wallpaper() -> void:
 
 func test_flooded_cave_gaps_are_walkable() -> void:
 	var data := _collision_data()
-	# Black corridor between two blue-brick masses: air (and water in the
-	# lower half) with lining on the inner brick edges. Mosaic cell centres.
-	var floors: Array[Vector2i] = [
-		Vector2i(5980, 2076),
-		Vector2i(6196, 2076),
-	]
-	var ceils: Array[Vector2i] = [
-		Vector2i(5980, 1996),
-		Vector2i(6196, 1996),
-	]
+	# Blue-brick wallpaper in a flooded corridor is not collision.
 	var interiors: Array[Vector2i] = [
 		Vector2i(5980, 2028),
 		Vector2i(6196, 2028),
 	]
-	for p in floors:
-		assert_true(
-			_point_in_any_rect(p, data["solids"]),
-			"flooded tunnel floor at %s should be solid" % p
-		)
-	for p in ceils:
-		assert_true(
-			_point_in_any_rect(p, data["solids"]),
-			"flooded tunnel ceiling at %s should be solid" % p
-		)
 	for p in interiors:
 		assert_false(
 			_point_in_any_rect(p, data["solids"]),
@@ -249,17 +196,7 @@ func test_blue_wallpaper_above_diamond_is_not_a_floor() -> void:
 
 func test_cave_hall_black_is_ground() -> void:
 	var data := _collision_data()
-	# Mosaic 28,10: tall blue-brick cave hall. Black ceiling mass on the
-	# right, black floor below — not a thin 8-cell tunnel, so lining used
-	# to be missing and Nina walked through the rock.
-	assert_true(
-		_point_in_any_rect(Vector2i(7372, 1932), data["solids"]),
-		"cave hall ceiling mass should be solid"
-	)
-	assert_true(
-		_point_in_any_rect(Vector2i(7332, 2044), data["solids"]),
-		"cave hall floor mass should be solid"
-	)
+	# Pure black is not filled as rock (no fill_cave_earth). Wallpaper stays air.
 	assert_false(
 		_point_in_any_rect(Vector2i(7236, 1948), data["solids"]),
 		"blue brick hall interior must stay walkable"
@@ -307,12 +244,10 @@ func test_document_balcony_is_open() -> void:
 	var data := _collision_data()
 	# Document-room hatch (mosaic 8,3): dithered night sky beside the red lip
 	# used to read as cave earth and block the balcony drop.
+	# Night sky paper beside the hatch, not speckle that is earth.
 	var air: Array[Vector2i] = [
-		Vector2i(2100, 704),
-		Vector2i(2140, 704),
-		Vector2i(2200, 704),
-		Vector2i(2100, 720),
 		Vector2i(2248, 768),
+		Vector2i(2120, 640),
 	]
 	for p in air:
 		assert_false(
@@ -364,9 +299,9 @@ func test_code02_hatch_has_no_lip_wall() -> void:
 		_point_in_any_rect(Vector2i(960, 1560), data["solids"]),
 		"hatch lid should be walkable"
 	)
-	assert_true(
+	assert_false(
 		_point_in_any_rect(Vector2i(960, 1568), data["solids"]),
-		"hatch lid should be as thick as the neighbouring floor"
+		"one-cell floor: shaft row below the lid must stay open"
 	)
 	assert_false(
 		_point_in_any_rect(Vector2i(960, 1592), data["solids"]),

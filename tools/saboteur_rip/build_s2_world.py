@@ -18,6 +18,27 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from object_types import (
+    scan_objects,
+    stamp_collision,
+    type_catalog_export,
+    type_grid_from_placements,
+)
+from world_layers import (
+    EARTH,
+    FG,
+    INTERIOR,
+    SKY,
+    STRUCTURE,
+    WALLPAPER,
+    assign_visual_layers,
+    build_layer_images,
+    composite_world_layers,
+    export_layer_tilesets,
+    export_object_catalog,
+    write_objects_json,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets" / "reference" / "original" / "maps" / "Saboteur2_speccy.png"
 OUT_DIR = ROOT / "assets" / "world"
@@ -25,6 +46,16 @@ TILESET_DIR = ROOT / "assets" / "tilesets"
 CELL = 8
 SCREEN_W, SCREEN_H = 256, 192
 SCALE = 2
+OBJECTS_DIR = OUT_DIR / "objects"
+LAYER_TEXTURE_UIDS = {
+    "sky": "uid://s2layersky8",
+    "earth": "uid://s2layerearth8",
+    "structure": "uid://s2layerstruct8",
+    "wallpaper": "uid://s2layerpaper8",
+    "interior": "uid://s2layerinter8",
+    "fg": "uid://s2fgatlas8px",
+    "world": "uid://dma7fdoakrrr6",
+}
 
 
 def _col(r: int, g: int, b: int) -> str:
@@ -219,17 +250,6 @@ def _is_speckled_earth(counts: dict[str, int]) -> bool:
     )
 
 
-def _is_sky_girder_deck(counts: dict[str, int]) -> bool:
-    """Outdoor balcony / girder lip: white bars on blue, not dithered night sky."""
-    return (
-        counts["w"] >= 16
-        and counts["b"] >= 8
-        and counts["r"] < 8
-        and counts["k"] < 8
-        and counts["g"] < 8
-    )
-
-
 def _is_open_sky(counts: dict[str, int]) -> bool:
     """Pure night-sky paper: full blue, no cave-brick lining."""
     return counts["b"] >= 40 and counts["k"] < 6 and counts["g"] < 8 and counts["r"] < 8
@@ -272,470 +292,6 @@ def _is_cracked_earth(counts: dict[str, int]) -> bool:
         and counts["r"] < 8
         and counts["c"] < 8
     )
-
-
-def _is_earth_surface(counts: dict[str, int]) -> bool:
-    """Top of dungeon dirt: specks, crack lines, or jagged lining."""
-    return (
-        _is_speckled_earth(counts)
-        or _is_cracked_earth(counts)
-        or _is_cave_fringe(counts)
-    )
-
-
-def _is_cave_fringe(counts: dict[str, int]) -> bool:
-    """Jagged black/blue lining on a tunnel's ceiling or floor."""
-    if counts["g"] >= 8 or counts["c"] >= 8 or counts["r"] >= 8 or counts["y"] >= 4:
-        return False
-    if _is_cave_paper(counts) or _is_cave_void(counts):
-        return False
-    return counts["b"] >= 6 and counts["k"] >= 16
-
-
-def _is_cave_ground(counts: dict[str, int]) -> bool:
-    """Black cave earth, jagged lining, or speckled/cracked rock — not wallpaper."""
-    if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
-        return False
-    return (
-        _is_cave_void(counts)
-        or _is_cave_fringe(counts)
-        or _is_speckled_earth(counts)
-        or _is_cracked_earth(counts)
-    )
-
-
-# Thin cave corridor: enough cells for a crouch (24px) between 8px lining.
-_TUNNEL_MIN_H = 5
-_TUNNEL_MAX_H = 10
-_TUNNEL_MIN_WIDTH = 6
-# Last paper cell used to be the walkable surface. Nina is 42px (~5.25 cells)
-# and a typical 8-cell brick band only leaves 6 cells inside, so her head
-# snags the jagged ceiling. Drop at most this many cells under the wallpaper
-# when there is no cracked dirt to stand on; stop on the first earth cell.
-_TUNNEL_FLOOR_DROP = 2
-# Black gap between two blue-brick masses (air, or air over water).
-_GAP_MIN_H = 5
-_GAP_MAX_H = 12
-# Thin red post in a room: not a floor strip, not a 1-cell speck.
-_PILLAR_MIN_H = 3
-
-
-def _cave_cell_masks(
-    px, cw: int, ch: int
-) -> tuple[list[list[bool]], list[list[bool]], list[list[bool]]]:
-    paper = [[False] * cw for _ in range(ch)]
-    void = [[False] * cw for _ in range(ch)]
-    fringe = [[False] * cw for _ in range(ch)]
-    for cy in range(ch):
-        for cx in range(cw):
-            counts = _cell_counts(px, cx, cy)
-            paper[cy][cx] = _is_cave_paper(counts)
-            void[cy][cx] = _is_cave_void(counts)
-            fringe[cy][cx] = _is_cave_fringe(counts)
-    return paper, void, fringe
-
-
-def _wide_horizontal_groups(
-    raw: list[tuple[int, int, int]], min_width: int
-) -> list[list[tuple[int, int, int]]]:
-    """Connected (cx, y0, y1) columns that form a corridor at least min_width wide."""
-    by_col: dict[int, list[tuple[int, int, int]]] = {}
-    for rec in raw:
-        by_col.setdefault(rec[0], []).append(rec)
-    used = [False] * len(raw)
-    index = {rec: i for i, rec in enumerate(raw)}
-    groups: list[list[tuple[int, int, int]]] = []
-    for i, rec in enumerate(raw):
-        if used[i]:
-            continue
-        stack = [rec]
-        used[i] = True
-        members: list[tuple[int, int, int]] = []
-        while stack:
-            cx, y0, y1 = stack.pop()
-            members.append((cx, y0, y1))
-            for dx in (-1, 1):
-                for ocx, oy0, oy1 in by_col.get(cx + dx, []):
-                    j = index[(ocx, oy0, oy1)]
-                    if used[j]:
-                        continue
-                    if oy0 <= y1 and y0 <= oy1:
-                        used[j] = True
-                        stack.append((ocx, oy0, oy1))
-        xs = [m[0] for m in members]
-        if max(xs) - min(xs) + 1 >= min_width:
-            groups.append(members)
-    return groups
-
-
-def _wide_horizontal_runs(
-    raw: list[tuple[int, int, int]], min_width: int
-) -> list[tuple[int, int, int]]:
-    """Keep (cx, y0, y1) columns that form a corridor at least min_width wide."""
-    return [m for g in _wide_horizontal_groups(raw, min_width) for m in g]
-
-
-def _corridor_abuts_green_wallpaper(px, members: list[tuple[int, int, int]], cw: int) -> bool:
-    """True if this paper band is a room wall beside green interior wallpaper.
-
-    Cave earth counts as void, so a basement blue-brick panel above a diamond
-    deck looks like a tunnel. The valid-column run can stop at a screen edge
-    before it actually touches the green, so walk onward through paper.
-    Real corridors sit in rock; walking off their end hits void, not a room.
-    Drop the whole run: leaving the far columns would still pass min-width.
-    """
-    min_x = min(m[0] for m in members)
-    max_x = max(m[0] for m in members)
-    for cx, y0, y1 in members:
-        if cx != min_x and cx != max_x:
-            continue
-        mid = (y0 + y1) // 2
-        step = -1 if cx == min_x else 1
-        x = cx
-        for _ in range(12):
-            x += step
-            if x < 0 or x >= cw:
-                break
-            counts = _cell_counts(px, x, mid)
-            if counts["g"] >= 16 and not cell_is_ladder(px, x, mid):
-                return True
-            if not _is_cave_paper(counts):
-                break
-    return False
-
-
-def find_cave_tunnels(
-    px,
-    cw: int,
-    ch: int,
-    biomes: list[str],
-    sx_n: int,
-) -> list[tuple[int, int, int]]:
-    """Horizontal blue-brick cave corridors with void above and below.
-
-    Each hit is `(cx, y0, y1)`: ceiling cell, floor cell, interior between.
-    """
-    paper, void, fringe = _cave_cell_masks(px, cw, ch)
-    raw: list[tuple[int, int, int]] = []
-    for cx in range(cw):
-        cy = 0
-        while cy < ch:
-            if not paper[cy][cx]:
-                cy += 1
-                continue
-            y0 = cy
-            while cy < ch and paper[cy][cx]:
-                cy += 1
-            y1 = cy - 1
-            while y0 > 0 and fringe[y0 - 1][cx]:
-                y0 -= 1
-            while y1 + 1 < ch and fringe[y1 + 1][cx]:
-                y1 += 1
-            h = y1 - y0 + 1
-            if h < _TUNNEL_MIN_H or h > _TUNNEL_MAX_H:
-                continue
-            if y0 == 0 or y1 + 1 >= ch:
-                continue
-            if not (void[y0 - 1][cx] and void[y1 + 1][cx]):
-                continue
-            # Both ends must be cave. A paper band that starts in a cave
-            # screen and ends in an interior room is a basement far-wall,
-            # not a corridor — treating y1 as a floor puts an invisible
-            # slab through the room below the wallpaper.
-            if _biome_at(biomes, sx_n, cx, y0) != "cave":
-                continue
-            if _biome_at(biomes, sx_n, cx, y1) != "cave":
-                continue
-            if cell_is_diamond_floor(px, cx, y1 + 1):
-                continue
-            if _floor_slab_along_row(px, cx, y1 + 1, cw, biomes, sx_n):
-                continue
-            raw.append((cx, y0, y1))
-    out: list[tuple[int, int, int]] = []
-    for members in _wide_horizontal_groups(raw, _TUNNEL_MIN_WIDTH):
-        if _corridor_abuts_green_wallpaper(px, members, cw):
-            continue
-        out.extend(members)
-    return out
-
-
-# How far a wallpaper hall may indent before the bite is still "in the room".
-# Standing body is 14px (~2 cells); a 4-cell lookaround covers the jagged
-# edge without opening the rock mass a couple of metres into the mountain.
-_HALL_BITE_REACH = 4
-
-
-def _neighbour_shares_band(
-    paper: list[list[bool]], nx: int, y0: int, y1: int
-) -> bool:
-    return any(paper[y][nx] for y in range(y0, y1 + 1))
-
-
-def _column_band_end(
-    paper: list[list[bool]], nx: int, y0: int, y1: int, ch: int, end: str
-) -> int | None:
-    """Bottom (floor) or top (ceiling) of the paper band that overlaps [y0, y1]."""
-    y = 0
-    while y < ch:
-        if not paper[y][nx]:
-            y += 1
-            continue
-        a = y
-        while y < ch and paper[y][nx]:
-            y += 1
-        b = y - 1
-        if a <= y1 and b >= y0:
-            return a if end == "ceiling" else b
-    return None
-
-
-def _short_band_run_width(
-    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int, end: str
-) -> int:
-    """How many consecutive columns share this short floor or ceiling."""
-    width = 1
-    ref = y0 if end == "ceiling" else y1
-    for dx in (-1, 1):
-        nx = cx + dx
-        while 0 <= nx < cw:
-            other = _column_band_end(paper, nx, y0, y1, ch, end)
-            if other is None or abs(other - ref) > 1:
-                break
-            width += 1
-            nx += dx
-    return width
-
-
-def _ceiling_is_hall_step(
-    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
-) -> bool:
-    """Neighbour wallpaper continues two+ cells above this band.
-
-    A wide corridor of the same height is a tunnel, even if a taller hall
-    sits beside it — that lining must stay. A 1–5 column indent is a hall edge.
-    """
-    taller = False
-    for dx in (-1, 1):
-        nx = cx + dx
-        if nx < 0 or nx >= cw:
-            continue
-        if not _neighbour_shares_band(paper, nx, y0, y1):
-            continue
-        if any(paper[y][nx] for y in range(max(0, y0 - 4), y0 - 1)):
-            taller = True
-            break
-    if not taller:
-        return False
-    return _short_band_run_width(paper, cx, y0, y1, cw, ch, "ceiling") < _TUNNEL_MIN_WIDTH
-
-
-def _floor_is_hall_step(
-    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
-) -> bool:
-    """Neighbour wallpaper continues two+ cells below this band.
-
-    That is a hall's jagged side, not a tunnel floor. One-cell lining noise
-    still counts as a corridor. A run as wide as a tunnel is a corridor even
-    when a taller hall stands next to it.
-    """
-    taller = False
-    for dx in (-1, 1):
-        nx = cx + dx
-        if nx < 0 or nx >= cw:
-            continue
-        if not _neighbour_shares_band(paper, nx, y0, y1):
-            continue
-        if any(paper[y][nx] for y in range(y1 + 2, min(ch, y1 + 5))):
-            taller = True
-            break
-    if not taller:
-        return False
-    return _short_band_run_width(paper, cx, y0, y1, cw, ch, "floor") < _TUNNEL_MIN_WIDTH
-
-
-def _band_is_hall_side_step(
-    paper: list[list[bool]], cx: int, y0: int, y1: int, cw: int, ch: int
-) -> bool:
-    return _ceiling_is_hall_step(paper, cx, y0, y1, cw, ch) or _floor_is_hall_step(
-        paper, cx, y0, y1, cw, ch
-    )
-
-
-def _paper_on_row_mask(
-    paper: list[list[bool]], cx: int, cy: int, cw: int, reach: int = _HALL_BITE_REACH
-) -> bool:
-    """True if cave wallpaper sits on this row within `reach` cells."""
-    row = paper[cy]
-    for dx in range(-reach, reach + 1):
-        nx = cx + dx
-        if 0 <= nx < cw and row[nx]:
-            return True
-    return False
-
-
-def _void_is_hall_step(
-    paper: list[list[bool]], cx: int, cy: int, cw: int, ch: int
-) -> bool:
-    """True if this void is a step in a wallpaper column, not a rock wall.
-
-    Tunnel side walls are void columns with no paper. A hall bite sits in a
-    column that has wallpaper on another row, with wallpaper still beside it.
-    Rock under a wide corridor that merely abuts a taller hall stays rock.
-    """
-    if paper[cy][cx]:
-        return False
-    if not _paper_on_row_mask(paper, cx, cy, cw):
-        return False
-    bands: list[tuple[int, int]] = []
-    y = 0
-    while y < ch:
-        if not paper[y][cx]:
-            y += 1
-            continue
-        y0 = y
-        while y < ch and paper[y][cx]:
-            y += 1
-        bands.append((y0, y - 1))
-    if not bands:
-        return False
-    for y0, y1 in bands:
-        if y0 < cy < y1:
-            return True
-        if (
-            cy > y1
-            and cy <= y1 + 12
-            and _floor_is_hall_step(paper, cx, y0, y1, cw, ch)
-        ):
-            return True
-        if (
-            cy < y0
-            and cy >= y0 - 12
-            and _ceiling_is_hall_step(paper, cx, y0, y1, cw, ch)
-        ):
-            return True
-    return False
-
-
-def _floor_slab_along_row(
-    px, cx: int, cy: int, cw: int, biomes: list[str], sx_n: int, reach: int = 16
-) -> bool:
-    """True if an interior diamond deck sits on this row beside the column.
-
-    Cave earth is 'void' in the tunnel mask, so a wallpaper panel above a
-    green-room diamond looks like a corridor. Outdoor girder diamonds stay
-    ignored so real cave tunnels are not dropped.
-    """
-    for step in (-1, 1):
-        x = cx
-        for _ in range(reach):
-            x += step
-            if x < 0 or x >= cw:
-                break
-            if cell_is_diamond_floor(px, x, cy):
-                if _biome_at(biomes, sx_n, x, cy) == "interior":
-                    return True
-                break
-            counts = _cell_counts(px, x, cy)
-            if _is_cave_paper(counts):
-                break
-    return False
-
-
-def find_cave_gaps(
-    px,
-    cw: int,
-    ch: int,
-    biomes: list[str],
-    sx_n: int,
-) -> list[tuple[int, int, int]]:
-    """Walkable black corridors between two blue-brick masses.
-
-    Flooded tunnels look like this: air in the upper half of the gap, water
-    (blue brick / jagged fringe) in the lower half. Each hit is
-    `(cx, y_ceil, y_floor)` with the gap interior between them.
-    """
-    paper, void, fringe = _cave_cell_masks(px, cw, ch)
-    lining = [
-        [paper[cy][cx] or fringe[cy][cx] for cx in range(cw)] for cy in range(ch)
-    ]
-    raw: list[tuple[int, int, int]] = []
-    for cx in range(cw):
-        cy = 0
-        while cy < ch:
-            if not void[cy][cx]:
-                cy += 1
-                continue
-            y0 = cy
-            while cy < ch and void[cy][cx]:
-                cy += 1
-            y1 = cy - 1
-            h = y1 - y0 + 1
-            if h < _GAP_MIN_H or h > _GAP_MAX_H:
-                continue
-            if y0 == 0 or y1 + 1 >= ch:
-                continue
-            if not (lining[y0 - 1][cx] and lining[y1 + 1][cx]):
-                continue
-            if _biome_at(biomes, sx_n, cx, y0) != "cave":
-                continue
-            raw.append((cx, y0 - 1, y1 + 1))
-    return _wide_horizontal_runs(raw, _TUNNEL_MIN_WIDTH)
-
-
-def find_red_pillars(px, cw: int, ch: int) -> list[tuple[int, int, int]]:
-    """Vertical red posts: 1 cell wide, not a floor strip.
-
-    Horizontal red brick has neighbours on the left or right. A post does not.
-    Each hit is `(cx, y0, y1)` inclusive.
-    """
-    red = [[False] * cw for _ in range(ch)]
-    for cy in range(ch):
-        for cx in range(cw):
-            red[cy][cx] = cell_is_red_brick(_cell_counts(px, cx, cy))
-    runs: list[tuple[int, int, int]] = []
-    for cx in range(cw):
-        cy = 0
-        while cy < ch:
-            left = cx > 0 and red[cy][cx - 1]
-            right = cx + 1 < cw and red[cy][cx + 1]
-            if not red[cy][cx] or left or right:
-                cy += 1
-                continue
-            y0 = cy
-            while cy < ch and red[cy][cx]:
-                left = cx > 0 and red[cy][cx - 1]
-                right = cx + 1 < cw and red[cy][cx + 1]
-                if left or right:
-                    break
-                cy += 1
-            y1 = cy - 1
-            if y1 - y0 + 1 >= _PILLAR_MIN_H:
-                runs.append((cx, y0, y1))
-    return runs
-
-
-def _clear_red_pillars(px, solid: list[list[int]]) -> int:
-    """Remove collision from decorative red posts, including thicken stubs."""
-    ch = len(solid)
-    cw = len(solid[0])
-    cleared = 0
-    for cx, y0, y1 in find_red_pillars(px, cw, ch):
-        for cy in range(y0, y1 + 1):
-            if solid[cy][cx]:
-                cleared += 1
-            solid[cy][cx] = 0
-        for d in range(1, 4):
-            yy = y1 + d
-            if yy >= ch:
-                break
-            left = cx > 0 and solid[yy][cx - 1]
-            right = cx + 1 < cw and solid[yy][cx + 1]
-            if solid[yy][cx] and not left and not right:
-                solid[yy][cx] = 0
-                cleared += 1
-            else:
-                break
-    return cleared
 
 
 # The bookcase is built from three fixed shelf-plank characters: a left end, a
@@ -863,106 +419,36 @@ def classify_cells(
             for cx in range(x0, x0 + bw):
                 bookcase[cy][cx] = 1
 
-    solid = [[0] * cw for _ in range(ch)]
-    ladder = [[0] * cw for _ in range(ch)]
     fg = [[0] * cw for _ in range(ch)]
     for cy in range(ch):
-        sy = (cy * CELL) // SCREEN_H
         for cx in range(cw):
-            sx = (cx * CELL) // SCREEN_W
-            biome = biomes[sy * sx_n + sx]
-            counts = {k: 0 for k in "kbgrcywmo"}
-            x0, y0 = cx * CELL, cy * CELL
-            for y in range(y0, y0 + CELL):
-                for x in range(x0, x0 + CELL):
-                    counts[_col(*px[x, y])] += 1
-            # Crates and bookcases sit in the foreground and are never collision.
+            counts = _cell_counts(px, cx, cy)
             if cell_is_crate(counts) or cell_is_item_chrome(counts) or bookcase[cy][cx]:
                 fg[cy][cx] = 1
-            if fg[cy][cx]:
-                if cell_is_ladder(px, cx, cy):
-                    ladder[cy][cx] = 1
-                continue
-            # Blue brick is the far wall of a basement, never a collider.
-            if _is_cave_paper(counts):
-                if cell_is_ladder(px, cx, cy):
-                    ladder[cy][cx] = 1
-                continue
-            red_brick = cell_is_red_brick(counts)
-            speckled_earth = _is_speckled_earth(counts)
-            black_wall = counts["k"] >= 40 and counts["g"] < 20
-            if biome == "sky":
-                # Dithered black/blue speckle is the night backdrop, not cave
-                # earth. Outdoor girder lips are added after thicken.
-                if red_brick:
-                    solid[cy][cx] = 1
-            elif biome == "interior":
-                if red_brick:
-                    solid[cy][cx] = 1
-                elif speckled_earth:
-                    # Biome is per flip-screen, so interior rooms still contain
-                    # cave earth. Night-sky dither at a balcony opening is the
-                    # same speckle — leave it empty so Nina can walk out.
-                    if not _opens_onto_night_sky(px, cx, cy, cw):
-                        solid[cy][cx] = 1
-                elif black_wall and (cx < 3 or cx >= cw - 3 or cy >= ch - 3):
-                    # cw/ch are the mosaic, so this is the world border, not
-                    # each 256×192 screen edge. Per-screen walls would solidify
-                    # black interior floors along every flip-screen seam.
-                    solid[cy][cx] = 1
-            else:
-                # Blue brick is a room (lift shaft, cave hall), not a wall.
-                if red_brick or speckled_earth:
-                    solid[cy][cx] = 1
-            if cell_is_ladder(px, cx, cy):
-                ladder[cy][cx] = 1
-    # Keep only thin vertical ladder runs.
-    keep = [[0] * cw for _ in range(ch)]
-    for cx in range(cw):
-        cy = 0
-        while cy < ch:
-            if not ladder[cy][cx]:
-                cy += 1
-                continue
-            y0 = cy
-            while cy < ch and ladder[cy][cx]:
-                cy += 1
-            if cy - y0 >= 3:
-                for y in range(y0, cy):
-                    wide = 0
-                    for dx in (-1, 0, 1):
-                        xx = cx + dx
-                        if 0 <= xx < cw and ladder[y][xx]:
-                            wide += 1
-                    if wide <= 2:
-                        keep[y][cx] = 1
-    fill_cave_earth(solid, biomes, sx_n, px)
-    thicken_floors(solid, 3)
-    # Paper and crates must not keep thicken stubs; tunnel linings are
-    # re-applied after this punch.
-    _clear_walkable_decor(px, solid)
-    # Isolated red posts are wallpaper, not walls. Clear after thicken so a
-    # hanging post does not leave a 24px stub in the room below.
-    _clear_red_pillars(px, solid)
-    # Slabs after thicken: growing them down would hang 24px into the room
-    # below and turn the underside of a floor into an invisible wall.
-    _apply_diamond_floors(px, solid)
-    _apply_sky_girder_decks(px, solid, biomes)
-    # After thicken: hall ceilings must not grow down into the room.
-    _apply_cave_ground(px, solid, biomes)
-    # Gaps before tunnels: a stacked brick corridor looks like a black gap
-    # whose ceiling is the paper lip. Tunnels must run last so the dropped
-    # floor (two cells into the fringe) is not put back on that lip.
-    _apply_cave_gaps(px, solid, biomes)
-    _apply_cave_tunnels(px, solid, biomes)
-    _clear_hall_bites(px, solid, biomes)
-    _clear_standing_stubs(solid, biomes)
-    punch_ladder_shafts(solid, keep)
-    cap_ladder_hatches(solid, keep)
-    for cy in range(ch):
-        for cx in range(cw):
-            if fg[cy][cx]:
-                solid[cy][cx] = 0
+
+    layer_grid, roles = assign_visual_layers(
+        px,
+        fg,
+        bookcase,
+        biomes,
+        sx_n,
+        cell_is_ladder=cell_is_ladder,
+        cell_is_crate=cell_is_crate,
+        cell_is_item_chrome=cell_is_item_chrome,
+        cell_is_red_brick=cell_is_red_brick,
+        cell_is_diamond_floor=cell_is_diamond_floor,
+        cell_counts=_cell_counts,
+        is_cave_paper=_is_cave_paper,
+        is_speckled_earth=_is_speckled_earth,
+        is_open_sky=_is_open_sky,
+        is_cracked_earth=_is_cracked_earth,
+        biome_at=_biome_at,
+        opens_onto_night_sky=_opens_onto_night_sky,
+    )
+    refine_ladder_roles(px, layer_grid, roles)
+    placements = scan_objects(im)
+    solid, keep = stamp_collision(placements, cw, ch)
+    classify_cells.placements = placements
     return solid, keep, fg, bookcase, cases, biomes
 
 
@@ -994,246 +480,6 @@ def _biome_at(biomes: list[str], sx_n: int, cx: int, cy: int) -> str:
     sy = (cy * CELL) // SCREEN_H
     sx = (cx * CELL) // SCREEN_W
     return biomes[sy * sx_n + sx]
-
-
-def fill_cave_earth(solid: list[list[int]], biomes: list[str], sx_n: int, px) -> None:
-    """Black mass in caves that is not reachable air above a floor becomes rock.
-
-    Blue brick rooms and yellow crates stay air: they are wallpaper / furniture,
-    not the cave earth this fill is for.
-    """
-    from collections import deque
-
-    ch = len(solid)
-    cw = len(solid[0])
-    air = [[False] * cw for _ in range(ch)]
-    q: deque[tuple[int, int]] = deque()
-    for cy in range(ch):
-        for cx in range(cw):
-            if not solid[cy][cx]:
-                continue
-            if _biome_at(biomes, sx_n, cx, cy) != "cave":
-                continue
-            ny = cy - 1
-            if ny < 0 or solid[ny][cx] or air[ny][cx]:
-                continue
-            if _biome_at(biomes, sx_n, cx, ny) != "cave":
-                continue
-            air[ny][cx] = True
-            q.append((cx, ny))
-    while q:
-        cx, cy = q.popleft()
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = cx + dx, cy + dy
-            if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
-                continue
-            if air[ny][nx] or solid[ny][nx]:
-                continue
-            if _biome_at(biomes, sx_n, nx, ny) != "cave":
-                continue
-            air[ny][nx] = True
-            q.append((nx, ny))
-    for cy in range(ch):
-        for cx in range(cw):
-            if solid[cy][cx] or air[cy][cx]:
-                continue
-            if _biome_at(biomes, sx_n, cx, cy) != "cave":
-                continue
-            counts = _cell_counts(px, cx, cy)
-            if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
-                continue
-            solid[cy][cx] = 1
-
-
-def _clear_hall_bites(
-    px, solid: list[list[int]], biomes: list[str] | None = None
-) -> int:
-    """Void in a wallpaper column, stepped into a taller neighbour, is air.
-
-    A tunnel's side wall is a void *column* beside paper — keep it. A hall's
-    jagged edge is void in a column that *has* paper, two or more cells away
-    from that paper, with wallpaper still beside it. Filling that bite puts a
-    chest-high wall in front of the ladder.
-
-    Speckled earth is mountain even when `_is_cave_void` matches it. Interior
-    screens keep that earth; only cave halls get their jagged bites opened.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = max(1, (cw * CELL) // SCREEN_W)
-    paper, void, _fringe = _cave_cell_masks(px, cw, ch)
-    cleared = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if not solid[cy][cx] or not void[cy][cx]:
-                continue
-            if biomes is not None and _biome_at(biomes, sx_n, cx, cy) != "cave":
-                continue
-            if _is_speckled_earth(_cell_counts(px, cx, cy)):
-                continue
-            if _void_is_hall_step(paper, cx, cy, cw, ch):
-                # Cracked dungeon floor sits on the dirt mass; a hall bite
-                # has air under it. Do not punch the visual floor.
-                if cy + 1 < ch and solid[cy + 1][cx]:
-                    continue
-                solid[cy][cx] = 0
-                cleared += 1
-    return cleared
-
-
-def _clear_standing_stubs(
-    solid: list[list[int]], biomes: list[str] | None = None
-) -> int:
-    """Punch a lone cell hanging in a cave hall's standing volume.
-
-    Hall-step bites the void classifier missed are one solid with air under
-    them and a real floor two to four cells below. Walking into that stub is
-    a chest-high wall in front of the ladder.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = max(1, (cw * CELL) // SCREEN_W) if biomes else 1
-    cleared = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if not solid[cy][cx]:
-                continue
-            if biomes is not None and _biome_at(biomes, sx_n, cx, cy) != "cave":
-                continue
-            if cy + 1 < ch and solid[cy + 1][cx]:
-                continue
-            if cy > 0 and solid[cy - 1][cx]:
-                continue
-            floor_dy = 0
-            for dy in range(2, 5):
-                ny = cy + dy
-                if ny >= ch:
-                    break
-                if solid[ny][cx]:
-                    floor_dy = dy
-                    break
-            if floor_dy == 0:
-                continue
-            side_air = False
-            for dx in (-1, 1):
-                nx = cx + dx
-                if 0 <= nx < cw and not solid[cy][nx]:
-                    side_air = True
-                    break
-            if not side_air:
-                continue
-            solid[cy][cx] = 0
-            cleared += 1
-    return cleared
-
-
-def _clear_walkable_decor(px, solid: list[list[int]]) -> int:
-    """Blue brick wallpaper and crates are never collision."""
-    ch = len(solid)
-    cw = len(solid[0])
-    cleared = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if not solid[cy][cx]:
-                continue
-            counts = _cell_counts(px, cx, cy)
-            if _is_cave_paper(counts) or cell_is_crate(counts) or cell_is_item_chrome(counts):
-                solid[cy][cx] = 0
-                cleared += 1
-    return cleared
-
-
-def thicken_floors(solid: list[list[int]], depth: int) -> None:
-    """Grow floors downward so fast falls cannot tunnel through 8px bricks.
-
-    Not idempotent: each call grows every current underside by `depth` cells.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    extra = [[0] * cw for _ in range(ch)]
-    for y in range(ch - 1):
-        for x in range(cw):
-            if not solid[y][x] or solid[y + 1][x]:
-                continue
-            for d in range(1, depth + 1):
-                yy = y + d
-                if yy >= ch or solid[yy][x]:
-                    break
-                extra[yy][x] = 1
-    for y in range(ch):
-        for x in range(cw):
-            if extra[y][x]:
-                solid[y][x] = 1
-
-
-def punch_ladder_shafts(solid: list[list[int]], ladders: list[list[int]]) -> None:
-    """Open the shaft under a hatch, but keep the walkable floor lid."""
-    ch = len(solid)
-    cw = len(solid[0])
-
-    def is_walkable_lid(x: int, y: int) -> bool:
-        if y < 0 or y >= ch or x < 0 or x >= cw:
-            return False
-        if not solid[y][x]:
-            return False
-        return y == 0 or not solid[y - 1][x]
-
-    for y in range(ch):
-        for x in range(cw):
-            if not ladders[y][x] or is_walkable_lid(x, y):
-                continue
-            for dx in (-1, 0, 1):
-                xx = x + dx
-                if 0 <= xx < cw and not is_walkable_lid(xx, y):
-                    solid[y][xx] = 0
-
-
-def cap_ladder_hatches(
-    solid: list[list[int]], ladders: list[list[int]], depth: int = 3
-) -> None:
-    """Fill the hatch so a floor opening with a ladder is still walkable.
-
-    Adjacent floors are thickened `depth` cells. A 1-cell lid next to that
-    mass leaves an 8px cliff under the lip; floor-snap catches it as a wall
-    before Nina reaches the rungs. Seal the hatch to the same depth, including
-    the one-cell neighbours `punch_ladder_shafts` cleared. Climb still goes
-    through: on-ladder sets collision_mask to 0.
-
-    Only the top lid is sealed. A thicken stub under the hatch looks like a
-    second floor and must not grow another `depth` into the shaft.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    for y in range(ch):
-        x = 0
-        while x < cw:
-            if not ladders[y][x]:
-                x += 1
-                continue
-            x0 = x
-            while x < cw and ladders[y][x]:
-                x += 1
-            if y > 0 and any(solid[y - 1][xx] for xx in range(x0, x)):
-                continue
-            beside_floor = False
-            for xx in (x0 - 1, x):
-                if 0 <= xx < cw and solid[y][xx] and (y == 0 or not solid[y - 1][xx]):
-                    beside_floor = True
-                    break
-            if not beside_floor:
-                continue
-            xx0 = max(0, x0 - 1)
-            xx1 = min(cw, x + 1)
-            for xx in range(xx0, xx1):
-                for d in range(depth):
-                    yy = y + d
-                    if yy < ch:
-                        solid[yy][xx] = 1
-            for xx in range(x0, x):
-                for yy in range(y + depth, ch):
-                    if not ladders[yy][xx]:
-                        break
-                    solid[yy][xx] = 0
 
 
 def greedy_rects(grid: list[list[int]]) -> list[list[int]]:
@@ -1555,6 +801,20 @@ def paint_lift_cars(world: Image.Image, car_rows: list[tuple[int, int, int, int]
                 wp[x + dx, y + dy] = wp[x + dx, src_y + dy]
 
 
+def punch_fg_cells(world: Image.Image, fg: list[list[int]]) -> None:
+    """Drop foreground-only pixels from the world mosaic (crates, chrome, shelves)."""
+    wp = world.load()
+    ch, cw = len(fg), len(fg[0])
+    for cy in range(ch):
+        for cx in range(cw):
+            if not fg[cy][cx]:
+                continue
+            x0, y0 = cx * CELL, cy * CELL
+            for y in range(y0, y0 + CELL):
+                for x in range(x0, x0 + CELL):
+                    wp[x, y] = (0, 0, 0)
+
+
 def paint_cabinet_backs(world: Image.Image, bookcase: list[list[int]]) -> None:
     """Black out bookcase cells so FG books sit on a dark cabinet, not wallpaper."""
     wp = world.load()
@@ -1569,20 +829,245 @@ def paint_cabinet_backs(world: Image.Image, bookcase: list[list[int]]) -> None:
                     wp[x, y] = (0, 0, 0)
 
 
-def reconstruct_world_from_tiles() -> Image.Image:
-    """Rebuild the mosaic from the committed visual tileset when the rip is absent."""
-    spec = json.loads((OUT_DIR / "s2_world_tiles.json").read_text(encoding="utf-8"))
-    ids = rle_decode(spec["world"]["rle"])
-    cw, ch = spec["grid"]
-    atlas_cols = spec["world"]["atlas_tiles"][0]
-    atlas_name = Path(spec["world"]["atlas"]).name
-    atlas = Image.open(TILESET_DIR / atlas_name).convert("RGB")
-    out = Image.new("RGB", (cw * CELL, ch * CELL))
+def _reconstruct_layer_from_spec(spec: dict, mode: str) -> Image.Image:
+    ids = rle_decode(spec["rle"])
+    cw, ch = json.loads((OUT_DIR / "s2_world_tiles.json").read_text())["grid"]
+    atlas_cols = spec["atlas_tiles"][0]
+    atlas_name = Path(spec["atlas"]).name
+    atlas = Image.open(TILESET_DIR / atlas_name).convert(mode)
+    out = Image.new(mode, (cw * CELL, ch * CELL))
+    empty_id = spec.get("empty")
     for i, tid in enumerate(ids):
+        if empty_id is not None and tid == empty_id:
+            continue
         ax, ay = (tid % atlas_cols) * CELL, (tid // atlas_cols) * CELL
         cx, cy = i % cw, i // cw
         out.paste(atlas.crop((ax, ay, ax + CELL, ay + CELL)), (cx * CELL, cy * CELL))
     return out
+
+
+def reconstruct_world_from_tiles() -> Image.Image:
+    """Rebuild the mosaic from the committed visual tileset when the rip is absent."""
+    spec = json.loads((OUT_DIR / "s2_world_tiles.json").read_text(encoding="utf-8"))
+    return _reconstruct_layer_from_spec(spec["world"], "RGB")
+
+
+def reconstruct_fg_from_tiles() -> Image.Image:
+    spec = json.loads((OUT_DIR / "s2_world_tiles.json").read_text(encoding="utf-8"))
+    fg_spec = spec.get("layers", {}).get("fg") or spec.get("fg", {})
+    return _reconstruct_layer_from_spec(fg_spec, "RGBA")
+
+
+def refine_ladder_roles(px, layer_grid: list[list[int]], roles: list[list[str]]) -> None:
+    ch = len(layer_grid)
+    cw = len(layer_grid[0])
+    for cy in range(ch):
+        for cx in range(cw):
+            if layer_grid[cy][cx] not in (INTERIOR, FG):
+                continue
+            if roles[cy][cx] not in ("climb", "decor", "bookcase", "crate"):
+                continue
+            if not cell_is_ladder(px, cx, cy):
+                continue
+            rows = _cell_rows(px, cx, cy)
+            if _is_green_rail_tile(rows):
+                roles[cy][cx] = "ladder_green"
+            elif _is_sky_rail_tile(rows):
+                roles[cy][cx] = "ladder_sky"
+            elif _is_x_lattice_tile(rows):
+                roles[cy][cx] = "ladder_lattice"
+            else:
+                roles[cy][cx] = "climb"
+
+
+def _cell_visible(wp, x0: int, y0: int) -> bool:
+    for y in range(y0, y0 + CELL):
+        for x in range(x0, x0 + CELL):
+            if wp[x, y][:3] != (0, 0, 0):
+                return True
+    return False
+
+
+def _cell_counts_world(wp, x0: int, y0: int) -> dict[str, int]:
+    counts = {k: 0 for k in "kbgrcywmo"}
+    for y in range(y0, y0 + CELL):
+        for x in range(x0, x0 + CELL):
+            counts[_col(*wp[x, y][:3])] += 1
+    return counts
+
+
+def _guess_layer_for_cell(
+    counts: dict[str, int],
+    biome: str,
+    px,
+    cx: int,
+    cy: int,
+) -> tuple[int, str]:
+    if cell_is_ladder(px, cx, cy):
+        return INTERIOR, "climb"
+    if _is_cave_paper(counts):
+        return WALLPAPER, "paper"
+    if biome == "sky" and (_is_open_sky(counts) or counts["b"] >= 40):
+        return SKY, "sky"
+    if cell_is_diamond_floor(px, cx, cy):
+        return STRUCTURE, "floor_diamond"
+    if cell_is_red_brick(counts):
+        return STRUCTURE, "brick_red"
+    if _is_speckled_earth(counts) or _is_cracked_earth(counts):
+        return EARTH, "speckled"
+    if counts["g"] >= 16 and counts["k"] < 30:
+        return WALLPAPER, "wall"
+    if counts["b"] >= 20 and counts["k"] >= 6:
+        return WALLPAPER, "paper"
+    if counts["k"] >= 40:
+        return EARTH if biome == "cave" else STRUCTURE, "solid"
+    if counts["c"] >= 8:
+        return INTERIOR, "decor"
+    return INTERIOR, "decor"
+
+
+def reconcile_layer_grid_from_world(
+    world_rgb: Image.Image,
+    layer_grid: list[list[int]],
+    roles: list[list[str]],
+    px,
+    fg: list[list[int]],
+    biomes: list[str],
+    sx_n: int,
+) -> None:
+    """Every painted world pixel must belong to a tile layer 0–4 or fg."""
+    wp = world_rgb.load()
+    ch = len(layer_grid)
+    cw = len(layer_grid[0])
+    for cy in range(ch):
+        for cx in range(cw):
+            if fg[cy][cx]:
+                layer_grid[cy][cx] = FG
+                continue
+            x0, y0 = cx * CELL, cy * CELL
+            if not _cell_visible(wp, x0, y0):
+                layer_grid[cy][cx] = -1
+                continue
+            counts = _cell_counts_world(wp, x0, y0)
+            biome = _biome_at(biomes, sx_n, cx, cy)
+            lid, role = _guess_layer_for_cell(counts, biome, px, cx, cy)
+            layer_grid[cy][cx] = lid
+            roles[cy][cx] = role
+
+
+def fill_unassigned_layers(
+    px, world_rgb: Image.Image, layer_grid: list[list[int]], roles: list[list[str]], sx_n: int, biomes: list[str]
+) -> None:
+    """Any visible world pixel without a layer owner gets a best-effort assignment."""
+    ch = len(layer_grid)
+    cw = len(layer_grid[0])
+    wp = world_rgb.load()
+    for cy in range(ch):
+        for cx in range(cw):
+            if layer_grid[cy][cx] >= 0:
+                continue
+            x0, y0 = cx * CELL, cy * CELL
+            bright = False
+            for y in range(y0, y0 + CELL):
+                for x in range(x0, x0 + CELL):
+                    if wp[x, y][:3] != (0, 0, 0):
+                        bright = True
+                        break
+                if bright:
+                    break
+            if not bright:
+                continue
+            counts = _cell_counts(px, cx, cy)
+            biome = _biome_at(biomes, sx_n, cx, cy)
+            if _is_cave_paper(counts) or counts["g"] >= 16:
+                layer_grid[cy][cx] = WALLPAPER
+                roles[cy][cx] = "paper" if _is_cave_paper(counts) else "wall"
+            elif biome == "sky" and counts["b"] >= 20:
+                layer_grid[cy][cx] = SKY
+                roles[cy][cx] = "sky"
+            elif cell_is_red_brick(counts):
+                layer_grid[cy][cx] = STRUCTURE
+                roles[cy][cx] = "brick_red"
+            elif _is_speckled_earth(counts):
+                layer_grid[cy][cx] = EARTH
+                roles[cy][cx] = "speckled"
+            else:
+                layer_grid[cy][cx] = INTERIOR
+                roles[cy][cx] = "decor"
+
+
+def export_layered_world(
+    world_rgb: Image.Image,
+    fg_rgba: Image.Image,
+    solid: list[list[int]],
+    fg: list[list[int]],
+    bookcase: list[list[int]],
+    biomes: list[str],
+    px,
+    sx_n: int,
+    type_grid: list[list[str]] | None = None,
+) -> dict:
+    layer_grid, roles = assign_visual_layers(
+        px,
+        fg,
+        bookcase,
+        biomes,
+        sx_n,
+        cell_is_ladder=cell_is_ladder,
+        cell_is_crate=cell_is_crate,
+        cell_is_item_chrome=cell_is_item_chrome,
+        cell_is_red_brick=cell_is_red_brick,
+        cell_is_diamond_floor=cell_is_diamond_floor,
+        cell_counts=_cell_counts,
+        is_cave_paper=_is_cave_paper,
+        is_speckled_earth=_is_speckled_earth,
+        is_open_sky=_is_open_sky,
+        is_cracked_earth=_is_cracked_earth,
+        biome_at=_biome_at,
+        opens_onto_night_sky=_opens_onto_night_sky,
+    )
+    refine_ladder_roles(px, layer_grid, roles)
+    fill_unassigned_layers(px, world_rgb, layer_grid, roles, sx_n, biomes)
+    reconcile_layer_grid_from_world(world_rgb, layer_grid, roles, px, fg, biomes, sx_n)
+    refine_ladder_roles(px, layer_grid, roles)
+    layer_images = build_layer_images(world_rgb, fg_rgba, layer_grid, bookcase)
+    composite = composite_world_layers(layer_images)
+    if composite.tobytes() != world_rgb.tobytes():
+        diff = 0
+        cp, wp = composite.load(), world_rgb.load()
+        for y in range(world_rgb.height):
+            for x in range(world_rgb.width):
+                if cp[x, y] != wp[x, y][:3]:
+                    diff += 1
+        raise RuntimeError(f"layer composite differs from world by {diff} pixels")
+    if layer_images[FG].tobytes() != fg_rgba.tobytes():
+        raise RuntimeError("fg layer differs from fg overlay")
+    catalog = export_object_catalog(
+        layer_images,
+        layer_grid,
+        roles,
+        OBJECTS_DIR,
+        type_grid=type_grid,
+        type_defs=type_catalog_export(),
+    )
+    write_objects_json(catalog, OUT_DIR / "s2_objects.json")
+    payload = export_layer_tilesets(
+        layer_images,
+        TILESET_DIR,
+        OUT_DIR,
+        SCALE,
+        world_rgb.size,
+        collect_unique_cells=collect_unique_cells,
+        pack_atlas=pack_atlas,
+        reconstruct_from_atlas=reconstruct_from_atlas,
+        rle_encode=rle_encode,
+        write_tileset_tres=_write_tileset_tres,
+        layer_texture_uids=LAYER_TEXTURE_UIDS,
+    )
+    json_path = OUT_DIR / "s2_world_tiles.json"
+    json_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    print(f"wrote {json_path} ({json_path.stat().st_size} bytes)")
+    return payload
 
 
 def load_world_image() -> Image.Image:
@@ -1603,66 +1088,6 @@ def ladder_rects_from_grid(ladders: list[list[int]]) -> list[list[int]]:
     return rects
 
 
-def detect_ladder_grid(im: Image.Image) -> list[list[int]]:
-    """Pixel ladder mask after the thin-run filter, no solid/fg side effects."""
-    px = im.load()
-    cw, ch = im.width // CELL, im.height // CELL
-    raw = [[0] * cw for _ in range(ch)]
-    for cy in range(ch):
-        for cx in range(cw):
-            if cell_is_ladder(px, cx, cy):
-                raw[cy][cx] = 1
-    keep = [[0] * cw for _ in range(ch)]
-    for cx in range(cw):
-        cy = 0
-        while cy < ch:
-            if not raw[cy][cx]:
-                cy += 1
-                continue
-            y0 = cy
-            while cy < ch and raw[cy][cx]:
-                cy += 1
-            if cy - y0 >= 3:
-                for y in range(y0, cy):
-                    wide = 0
-                    for dx in (-1, 0, 1):
-                        xx = cx + dx
-                        if 0 <= xx < cw and raw[y][xx]:
-                            wide += 1
-                    if wide <= 2:
-                        keep[y][cx] = 1
-    return keep
-
-
-def update_collision_ladders(im: Image.Image) -> list[list[int]]:
-    """Rewrite only the ladders array in the committed collision JSON."""
-    keep = detect_ladder_grid(im)
-    rects = ladder_rects_from_grid(keep)
-    path = OUT_DIR / "s2_collision.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["ladders"] = rects
-    path.write_text(json.dumps(data), encoding="utf-8")
-    n_lad = sum(sum(row) for row in keep)
-    print(f"ladder cells {n_lad} -> {len(rects)} rects")
-    print(f"updated {path}")
-    return rects
-
-
-def _paint_solid_rects(rects: list[list[int]], cw: int, ch: int) -> list[list[int]]:
-    grid = [[0] * cw for _ in range(ch)]
-    for x, y, w, h in rects:
-        x0 = max(0, x // CELL)
-        y0 = max(0, y // CELL)
-        x1 = min(cw, (x + w + CELL - 1) // CELL)
-        y1 = min(ch, (y + h + CELL - 1) // CELL)
-        for cy in range(y0, y1):
-            for cx in range(x0, x1):
-                px, py = cx * CELL + CELL // 2, cy * CELL + CELL // 2
-                if x <= px < x + w and y <= py < y + h:
-                    grid[cy][cx] = 1
-    return grid
-
-
 def _world_border_pads(w: int, h: int) -> list[list[int]]:
     pad = CELL * 2
     return [
@@ -1673,327 +1098,66 @@ def _world_border_pads(w: int, h: int) -> list[list[int]]:
     ]
 
 
-def _apply_diamond_floors(px, solid: list[list[int]]) -> int:
-    """Mark white diamond slabs solid without thickening them."""
-    ch = len(solid)
-    cw = len(solid[0])
-    added = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if not cell_is_diamond_floor(px, cx, cy):
-                continue
-            if not solid[cy][cx]:
-                added += 1
-            solid[cy][cx] = 1
-    return added
-
-
-def _girder_hangs_under_deck(px, cx: int, cy: int, solid: list[list[int]]) -> bool:
-    """True if this white-on-blue cell is hanging under a lip, not the lip.
-
-    Skipping only `solid[cy-1]` is not enough: the cell above may already
-    have been left empty, and this brace then looks like a new balcony.
-    Look a few cells up through empty sky. Lattice above a deck is a ladder,
-    not a brace — keep that lid.
-    """
-    if cy <= 0:
-        return False
-    for dy in range(1, 4):
-        yy = cy - dy
-        if yy < 0:
-            return False
-        if cell_is_ladder(px, cx, yy):
-            return False
-        if cell_is_diamond_floor(px, cx, yy) or _is_sky_girder_deck(
-            _cell_counts(px, cx, yy)
-        ):
-            return True
-        if solid[yy][cx]:
-            return True
-    return False
-
-
-def _apply_sky_girder_decks(
-    px, solid: list[list[int]], biomes: list[str]
-) -> int:
-    """Mark outdoor balcony lips solid without thickening them.
-
-    X-lattice towers and hanging A-frame braces share the white-on-blue
-    ink counts of a girder lip, but they are climbable scenery. Skip
-    ladder cells, and only the top of a girder stack is a walkable deck.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = max(1, (cw * CELL) // SCREEN_W)
-    added = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if _biome_at(biomes, sx_n, cx, cy) != "sky":
-                continue
-            if cell_is_ladder(px, cx, cy):
-                continue
-            if not _is_sky_girder_deck(_cell_counts(px, cx, cy)):
-                continue
-            if _girder_hangs_under_deck(px, cx, cy, solid):
-                continue
-            if not solid[cy][cx]:
-                added += 1
-            solid[cy][cx] = 1
-    return added
-
-
-def _clear_sky_scaffold_walls(
-    px, solid: list[list[int]], biomes: list[str]
-) -> int:
-    """Un-solid X-lattice, sky rails, and hanging braces under a deck.
-
-    `_apply_sky_girder_decks` only adds cells. An incremental floors pass
-    must strip the previous over-paint before the lip is put back.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = max(1, (cw * CELL) // SCREEN_W)
-    cleared = 0
-    for cy in range(ch - 1, -1, -1):
-        for cx in range(cw):
-            if _biome_at(biomes, sx_n, cx, cy) != "sky":
-                continue
-            if not solid[cy][cx]:
-                continue
-            counts = _cell_counts(px, cx, cy)
-            if cell_is_diamond_floor(px, cx, cy) or cell_is_red_brick(counts):
-                continue
-            drop = False
-            if cell_is_ladder(px, cx, cy):
-                drop = True
-            elif _is_sky_girder_deck(counts) and _girder_hangs_under_deck(
-                px, cx, cy, solid
-            ):
-                drop = True
-            if drop:
-                solid[cy][cx] = 0
-                cleared += 1
-    return cleared
-
-
-def _tunnel_floor_cell(
-    px, paper: list[list[bool]], cx: int, y1: int, ch: int
-) -> int:
-    """Walkable surface for a corridor whose finder cell is `y1`.
-
-    `find_cave_tunnels` already grows `y1` through fringe. If that cell is
-    cracked earth, stand on it. Otherwise drop into the black under the
-    last wallpaper, but stop on the first dirt/crack cell so the visual
-    floor is not punched away. Never cross another paper band.
-    """
-    if _is_earth_surface(_cell_counts(px, cx, y1)):
-        return y1
-    drop = 0
-    for d in range(1, _TUNNEL_FLOOR_DROP + 1):
-        ny = y1 + d
-        if ny >= ch or paper[ny][cx]:
-            break
-        drop = d
-        if _is_earth_surface(_cell_counts(px, cx, ny)):
-            break
-    return y1 + drop
-
-
-def _apply_cave_tunnels(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
-    """Thin blue-brick cave corridors: solid ceiling, solid floor, air inside.
-
-    `fill_cave_earth` can seal an unreached corridor as rock; the interior is
-    punched open here. Not thickened — growing the ceiling would fill the gap.
-
-    A hall's jagged side looks like a short tunnel column. Keep the real
-    floor/ceiling; skip only the stepped end so it does not become a
-    chest-high wall in front of the ladder.
-
-    The walkable floor is the cracked dirt under the last wallpaper cell.
-    Empty black under a brick lip still drops up to two cells so Nina's
-    42px body fits under the jagged ceiling.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = (cw * CELL) // SCREEN_W
-    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
-    added_ceil = 0
-    added_floor = 0
-    punched = 0
-    for cx, y0, y1 in find_cave_tunnels(px, cw, ch, biomes, sx_n):
-        if not solid[y0][cx]:
-            added_ceil += 1
-        solid[y0][cx] = 1
-        hall_step = _floor_is_hall_step(paper, cx, y0, y1, cw, ch)
-        floor_y = y1 if hall_step else _tunnel_floor_cell(px, paper, cx, y1, ch)
-        if not hall_step:
-            if not solid[floor_y][cx]:
-                added_floor += 1
-            solid[floor_y][cx] = 1
-            # Keep a couple of cells of earth under the new lip so a fast
-            # fall cannot drop through an 8px slab. Stop at the next room.
-            for yy in range(floor_y + 1, min(ch, floor_y + 3)):
-                if paper[yy][cx]:
-                    break
-                solid[yy][cx] = 1
-        punch_end = y1 if hall_step else floor_y
-        for cy in range(y0 + 1, punch_end):
-            if solid[cy][cx]:
-                punched += 1
-            solid[cy][cx] = 0
-    return added_ceil, added_floor, punched
-
-
-def _gap_lid_y(px, paper: list[list[bool]], cx: int, y0: int, y1: int) -> int:
-    """Solid lid for a gap whose finder sat on last wallpaper.
-
-    Speckled earth under a hall is `_is_cave_void`, so the gap climb stops
-    at the last paper cell. Painting that lip solid makes Nina stand on the
-    bricks and ram the ceiling. Keep the wallpaper empty and cap the gap on
-    the earth / fringe below it. A flooded corridor with no dirt under the
-    brick still uses the paper as the lid.
-    """
-    if y0 + 1 >= y1 or not paper[y0][cx]:
-        return y0
-    lid = y0
-    for ny in range(y0 + 1, y1):
-        counts = _cell_counts(px, cx, ny)
-        if paper[ny][cx]:
-            break
-        if not (_is_speckled_earth(counts) or _is_cave_fringe(counts)):
-            break
-        lid = ny
-    return lid
-
-
-def _apply_cave_gaps(px, solid: list[list[int]], biomes: list[str]) -> tuple[int, int, int]:
-    """Open black cave corridors between brick masses; lining is not thickened.
-
-    Flooded tunnels are this shape: walkable air above water, solid ceiling
-    on the brick above, solid floor on the brick below.
-
-    When the upper lining is a wallpaper hall, the walkable floor is the
-    earth under that paper, not the last brick row.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = (cw * CELL) // SCREEN_W
-    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
-    added_ceil = 0
-    added_floor = 0
-    punched = 0
-    for cx, y0, y1 in find_cave_gaps(px, cw, ch, biomes, sx_n):
-        ceil = _gap_lid_y(px, paper, cx, y0, y1)
-        if not solid[ceil][cx]:
-            added_ceil += 1
-        solid[ceil][cx] = 1
-        if not solid[y1][cx]:
-            added_floor += 1
-        solid[y1][cx] = 1
-        for cy in range(ceil + 1, y1):
-            if solid[cy][cx]:
-                punched += 1
-            solid[cy][cx] = 0
-    return added_ceil, added_floor, punched
-
-
-def _apply_cave_ground(px, solid: list[list[int]], biomes: list[str]) -> int:
-    """Black cave masses are impermeable ground: floor on top, ceiling below.
-
-    Thin corridors are 5–10 cells and get lining from `_apply_cave_tunnels`.
-    Taller blue-brick halls have the same black earth, but the tunnel finder
-    skips them, so flood-fill treats connected void as air. Mark it here,
-    after thicken, so a ceiling mass is not grown down into the room.
-    Flooded black gaps are opened again by `_apply_cave_gaps`.
-
-    Void that sits on the same row as nearby wallpaper is a jagged bite in
-    the hall, not the mountain: filling it puts an invisible wall through
-    the standing volume and blocks the ladder in the room.
-    """
-    ch = len(solid)
-    cw = len(solid[0])
-    sx_n = max(1, (cw * CELL) // SCREEN_W)
-    paper, _void, _fringe = _cave_cell_masks(px, cw, ch)
-    added = 0
-    for cy in range(ch):
-        for cx in range(cw):
-            if solid[cy][cx]:
-                continue
-            if _biome_at(biomes, sx_n, cx, cy) != "cave":
-                continue
-            counts = _cell_counts(px, cx, cy)
-            if not _is_cave_ground(counts):
-                continue
-            if (
-                _is_cave_void(counts)
-                and not _is_speckled_earth(counts)
-                and not _is_cracked_earth(counts)
-                and _void_is_hall_step(paper, cx, cy, cw, ch)
-            ):
-                continue
-            solid[cy][cx] = 1
-            added += 1
-    return added
-
-
-def update_collision_sky_scaffold(im: Image.Image) -> list[list[int]]:
-    """Strip lattice / A-frame solids and restore balcony lips. No cave pass."""
-    px = im.load()
-    cw, ch = im.width // CELL, im.height // CELL
-    sx_n, sy_n = im.width // SCREEN_W, im.height // SCREEN_H
+def write_collision_json(
+    im: Image.Image,
+    solid: list[list[int]],
+    ladders: list[list[int]],
+    lifts: list[dict],
+    cases: list[tuple[int, int, int, int]],
+    placements: list[dict],
+) -> None:
+    solids = greedy_rects(solid)
+    solids.extend(_world_border_pads(im.width, im.height))
+    objects = [
+        {
+            "type": p["type"],
+            "x": p["x"] * CELL,
+            "y": p["y"] * CELL,
+            "w": p["w"] * CELL,
+            "h": p["h"] * CELL,
+        }
+        for p in placements
+    ]
+    payload = {
+        "source": "Saboteur2_speccy.png",
+        "scale": SCALE,
+        "cell": CELL,
+        "screen": [SCREEN_W, SCREEN_H],
+        "size": [im.width, im.height],
+        "collision_layers": ["earth", "structure"],
+        "collision_source": "object_bounds",
+        "collision_note": "solids/ladders from object {type,rect}: floor=top row, earth=contour fill, ladder=AABB climb, hatch=floor intersect climb. No thicken/fill.",
+        "objects": objects,
+        "solids": solids,
+        "ladders": ladder_rects_from_grid(ladders),
+        "lifts": lifts,
+        "bookcases": [[x * CELL, y * CELL, bw * CELL, bh * CELL] for x, y, bw, bh in cases],
+    }
     path = OUT_DIR / "s2_collision.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    solid = _paint_solid_rects(data["solids"], cw, ch)
-    biomes = _detect_biomes(px, sx_n, sy_n)
-    scaffold = _clear_sky_scaffold_walls(px, solid, biomes)
-    girders = _apply_sky_girder_decks(px, solid, biomes)
-    rects = greedy_rects(solid)
-    rects.extend(_world_border_pads(im.width, im.height))
-    data["solids"] = rects
-    path.write_text(json.dumps(data), encoding="utf-8")
-    print(
-        f"sky scaffold walls cleared {scaffold} girder lips added {girders} "
-        f"-> {len(rects)} solid rects"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    print(f"wrote {path} objects {len(objects)} solids {len(solids)}")
+
+
+def rebuild_collision_from_objects(im: Image.Image) -> None:
+    """Rewrite s2_collision.json from object bounds only (no thicken/fill)."""
+    solid, ladders, _fg, _bookcase, cases, _biomes = classify_cells(im)
+    lifts, _car, _rows = find_lifts(im, solid)
+    write_collision_json(
+        im, solid, ladders, lifts, cases, getattr(classify_cells, "placements", [])
     )
-    print(f"updated {path}")
-    return rects
 
 
-def update_collision_diamond_floors(im: Image.Image) -> list[list[int]]:
-    """Add diamond slabs and cave-tunnel linings without re-thickening."""
-    px = im.load()
-    cw, ch = im.width // CELL, im.height // CELL
-    sx_n, sy_n = im.width // SCREEN_W, im.height // SCREEN_H
-    path = OUT_DIR / "s2_collision.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    solid = _paint_solid_rects(data["solids"], cw, ch)
-    decor = _clear_walkable_decor(px, solid)
-    added = _apply_diamond_floors(px, solid)
-    biomes = _detect_biomes(px, sx_n, sy_n)
-    scaffold = _clear_sky_scaffold_walls(px, solid, biomes)
-    girders = _apply_sky_girder_decks(px, solid, biomes)
-    ground = _apply_cave_ground(px, solid, biomes)
-    g_ceil, g_floor, g_punch = _apply_cave_gaps(px, solid, biomes)
-    ceil_n, floor_n, punched = _apply_cave_tunnels(px, solid, biomes)
-    bites = _clear_hall_bites(px, solid, biomes)
-    stubs = _clear_standing_stubs(solid, biomes)
-    pillars = _clear_red_pillars(px, solid)
-    cap_ladder_hatches(solid, detect_ladder_grid(im))
-    rects = greedy_rects(solid)
-    rects.extend(_world_border_pads(im.width, im.height))
-    data["solids"] = rects
-    path.write_text(json.dumps(data), encoding="utf-8")
-    print(f"walkable decor cleared {decor}")
-    print(f"sky scaffold walls cleared {scaffold}")
-    print(f"diamond floor cells added {added} sky girder cells {girders} -> {len(rects)} solid rects")
-    print(f"cave ground cells added {ground}")
-    print(f"cave tunnel ceiling {ceil_n} floor {floor_n} interior opened {punched}")
-    print(f"cave hall bites cleared {bites}")
-    print(f"cave hall standing stubs cleared {stubs}")
-    print(f"cave gap ceiling {g_ceil} floor {g_floor} interior opened {g_punch}")
-    print(f"red posts cleared {pillars}")
-    print(f"updated {path}")
-    return rects
+def update_collision_diamond_floors(im: Image.Image) -> None:
+    """CLI alias — collision is always rebuilt from object bounds."""
+    rebuild_collision_from_objects(im)
+
+
+def update_collision_sky_scaffold(im: Image.Image) -> None:
+    rebuild_collision_from_objects(im)
+
+
+def update_collision_ladders(im: Image.Image) -> None:
+    rebuild_collision_from_objects(im)
 
 
 def main() -> None:
@@ -2030,24 +1194,18 @@ def main() -> None:
     world = im.copy()
     paint_cabinet_backs(world, bookcase)
     paint_lift_cars(world, car_rows)
+    punch_fg_cells(world, fg)
     world.save(OUT_DIR / "saboteur2_world.png")
     fg_img = crate_overlay(im, fg, bookcase, cases)
     fg_img.save(OUT_DIR / "saboteur2_fg.png")
     car_img.save(OUT_DIR / "s2_lift.png")
-    export_visual_tilesets(world, fg_img)
-    payload = {
-        "source": "Saboteur2_speccy.png",
-        "scale": SCALE,
-        "cell": CELL,
-        "screen": [SCREEN_W, SCREEN_H],
-        "size": [im.width, im.height],
-        "solids": solids,
-        "ladders": ladder_rects,
-        "lifts": lifts,
-        "bookcases": [[x * CELL, y * CELL, bw * CELL, bh * CELL] for x, y, bw, bh in cases],
-    }
-    (OUT_DIR / "s2_collision.json").write_text(json.dumps(payload), encoding="utf-8")
-    print(f"wrote {OUT_DIR}")
+    sx_n = w // SCREEN_W
+    placements = getattr(classify_cells, "placements", [])
+    type_grid = type_grid_from_placements(placements, w // CELL, h // CELL)
+    export_layered_world(
+        world, fg_img, solid, fg, bookcase, biomes, im.load(), sx_n, type_grid
+    )
+    write_collision_json(im, solid, ladders, lifts, cases, placements)
 
 
 def rle_encode(indices: list[int]) -> list[int]:
@@ -2082,12 +1240,27 @@ def _is_fully_transparent(tile: Image.Image) -> bool:
     return extrema is not None and extrema[3] == (0, 0)
 
 
+def _is_empty_visual_tile(tile: Image.Image) -> bool:
+    """Transparent (fg) or opaque black (world layers) — skip in TileMap."""
+    if _is_fully_transparent(tile):
+        return True
+    if tile.mode != "RGB":
+        return False
+    extrema = tile.getextrema()
+    return (
+        extrema is not None
+        and extrema[0] == (0, 0)
+        and extrema[1] == (0, 0)
+        and extrema[2] == (0, 0)
+    )
+
+
 def collect_unique_cells(
     im: Image.Image, mode: str
 ) -> tuple[list[Image.Image], list[int], int, int, int | None]:
     """Return (tiles, row-major ids, cols, rows, empty_id).
 
-    `empty_id` is the fully-transparent cell for RGBA layers, else None.
+    `empty_id` is transparent (RGBA) or black (RGB) — omitted from TileMap.
     Every distinct 8×8 cell — including empty — keeps a stable index so a
     later re-rip does not shuffle atlas coordinates.
     """
@@ -2106,7 +1279,7 @@ def collect_unique_cells(
                 tid = len(tiles)
                 index_of[key] = tid
                 tiles.append(tile)
-                if empty_id is None and _is_fully_transparent(tile):
+                if empty_id is None and _is_empty_visual_tile(tile):
                     empty_id = tid
             ids.append(tid)
     return tiles, ids, cw, ch, empty_id
@@ -2153,7 +1326,7 @@ def _write_tileset_tres(
     lines = [
         "[gd_resource type=\"TileSet\" load_steps=2 format=3]",
         "",
-        f"[ext_resource type=\"Texture2D\" uid=\"{texture_uid}\" path=\"{texture_res}\" id=\"1\"]",
+        f"[ext_resource type=\"Texture2D\" path=\"{texture_res}\" id=\"1\"]",
         "",
         "[sub_resource type=\"TileSetAtlasSource\" id=\"TileSetAtlasSource_1\"]",
         "texture = ExtResource(\"1\")",
@@ -2184,8 +1357,8 @@ def _write_tileset_tres(
 def export_visual_tilesets(world: Image.Image, fg: Image.Image) -> dict:
     """Dump unique 8×8 cells to atlases + a cell-index JSON.
 
-    Passability is *not* encoded here. Two identical pictures can still
-    differ in s2_collision.json (fill_cave_earth, thicken_floors, …).
+    Passability is *not* encoded here. Collision lives in s2_collision.json
+    (object bounds + types), not in the visual atlas.
     """
     TILESET_DIR.mkdir(parents=True, exist_ok=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -2255,15 +1428,28 @@ def export_visual_tilesets(world: Image.Image, fg: Image.Image) -> dict:
 
 
 def export_tilesets_from_mosaics() -> None:
-    """Build atlases from the already-exported mosaics when the rip is absent."""
+    """Rebuild per-layer tilesets from committed mosaics or tile JSON."""
     world_path = OUT_DIR / "saboteur2_world.png"
     fg_path = OUT_DIR / "saboteur2_fg.png"
-    if not world_path.exists() or not fg_path.exists():
+    tiles_path = OUT_DIR / "s2_world_tiles.json"
+    if world_path.exists() and fg_path.exists():
+        world = Image.open(world_path).convert("RGB")
+        fg_img = Image.open(fg_path).convert("RGBA")
+        print(f"rip missing at {SRC}; layering from exported mosaics")
+    elif tiles_path.exists():
+        world = reconstruct_world_from_tiles()
+        fg_img = reconstruct_fg_from_tiles()
+        print(f"rip missing at {SRC}; layering from committed tile JSON")
+    else:
         raise SystemExit(
-            f"need {world_path.name} and {fg_path.name}, or the original rip at {SRC}"
+            f"need mosaics, {tiles_path.name}, or the original rip at {SRC}"
         )
-    print(f"rip missing at {SRC}; exporting tilesets from existing mosaics")
-    export_visual_tilesets(Image.open(world_path), Image.open(fg_path))
+    src = Image.open(SRC).convert("RGB") if SRC.exists() else world
+    solid, _keep, fg_mask, bookcase, _cases, biomes = classify_cells(src)
+    sx_n = src.width // SCREEN_W
+    export_layered_world(
+        world, fg_img, solid, fg_mask, bookcase, biomes, src.load(), sx_n
+    )
 
 
 if __name__ == "__main__":

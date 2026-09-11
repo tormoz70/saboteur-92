@@ -56,7 +56,9 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 
 | Script | Needs | Writes |
 |---|---|---|
-| `build_s2_world.py` | `maps/Saboteur2_speccy.png` | `assets/world/s2_collision.json`, `assets/tilesets/s2_world_tileset.png` (+ fg atlas) |
+| `build_s2_world.py` + `object_types.py` | `maps/Saboteur2_speccy.png` | `s2_collision.json` (`collision_source: object_bounds`), `s2_world_tiles.json` (layers sky…fg), `s2_objects.json` (+ `types` catalog), `objects/`, `s2_*_tileset.png` |
+| `test_world_layers.py` | committed tiles / optional mosaic | stdout (layer round-trip) |
+| `test_role_collision.py` | none | stdout (object type → stamp solid/climb) |
 | `build_s2_world.py --ladders-only` | mosaic, or committed tileset if the rip is absent | only the `ladders` array in `s2_collision.json` |
 | `audit_collision.py` | committed `s2_collision.json` + tileset PNG | stdout report (no dumps required) |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
