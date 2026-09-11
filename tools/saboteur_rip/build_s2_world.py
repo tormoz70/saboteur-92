@@ -1427,15 +1427,7 @@ def export_tilesets_from_mosaics() -> None:
 
 
 if __name__ == "__main__":
-    import sys
+    print("build_s2_world.py is retired; running decompose_world.py (bytecode objects)")
+    from decompose_world import main as decompose_main
 
-    if "--ladders-only" in sys.argv:
-        update_collision_ladders(load_world_image())
-    elif "--scaffold-only" in sys.argv:
-        update_collision_sky_scaffold(load_world_image())
-    elif "--floors-only" in sys.argv:
-        update_collision_diamond_floors(load_world_image())
-    elif SRC.exists():
-        main()
-    else:
-        export_tilesets_from_mosaics()
+    decompose_main()

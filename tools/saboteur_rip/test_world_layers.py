@@ -1,76 +1,85 @@
 #!/usr/bin/env python3
-"""Layer export round-trip and composite checks."""
+"""Object-registry layer checks — no TileMap RLE, no colour heuristics."""
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
 
-from PIL import Image
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import build_s2_world as b
+from opcode_catalog import LAYER_NAMES, LAYER_Z
+from PIL import Image
 
 OUT = ROOT / "assets" / "world"
-TILESET = ROOT / "assets" / "tilesets"
-
-
-def test_tiles_json_has_layers() -> None:
-    spec = json.loads((OUT / "s2_world_tiles.json").read_text(encoding="utf-8"))
-    layers = spec.get("layers", {})
-    for name in ("sky", "earth", "structure", "wallpaper", "interior", "fg"):
-        assert name in layers, f"missing layer {name}"
-        assert layers[name].get("rle"), f"empty rle for {name}"
-        assert Path(layers[name]["atlas"].replace("res://", str(ROOT) + "/")).exists()
 
 
 def test_objects_catalog() -> None:
     catalog = json.loads((OUT / "s2_objects.json").read_text(encoding="utf-8"))
-    assert catalog.get("defs"), "object defs"
-    assert catalog.get("placements"), "placements"
-    assert (OUT / "objects" / "fg").is_dir()
+    types = catalog.get("types") or {}
+    instances = catalog.get("instances") or []
+    assert types, "object types"
+    assert instances, "instances"
+    assert catalog.get("playfield") == [256, 144], catalog.get("playfield")
+    assert catalog.get("map") == [32, 32], catalog.get("map")
+    assert catalog.get("size") == [8192, 4608], catalog.get("size")
+    layers = {spec["layer"] for spec in types.values()}
+    for name in LAYER_NAMES.values():
+        assert name in catalog.get("layer_z", {}), name
+    assert "interior" in layers or "structure" in layers
+    sprites = 0
+    for tid, spec in types.items():
+        rel = spec["sprite"].replace("res://", "")
+        if (ROOT / rel).exists():
+            sprites += 1
+        base_z = LAYER_Z[[k for k, n in LAYER_NAMES.items() if n == spec["layer"]][0]]
+        if spec.get("overlay"):
+            assert spec["z"] > base_z, spec
+        elif tid == "wallpaper_green":
+            assert spec["z"] < base_z, spec
+        else:
+            assert spec["z"] == base_z
+    assert sprites > 0, "type sprites on disk"
+    assert "desk" in types, "desk overlay type"
+    desk = types["desk"]
+    assert desk["layer"] == "interior"
+    assert desk.get("overlay")
+    assert (ROOT / "assets/world/objects/interior/desk.png").exists()
+    px = Image.open(ROOT / "assets/world/objects/interior/desk.png")
+    assert px.mode == "RGBA"
+    assert any(p[3] == 0 for p in px.getdata()), "desk sprite keeps wallpaper holes"
+    moons = [i for i in instances if i.get("type") == "moon"]
+    assert len(moons) == 1, len(moons)
+    assert "moon" in types
+    assert "wallpaper_green" in types
+    paper = types["wallpaper_green"]
+    assert paper["layer"] == "interior"
+    assert paper["z"] == -15
+    assert paper["collision"] == "none"
+    papers = [i for i in instances if i.get("type") == "wallpaper_green"]
+    assert papers, "indoor rooms have wallpaper"
+    trees = [i for i in instances if str(i.get("type", "")).startswith("tree_")]
+    assert trees, "tree stamps exist"
+    assert "tree_left" in types and "tree_right" in types and "tree_leaves" in types
+    assert types["tree_left"]["layer"] == "sky"
+    crate = Image.open(ROOT / "assets/world/objects/interior/furniture_115.png")
+    assert crate.mode == "RGBA"
+    assert any(p[:3] == (255, 255, 0) for p in crate.getdata()), "BOX5P is bright yellow OCHRS crates"
+    px = Image.open(ROOT / "assets/world/objects/interior/wallpaper_green.png")
+    assert any(p[:3] in ((0, 255, 0), (0, 251, 0)) for p in px.getdata()), "indoor paper is ZX green brick"
 
 
-def test_layer_atlas_roundtrip() -> None:
-    spec = json.loads((OUT / "s2_world_tiles.json").read_text(encoding="utf-8"))
-    cw, ch = spec["grid"]
-    for name, layer in spec["layers"].items():
-        mode = "RGBA" if name == "fg" else "RGB"
-        ids = b.rle_decode(layer["rle"])
-        atlas_cols = layer["atlas_tiles"][0]
-        atlas_path = TILESET / Path(layer["atlas"]).name
-        atlas = Image.open(atlas_path).convert(mode)
-        rebuilt = b.reconstruct_from_atlas(atlas, ids, cw, ch, atlas_cols, mode)
-        assert len(ids) == cw * ch, name
-
-
-def test_world_composite_if_mosaic() -> None:
-    if not b.SRC.exists():
-        return
-    im = Image.open(b.SRC).convert("RGB")
-    solid, _lad, fg, bookcase, cases, biomes = b.classify_cells(im)
-    world = im.copy()
-    b.paint_cabinet_backs(world, bookcase)
-    lifts, _car, car_rows = b.find_lifts(im, solid)
-    b.paint_lift_cars(world, car_rows)
-    b.punch_fg_cells(world, fg)
-    fg_img = b.crate_overlay(im, fg, bookcase, cases)
-    sx_n = im.width // b.SCREEN_W
-    b.export_layered_world(
-        world, fg_img, solid, fg, bookcase, biomes, im.load(), sx_n
-    )
-    spec = json.loads((OUT / "s2_world_tiles.json").read_text(encoding="utf-8"))
-    rebuilt_world = b.reconstruct_world_from_tiles()
-    assert rebuilt_world.tobytes() == world.tobytes()
+def test_collision_from_objects() -> None:
+    data = json.loads((OUT / "s2_collision.json").read_text(encoding="utf-8"))
+    assert data.get("collision_source") == "object_bounds"
+    assert data.get("solids")
+    assert data.get("ladders")
 
 
 def main() -> None:
-    test_tiles_json_has_layers()
     test_objects_catalog()
-    test_layer_atlas_roundtrip()
-    test_world_composite_if_mosaic()
+    test_collision_from_objects()
     print("test_world_layers: OK")
 
 

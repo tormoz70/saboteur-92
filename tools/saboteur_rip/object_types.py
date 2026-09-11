@@ -200,7 +200,13 @@ def is_earth_char(rows: list[list[str]]) -> bool:
     if is_blue_brick_char(rows):
         return False
     flat = [p for row in rows for p in row]
-    return sum(p == "k" for p in flat) > sum(p == "b" for p in flat)
+    b = sum(p == "b" for p in flat)
+    k = sum(p == "k" for p in flat)
+    # Speckle / cracks: a few blue marks on black. Window frames are the
+    # same two inks but a black stile with a blue glass edge (b ≥ 20).
+    if b >= 20 or k <= b:
+        return False
+    return True
 
 
 def is_girder_char(rows: list[list[str]]) -> bool:
@@ -349,7 +355,9 @@ def scan_objects(im) -> list[dict]:
     _mark_occupied(occupied, brick)
 
     lips = _girder_lips(_mask(cw, ch, is_girder_char, px), occupied)
-    girders = _horizontal_strips(lips, min_w=1, occupied=occupied)
+    # Window moons are the same white-on-blue character as a girder, but
+    # only one cell wide. Real decks are strips.
+    girders = _horizontal_strips(lips, min_w=3, occupied=occupied)
     for p in girders:
         placements.append({"type": "sky_girder", **{k: p[k] for k in "xywh"}})
     _mark_occupied(occupied, girders)

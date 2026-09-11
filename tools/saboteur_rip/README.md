@@ -5,8 +5,8 @@ original dumps. Those dumps are **local developer reference only** — they stay
 out of git (`assets/reference/` is in `.gitignore`) and they must not ship in
 the APK. See `docs/remediation_plan.md`, stage 5.
 
-Game runtime does **not** need this folder. Collision, tilesets and mission
-entities under `assets/world/` and `assets/tilesets/` are already committed.
+Game runtime does **not** need this folder. Collision, object sprites and mission
+entities under `assets/world/` are already committed.
 `tools/saboteur_rip/audit_collision.py` also runs against those committed
 files, so CI does not need the dumps.
 
@@ -56,11 +56,12 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 
 | Script | Needs | Writes |
 |---|---|---|
-| `build_s2_world.py` + `object_types.py` | `maps/Saboteur2_speccy.png` | `s2_collision.json` (`collision_source: object_bounds`), `s2_world_tiles.json` (layers sky…fg), `s2_objects.json` (+ `types` catalog), `objects/`, `s2_*_tileset.png` |
-| `test_world_layers.py` | committed tiles / optional mosaic | stdout (layer round-trip) |
-| `test_role_collision.py` | none | stdout (object type → stamp solid/climb) |
-| `build_s2_world.py --ladders-only` | mosaic, or committed tileset if the rip is absent | only the `ladders` array in `s2_collision.json` |
-| `audit_collision.py` | committed `s2_collision.json` + tileset PNG | stdout report (no dumps required) |
+| `decompose_world.py` | `S2ROOM.MAC` + `S2CORE.MAC` + `S2SPRT.MAC` (+ mosaic to verify / crop empty prefabs) | `s2_objects.json` (types+instances), `objects/<layer>/*.png`, `s2_collision.json` (`collision_source: object_bounds`) |
+| `build_s2_world.py` | same (wrapper) | calls `decompose_world.main()` — mosaic colour heuristics are retired |
+| `test_room_bytecode.py` | disasm | stdout (246 rooms, SMAP, ladders) |
+| `test_role_collision.py` | none | stdout (marker collision + hatch stamp) |
+| `test_world_layers.py` | committed `s2_objects.json` | stdout (registry layers / sprites) |
+| `audit_collision.py` | committed `s2_collision.json` | stdout report (no dumps required) |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
 | `extract_from_disasm.py` | `sabot1core.asm` | `ripped/` |
 | `extract_from_z80.py` | `snap/SABOTEUR.Z80` | `extracted/` |
@@ -81,28 +82,9 @@ programmatic ZX-style generator. It does not read `assets/reference/`.
 
 ```bash
 pip install -r tools/requirements.txt
-python tools/saboteur_rip/build_s2_world.py
-python tools/saboteur_rip/audit_collision.py
+python tools/saboteur_rip/decompose_world.py
+python tools/saboteur_rip/test_room_bytecode.py
 ```
 
-Without the mosaic PNG the first command only re-exports tilesets. To refresh
-climb zones from the committed visual tileset (green rails, white X-lattice,
-and the white-on-blue sky pair):
-
-```bash
-python tools/saboteur_rip/build_s2_world.py --ladders-only
-```
-
-To mark the white diamond slabs (interior room dividers and outdoor girder
-decks) and cave-tunnel floors/ceilings (including flooded black corridors
-between brick masses) as walkable solids, punch decorative red support
-posts, and clear blue-brick wallpaper plus crates so they are never walls,
-without growing those slabs downward:
-
-```bash
-python tools/saboteur_rip/build_s2_world.py --floors-only
-```
-
-Without the mosaic PNG the first command only re-exports tilesets.
-`--ladders-only` and `--floors-only` still work from the committed visual
-tileset and rewrite `s2_collision.json`.
+`build_s2_world.py` is a compatibility wrapper around the same decompose step.
+Colour-heuristic flags (`--ladders-only`, `--floors-only`) are retired.

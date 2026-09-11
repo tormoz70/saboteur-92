@@ -4,11 +4,9 @@ const WorldLayers := preload("res://scripts/world/world_layers.gd")
 
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
-const TILES_PATH := "res://assets/world/s2_world_tiles.json"
 const OBJECTS_PATH := "res://assets/world/s2_objects.json"
-const WORLD_TILESET_PATH := "res://assets/tilesets/s2_world_tileset.tres"
-const FG_TILESET_PATH := "res://assets/tilesets/s2_fg_tileset.tres"
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
+const WORLD_OBJECT_SCRIPT := preload("res://scripts/world/world_object.gd")
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
@@ -39,12 +37,14 @@ var _map_layers: Dictionary = {}
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var world: Node2D = $World
-@onready var sky_layer: TileMapLayer = $Sky
-@onready var earth_layer: TileMapLayer = $Earth
-@onready var structure_layer: TileMapLayer = $Structure
-@onready var wallpaper_layer: TileMapLayer = $Wallpaper
-@onready var interior_layer: TileMapLayer = $Interior
-@onready var fg_layer: TileMapLayer = $Foreground
+@onready var sky_layer: Node2D = $Sky
+@onready var earth_layer: Node2D = $Earth
+@onready var structure_layer: Node2D = $Structure
+@onready var interior_layer: Node2D = $Interior
+@onready var artifacts_layer: Node2D = $Artifacts
+@onready var machines_layer: Node2D = $Machines
+@onready var actors_layer: Node2D = $ActorsLayer
+@onready var fg_layer: Node2D = $Foreground
 
 
 func _ready() -> void:
@@ -81,7 +81,7 @@ func _process(delta: float) -> void:
 func _load_original_world() -> void:
 	var data := _load_json(COLLISION_PATH)
 	if data.is_empty():
-		push_error("Missing %s — run tools/saboteur_rip/build_s2_world.py" % COLLISION_PATH)
+		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % COLLISION_PATH)
 		return
 	_scale = float(data.get("scale", 2))
 	var scr: Array = data.get("screen", [256, 192])
@@ -90,7 +90,7 @@ func _load_original_world() -> void:
 	_world_size = Vector2(float(sz[0]), float(sz[1]))
 	# Spawn is not in this file — s2_entities.json is the source of truth.
 
-	_add_map_layers()
+	_add_object_layers()
 
 	_bookcases.clear()
 	for rect in data.get("bookcases", []):
@@ -149,162 +149,47 @@ func _load_original_world() -> void:
 		vp.size_changed.connect(_on_viewport_size_changed)
 
 
-func _add_map_layers() -> void:
-	var tiles := _load_json(TILES_PATH)
-	if tiles.is_empty():
+func _add_object_layers() -> void:
+	var catalog := _load_json(OBJECTS_PATH)
+	if catalog.is_empty():
+		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % OBJECTS_PATH)
 		return
 	_map_layers.clear()
 	var layer_nodes := {
 		"sky": sky_layer,
 		"earth": earth_layer,
 		"structure": structure_layer,
-		"wallpaper": wallpaper_layer,
 		"interior": interior_layer,
+		"artifacts": artifacts_layer,
+		"machines": machines_layer,
+		"actors": actors_layer,
 		"fg": fg_layer,
 	}
-	var layers_spec: Dictionary = tiles.get("layers", {})
-	var world_spec: Dictionary = tiles.get("world", {})
-	if layers_spec.is_empty() or not _per_layer_export_ready(layers_spec):
-		_hide_tile_layers(layer_nodes)
-		structure_layer.visible = true
-		fg_layer.visible = true
-		_fill_visual_layer(
-			structure_layer,
-			str(world_spec.get("tileset", WORLD_TILESET_PATH)),
-			tiles,
-			world_spec,
-			WorldLayers.Z_STRUCTURE,
-		)
-		var fg_spec: Dictionary = layers_spec.get("fg", tiles.get("fg", {}))
-		_fill_visual_layer(
-			fg_layer,
-			str(fg_spec.get("tileset", FG_TILESET_PATH)),
-			tiles,
-			fg_spec,
-			WorldLayers.Z_FG,
-		)
-		_map_layers["structure"] = structure_layer
-		_map_layers["fg"] = fg_layer
-		return
-	for layer_name in WorldLayers.TILE_LAYER_ORDER:
-		var layer: TileMapLayer = layer_nodes.get(layer_name)
-		var spec: Dictionary = layers_spec.get(layer_name, {})
-		if layer == null or spec.is_empty():
-			push_error("Missing map layer %s" % layer_name)
-			continue
-		var tileset_path: String = str(spec.get("tileset", ""))
-		var z: int = int(spec.get("z", WorldLayers.TILE_LAYER_Z.get(layer_name, 0)))
-		_fill_visual_layer(layer, tileset_path, tiles, spec, z)
-		_map_layers[layer_name] = layer
-
-
-func _per_layer_export_ready(layers_spec: Dictionary) -> bool:
-	# Per-layer TileMaps need empty_id on RGB layers so black cells do not cover the stack.
-	for layer_name in ["sky", "earth", "structure", "wallpaper", "interior"]:
-		var spec: Dictionary = layers_spec.get(layer_name, {})
-		if spec.is_empty():
-			return false
-		if spec.get("empty") == null:
-			return false
-	return true
-
-
-func _hide_tile_layers(layer_nodes: Dictionary) -> void:
 	for layer_name in layer_nodes:
-		var node: TileMapLayer = layer_nodes[layer_name]
-		if node:
-			node.visible = false
-
-
-func _fill_visual_layer(
-	layer: TileMapLayer, tileset_path: String, tiles: Dictionary, spec: Dictionary, z: int
-) -> void:
-	if layer == null:
-		push_error("Missing TileMapLayer for %s" % tileset_path)
-		return
-	if spec.is_empty():
-		push_error("Missing tile layer data for %s" % tileset_path)
-		return
-	if not ResourceLoader.exists(tileset_path):
-		push_error("Missing tileset %s" % tileset_path)
-		return
-	var tileset := load(tileset_path) as TileSet
-	if tileset == null:
-		push_error("Could not load tileset %s" % tileset_path)
-		return
-	# Visual layer only — passability stays in s2_collision.json (object bounds).
-	layer.tile_set = tileset
-	layer.collision_enabled = false
-	layer.navigation_enabled = false
-	layer.rendering_quadrant_size = 32
-	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	layer.scale = Vector2(_scale, _scale)
-	layer.z_index = z
-	var src := tileset.get_source(0) as TileSetAtlasSource
-	if src:
-		src.use_texture_padding = true
-		src.texture_region_size = Vector2i(int(tiles.get("cell", 8)), int(tiles.get("cell", 8)))
-		_ensure_atlas_tiles(src, spec)
-	layer.tile_map_data = _rle_to_tile_map_data(spec, int(tiles["grid"][0]))
-
-
-func _rle_to_tile_map_data(spec: Dictionary, cw: int) -> PackedByteArray:
-	# Godot 4.6 TileMapLayer.tile_map_data: uint16 format, then 12-byte cells
-	# (int16 x, int16 y, uint16 source, int16 atlas_x, int16 atlas_y, uint16 alt).
-	var atlas_cols := int(spec["atlas_tiles"][0])
-	var empty_var: Variant = spec.get("empty", null)
-	var has_empty := empty_var != null
-	var empty_id := int(empty_var) if has_empty else -1
-	var rle: Array = spec["rle"]
-	var used := 0
-	var i := 0
-	var rle_n: int = rle.size()
-	while i < rle_n:
-		var tid := int(rle[i])
-		var count := int(rle[i + 1])
-		i += 2
-		if not (has_empty and tid == empty_id):
-			used += count
-	var data := PackedByteArray()
-	data.resize(2 + used * 12)
-	data.encode_u16(0, 0)
-	var off := 2
-	var cell_i := 0
-	i = 0
-	while i < rle_n:
-		var tid := int(rle[i])
-		var count := int(rle[i + 1])
-		i += 2
-		if has_empty and tid == empty_id:
-			cell_i += count
+		var node: Node2D = layer_nodes[layer_name]
+		if node == null:
 			continue
-		var ax := tid % atlas_cols
-		var ay: int = tid / atlas_cols
-		for _n in count:
-			data.encode_s16(off, cell_i % cw)
-			data.encode_s16(off + 2, int(cell_i / cw))
-			data.encode_u16(off + 4, 0)
-			data.encode_s16(off + 6, ax)
-			data.encode_s16(off + 8, ay)
-			data.encode_u16(off + 10, 0)
-			off += 12
-			cell_i += 1
-	return data
-
-
-func _ensure_atlas_tiles(src: TileSetAtlasSource, spec: Dictionary) -> void:
-	var cols := int(spec["atlas_tiles"][0])
-	var rows := int(spec["atlas_tiles"][1])
-	var n := int(spec["tile_count"])
-	var i := 0
-	for y in rows:
-		for x in cols:
-			if i >= n:
-				return
-			var coords := Vector2i(x, y)
-			if not src.has_tile(coords):
-				src.create_tile(coords)
-			i += 1
+		for child in node.get_children():
+			node.remove_child(child)
+			child.free()
+		node.z_index = int(WorldLayers.LAYER_Z.get(layer_name, 0))
+		_map_layers[layer_name] = node
+	var types: Dictionary = catalog.get("types", {})
+	for inst in catalog.get("instances", []):
+		var tid := str(inst.get("type", ""))
+		var type_def: Dictionary = types.get(tid, {})
+		if type_def.is_empty():
+			continue
+		var layer_name := str(type_def.get("layer", inst.get("layer", "interior")))
+		var parent: Node2D = layer_nodes.get(layer_name)
+		if parent == null:
+			parent = interior_layer
+		var obj: Node2D = WORLD_OBJECT_SCRIPT.new()
+		parent.add_child(obj)
+		if not type_def.has("z"):
+			type_def = type_def.duplicate()
+			type_def["z"] = int(WorldLayers.LAYER_Z.get(layer_name, 0))
+		obj.setup(inst, type_def, _scale)
 
 
 func _add_lifts(data: Dictionary) -> void:
@@ -721,7 +606,7 @@ func _on_player_punch_hit(body: Node2D) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Debug: digit keys 0–4 and 8 toggle authoring tile layers (sky … interior, fg).
+	# Debug: digit keys 0–7 toggle object layers (sky … fg).
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 	var layer_name := ""
@@ -733,13 +618,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_2:
 			layer_name = "structure"
 		KEY_3:
-			layer_name = "wallpaper"
-		KEY_4:
 			layer_name = "interior"
-		KEY_8:
+		KEY_4:
+			layer_name = "artifacts"
+		KEY_5:
+			layer_name = "machines"
+		KEY_6:
+			layer_name = "actors"
+		KEY_7:
 			layer_name = "fg"
 		_:
 			return
-	var layer: TileMapLayer = _map_layers.get(layer_name)
+	var layer: Node2D = _map_layers.get(layer_name)
 	if layer:
 		layer.visible = not layer.visible

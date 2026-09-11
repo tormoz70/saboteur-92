@@ -8,10 +8,10 @@ extends SceneTree
 ## compared pixel-for-pixel before and after the TileMapLayer conversion.
 
 const POINTS := [
-	{"name": "spawn", "pos": Vector2(4528, 1640)},
-	{"name": "rooftop", "pos": Vector2(2560, 384)},
-	{"name": "interior", "pos": Vector2(6400, 3200)},
-	{"name": "cave", "pos": Vector2(1200, 4800)},
+	{"name": "spawn", "pos": Vector2(4528, 1200)},
+	{"name": "rooftop", "pos": Vector2(2560, 288)},
+	{"name": "interior", "pos": Vector2(6400, 2432)},
+	{"name": "cave", "pos": Vector2(1200, 3648)},
 ]
 
 var _frames: int = 0
