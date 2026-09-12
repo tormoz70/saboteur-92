@@ -1,0 +1,12 @@
+{
+  "skipped": false,
+  "screens": 768,
+  "pixels_compared": 2359296,
+  "pixels_differ": 988903,
+  "match_ratio": 0.5808482699924045,
+  "room1_best_screen": {
+    "mx": 4,
+    "my": 0,
+    "match_ratio": 0.7257
+  }
+}

@@ -3,10 +3,10 @@ extends Node2D
 const WorldLayers := preload("res://scripts/world/world_layers.gd")
 
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
+const COLLISION_TILES_PATH := "res://assets/world/s2_collision_tiles.json"
+const TILES_PATH := "res://assets/world/s2_world_tiles.json"
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
-const OBJECTS_PATH := "res://assets/world/s2_objects.json"
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
-const WORLD_OBJECT_SCRIPT := preload("res://scripts/world/world_object.gd")
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
@@ -37,14 +37,16 @@ var _map_layers: Dictionary = {}
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var world: Node2D = $World
-@onready var sky_layer: Node2D = $Sky
-@onready var earth_layer: Node2D = $Earth
-@onready var structure_layer: Node2D = $Structure
-@onready var interior_layer: Node2D = $Interior
+@onready var sky_layer: TileMapLayer = $Sky
+@onready var earth_layer: TileMapLayer = $Earth
+@onready var structure_layer: TileMapLayer = $Structure
+@onready var wallpaper_layer: TileMapLayer = $Wallpaper
+@onready var interior_layer: TileMapLayer = $Interior
 @onready var artifacts_layer: Node2D = $Artifacts
 @onready var machines_layer: Node2D = $Machines
 @onready var actors_layer: Node2D = $ActorsLayer
-@onready var fg_layer: Node2D = $Foreground
+@onready var fg_layer: TileMapLayer = $Foreground
+@onready var collision_layer: TileMapLayer = $CollisionLayer
 
 
 func _ready() -> void:
@@ -90,7 +92,7 @@ func _load_original_world() -> void:
 	_world_size = Vector2(float(sz[0]), float(sz[1]))
 	# Spawn is not in this file — s2_entities.json is the source of truth.
 
-	_add_object_layers()
+	_setup_from_tilemap()
 
 	_bookcases.clear()
 	for rect in data.get("bookcases", []):
@@ -105,18 +107,25 @@ func _load_original_world() -> void:
 		world.remove_child(child)
 		child.free()
 
+	var solids: Array = data.get("solids", [])
+	var ladders_rects: Array = data.get("ladders", [])
+	var from_tiles := _collision_rects_from_tiles()
+	if not from_tiles.is_empty():
+		solids = from_tiles.get("solids", solids)
+		ladders_rects = from_tiles.get("ladders", ladders_rects)
+
 	var body := StaticBody2D.new()
 	body.name = "Solids"
 	body.collision_layer = CollisionLayers.LAYER_WORLD
 	body.collision_mask = 0
 	world.add_child(body)
-	for rect in data.get("solids", []):
+	for rect in solids:
 		_add_rect_shape(body, rect)
 
 	var ladders := Node2D.new()
 	ladders.name = "Ladders"
 	world.add_child(ladders)
-	for rect in data.get("ladders", []):
+	for rect in ladders_rects:
 		var area := Area2D.new()
 		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
 		area.collision_mask = 0
@@ -149,47 +158,74 @@ func _load_original_world() -> void:
 		vp.size_changed.connect(_on_viewport_size_changed)
 
 
-func _add_object_layers() -> void:
-	var catalog := _load_json(OBJECTS_PATH)
-	if catalog.is_empty():
-		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % OBJECTS_PATH)
+func _setup_from_tilemap() -> void:
+	var tiles := _load_json(TILES_PATH)
+	if tiles.is_empty():
+		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % TILES_PATH)
 		return
+	_scale = float(tiles.get("scale", _scale))
+	var sz: Array = tiles.get("size", [_world_size.x, _world_size.y])
+	_world_size = Vector2(float(sz[0]), float(sz[1]))
 	_map_layers.clear()
 	var layer_nodes := {
 		"sky": sky_layer,
 		"earth": earth_layer,
 		"structure": structure_layer,
+		"wallpaper": wallpaper_layer,
 		"interior": interior_layer,
-		"artifacts": artifacts_layer,
-		"machines": machines_layer,
-		"actors": actors_layer,
 		"fg": fg_layer,
 	}
+	var specs: Dictionary = tiles.get("layers", {})
 	for layer_name in layer_nodes:
-		var node: Node2D = layer_nodes[layer_name]
-		if node == null:
+		var layer: TileMapLayer = layer_nodes[layer_name]
+		if layer == null:
 			continue
-		for child in node.get_children():
-			node.remove_child(child)
-			child.free()
-		node.z_index = int(WorldLayers.LAYER_Z.get(layer_name, 0))
-		_map_layers[layer_name] = node
-	var types: Dictionary = catalog.get("types", {})
-	for inst in catalog.get("instances", []):
-		var tid := str(inst.get("type", ""))
-		var type_def: Dictionary = types.get(tid, {})
-		if type_def.is_empty():
-			continue
-		var layer_name := str(type_def.get("layer", inst.get("layer", "interior")))
-		var parent: Node2D = layer_nodes.get(layer_name)
-		if parent == null:
-			parent = interior_layer
-		var obj: Node2D = WORLD_OBJECT_SCRIPT.new()
-		parent.add_child(obj)
-		if not type_def.has("z"):
-			type_def = type_def.duplicate()
-			type_def["z"] = int(WorldLayers.LAYER_Z.get(layer_name, 0))
-		obj.setup(inst, type_def, _scale)
+		var spec: Dictionary = specs.get(layer_name, {})
+		layer.z_index = int(spec.get("z", WorldLayers.LAYER_Z.get(layer_name, 0)))
+		layer.scale = Vector2(_scale, _scale)
+		layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var tileset_path := str(spec.get("tileset", ""))
+		if tileset_path != "" and ResourceLoader.exists(tileset_path):
+			layer.tile_set = load(tileset_path)
+		if not spec.is_empty():
+			var fill_spec := spec.duplicate()
+			fill_spec["grid"] = tiles.get("grid", spec.get("grid", []))
+			TileMapUtils.fill_from_rle(layer, fill_spec)
+		_map_layers[layer_name] = layer
+	_map_layers["artifacts"] = artifacts_layer
+	_map_layers["machines"] = machines_layer
+	_map_layers["actors"] = actors_layer
+	if collision_layer:
+		collision_layer.z_index = WorldLayers.Z_COLLISION
+		collision_layer.scale = Vector2(_scale, _scale)
+		collision_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_map_layers["collision"] = collision_layer
+
+
+func _collision_rects_from_tiles() -> Dictionary:
+	var ctiles := _load_json(COLLISION_TILES_PATH)
+	if ctiles.is_empty():
+		return {}
+	if collision_layer:
+		var fill_spec := ctiles.duplicate()
+		if ResourceLoader.exists(str(ctiles.get("tileset", ""))):
+			collision_layer.tile_set = load(str(ctiles["tileset"]))
+		TileMapUtils.fill_from_rle(collision_layer, fill_spec)
+	var grid: Array = ctiles.get("grid", [])
+	if grid.size() < 2:
+		return {}
+	var cw := int(grid[0])
+	var ch := int(grid[1])
+	var cell := int(ctiles.get("cell", TileMapUtils.CELL))
+	var ids := TileMapUtils.rle_decode(ctiles.get("rle", []))
+	var climb_ids := TileMapUtils.rle_decode(ctiles.get("ladder_rle", []))
+	var masks := TileMapUtils.ids_to_masks(ids, cw, ch, climb_ids)
+	var solid: Array = masks["solid"]
+	var climb: Array = masks["climb"]
+	return {
+		"solids": TileMapUtils.greedy_merge_rects(solid, cell),
+		"ladders": TileMapUtils.ladder_rects(climb, cell),
+	}
 
 
 func _add_lifts(data: Dictionary) -> void:
@@ -581,6 +617,8 @@ func _start_demo_if_requested() -> void:
 		_add_probe("MissionDemo", "res://scripts/demo/mission_demo.gd")
 	if args.has("--demo-tilt"):
 		_add_probe("TiltDemo", "res://scripts/demo/tilt_demo.gd")
+	if args.has("--demo-maze"):
+		_add_probe("MazeDebug", "res://scripts/demo/maze_debug.gd")
 
 
 func _add_probe(probe_name: String, script_path: String) -> void:
@@ -618,15 +656,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_2:
 			layer_name = "structure"
 		KEY_3:
-			layer_name = "interior"
+			layer_name = "wallpaper"
 		KEY_4:
-			layer_name = "artifacts"
+			layer_name = "interior"
 		KEY_5:
 			layer_name = "machines"
 		KEY_6:
 			layer_name = "actors"
 		KEY_7:
 			layer_name = "fg"
+		KEY_8:
+			layer_name = "fg"
+		KEY_9:
+			layer_name = "collision"
 		_:
 			return
 	var layer: Node2D = _map_layers.get(layer_name)

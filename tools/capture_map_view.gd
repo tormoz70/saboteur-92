@@ -4,8 +4,8 @@ extends SceneTree
 ## Usage:
 ##   DISPLAY=:99 godot --path . -s tools/capture_map_view.gd -- /tmp/out_dir
 ##
-## Hides HUD, touch controls and the player so the map itself can be
-## compared pixel-for-pixel before and after the TileMapLayer conversion.
+## Hides HUD, touch, player, items and guards so the TileMap can be
+## compared pixel-for-pixel with the mosaic / layer composite.
 
 const POINTS := [
 	{"name": "spawn", "pos": Vector2(4528, 1200)},
@@ -61,17 +61,35 @@ func _prepare_scene() -> void:
 		return
 	_camera = _level.get_node("Camera2D") as Camera2D
 	_hide(_level.get_node_or_null("Player"))
+	_hide(_level.get_node_or_null("Artifacts"))
+	_hide(_level.get_node_or_null("ActorsLayer"))
+	_hide(_level.get_node_or_null("Items"))
+	_hide(_level.get_node_or_null("Guards"))
+	_hide(_level.get_node_or_null("SabotageTarget"))
+	_hide(_level.get_node_or_null("ExitZone"))
+	_hide(main.get_node_or_null("HUD"))
+	_hide(main.get_node_or_null("TouchControls"))
+	_hide(_level.get_node_or_null("Letterbox"))
 	# Stop the follow-cam so later viewpoints are not pulled back to spawn.
 	_level.set_process(false)
 	_level.set_physics_process(false)
+	# Honour POINTS exactly — map limits would clamp rooftop/cave into sky.
+	_camera.limit_smoothed = false
+	_camera.position_smoothing_enabled = false
+	_camera.limit_left = -100000
+	_camera.limit_top = -100000
+	_camera.limit_right = 100000
+	_camera.limit_bottom = 100000
 	# Integer 2× mosaic pixels when the user arg is "2x":
 	# tile 8 × layer scale 2 × zoom 1. Game zoom (1.875) is the default.
 	var integer_2x := _out_dir.ends_with("2x") or _out_dir.contains("2x")
 	if integer_2x:
-		_hide(main.get_node_or_null("HUD"))
-		_hide(main.get_node_or_null("TouchControls"))
-		_hide(_level.get_node_or_null("Letterbox"))
 		_camera.zoom = Vector2.ONE
+	if _out_dir.contains("collision"):
+		var overlay := _level.get_node_or_null("CollisionLayer") as TileMapLayer
+		if overlay:
+			overlay.visible = true
+			overlay.modulate = Color(1, 1, 1, 0.7)
 	_idx = 0
 	_camera.global_position = POINTS[_idx]["pos"]
 	_camera.reset_physics_interpolation()

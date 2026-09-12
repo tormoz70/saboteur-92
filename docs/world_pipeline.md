@@ -29,10 +29,10 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
    │ assets/tilesets/s2_*_tileset │                                       │
    └──────────────────────────────┴───────────────────────────────────────┘
         │                                    │
-        │   scripts/levels/level_01.gd::_load_original_world()
+        │   scripts/levels/level_01.gd::_setup_from_tilemap()
         ▼                                    ▼
-   TileMapLayer Sky…Interior, FG      StaticBody2D / Ladders / Lifts
-   (WorldLayers, z −30…12)            (как раньше)
+   TileMapLayer Sky…Interior, FG      greedy-merge CollisionLayer
+   (WorldLayers, z −30…12)            Solids / Ladders / Lifts
 ```
 
 ### 1.0. Авторские слои (id = z)
@@ -83,9 +83,9 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
 | `cell` | int | — | Размер символьной ячейки ZX (`8`) |
 | `screen` | `[w, h]` | — | Размер экрана Spectrum (`[256, 192]`) — задаёт зум камеры и мёртвую зону |
 | `size` | `[w, h]` | — | Размер мозаики в пикселях (`[8192, 4608]`) |
-| `solids` | `[x, y, w, h]` | 4643 | Прямоугольники коллизий, слой 4 |
-| `ladders` | `[x, y, w, h]` | 123 | Зоны лестниц, `Area2D` на слое 16 |
-| `lifts` | `{x, y, w, h, top, bottom}` | 4 | Кабина и границы шахты |
+| `solids` | `[x, y, w, h]` | 3292 | Прямоугольники коллизий (экспорт из тайлов) |
+| `ladders` | `[x, y, w, h]` | 133 | Зоны лестниц, `Area2D` на слое 16 |
+| `lifts` | `{x, y, w, h, top, bottom}` | 6 | Кабина и границы шахты |
 | `bookcases` | `[x, y, w, h]` | 9 | Только для шейдера обводки, не коллизия |
 | `collision_layers` | `string[]` | — | Семантика солидов: `earth`, `structure` |
 | `collision_source` | string | — | `object_bounds` — штамп из `{type, rect}`, не по кирпичу |
@@ -94,9 +94,7 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
 (координаты тоже PNG-пиксели, как у солидов). Генератор этот файл не трогает;
 `preview()` читает `spawn` оттуда, чтобы маркер на картинке совпадал с рантаймом.
 
-`level_01.gd` собирает из collision JSON узлы процедурно: `_add_rect_shape()` для солидов,
-цикл с `Area2D` для лестниц, `_add_lifts()` для лифтов. Прямоугольники солидов
-получаются жадной склейкой ячеек (`greedy_rects()`), поэтому их 4643, а не 200 тысяч.
+`level_01.gd` заливает визуальные слои из `s2_world_tiles.json` в `TileMapLayer`, коллизионную сетку — из `s2_collision_tiles.json`. Прямоугольники солидов и лестниц снова получаются жадной склейкой (`TileMapUtils.greedy_merge_rects` / `ladder_rects`). Лифты и книжные шкафы читаются из `s2_collision.json`. Как править карту в редакторе — [level_editor.md](level_editor.md).
 
 Зоны лестниц дополнительно расширяются на ±4 пикселя (`[x - 4, y, w + 8, h]`)
 и отбрасываются, если короче 24 пикселей, — чтобы окна и обои рядом с шахтой
@@ -107,9 +105,7 @@ assets/reference/original/maps/Saboteur2_speccy.png     ← рип, в .gitignor
 Это ключевой факт, и он в пользу твоего плана.
 
 `player.gd`, `lift.gd`, `guard.gd` не содержат ни одной ссылки на исходный материал.
-`level_01.gd` читает JSON с числами и текстуру по пути. Замени содержимое JSON и PNG —
-и код продолжит работать как есть. С точки зрения игровой логики мир уже **данные**,
-а не захардкоженный уровень.
+`level_01.gd` читает tile JSON (`s2_world_tiles.json`, `s2_collision_tiles.json`) и прямоугольники лифтов из `s2_collision.json`. Замени атлас и RLE — код продолжит работать как есть.
 
 Поэтому «перерисовать мир» **не требует** правок в игровом коде. Проблема в другом месте.
 

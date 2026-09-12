@@ -600,6 +600,17 @@ def main() -> None:
     cpath = OUT / "s2_collision.json"
     cpath.write_text(json.dumps(collision, separators=(",", ":")), encoding="utf-8")
     print(f"wrote {cpath} solids={len(solids)} ladders={len(ladders)} lifts={len(lifts)}")
+    from collision_tiles import export_from_stamp_grids
+
+    export_from_stamp_grids(
+        solid,
+        climb,
+        cell=CELL,
+        scale=SCALE,
+        size=[map_w * SCREEN_W, map_h * PLAYFIELD_H],
+        screen=[SCREEN_W, SCREEN_H],
+    )
+    print("wrote", OUT / "s2_collision_tiles.json")
 
     report = verify_mosaic(rooms, smap, bchrs)
     print("verify", json.dumps(report))

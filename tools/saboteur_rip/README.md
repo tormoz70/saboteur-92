@@ -56,12 +56,14 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 
 | Script | Needs | Writes |
 |---|---|---|
-| `decompose_world.py` | `S2ROOM.MAC` + `S2CORE.MAC` + `S2SPRT.MAC` (+ mosaic to verify / crop empty prefabs) | `s2_objects.json` (types+instances), `objects/<layer>/*.png`, `s2_collision.json` (`collision_source: object_bounds`) |
+| `decompose_world.py` | `S2ROOM.MAC` + `S2CORE.MAC` + `S2SPRT.MAC` (+ mosaic to verify / crop empty prefabs) | `s2_objects.json` (types+instances), `objects/<layer>/*.png`, `s2_collision.json` (`collision_source: object_bounds`), `s2_collision_tiles.json` |
+| `collision_tiles.py` | committed `s2_collision.json` + `s2_world_tiles.json` | `s2_collision_tiles.json`, `s2_collision_tileset.*`, `test/fixtures/screen_spawn_tiles.json`, `scenes/levels/screen_spawn.tscn` |
 | `build_s2_world.py` | same (wrapper) | calls `decompose_world.main()` — mosaic colour heuristics are retired |
 | `test_room_bytecode.py` | disasm | stdout (246 rooms, SMAP, ladders) |
 | `test_role_collision.py` | none | stdout (marker collision + hatch stamp) |
 | `test_world_layers.py` | committed `s2_objects.json` | stdout (registry layers / sprites) |
 | `audit_collision.py` | committed `s2_collision.json` | stdout report (no dumps required) |
+| `labyrinth.py` / `test_labyrinth.py` | committed collision tiles + entities | stdout: floors/ladders/spawn hold; reachability report |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
 | `extract_from_disasm.py` | `sabot1core.asm` | `ripped/` |
 | `extract_from_z80.py` | `snap/SABOTEUR.Z80` | `extracted/` |
@@ -83,6 +85,8 @@ programmatic ZX-style generator. It does not read `assets/reference/`.
 ```bash
 pip install -r tools/requirements.txt
 python tools/saboteur_rip/decompose_world.py
+python tools/saboteur_rip/collision_tiles.py
+python tools/saboteur_rip/test_collision_tiles.py
 python tools/saboteur_rip/test_room_bytecode.py
 ```
 

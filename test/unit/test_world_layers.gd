@@ -39,13 +39,27 @@ func test_level_has_object_layer_nodes() -> void:
 	add_child_autofree(level)
 	await get_tree().process_frame
 	for name in [
-		"Sky", "Earth", "Structure", "Interior", "Artifacts", "Machines", "ActorsLayer", "Foreground"
+		"Sky",
+		"Earth",
+		"Structure",
+		"Wallpaper",
+		"Interior",
+		"Artifacts",
+		"Machines",
+		"ActorsLayer",
+		"Foreground",
+		"CollisionLayer",
 	]:
 		var node := level.get_node_or_null(name)
 		assert_not_null(node, "layer %s" % name)
-		assert_eq(node.get_class(), "Node2D", "%s is a Node2D container" % name)
-	assert_null(level.get_node_or_null("Wallpaper"), "wallpaper merged into interior")
-	assert_gt(level.get_node("Interior").get_child_count(), 0, "interior objects spawned")
+	assert_eq(level.get_node("Sky").get_class(), "TileMapLayer")
+	assert_eq(level.get_node("Wallpaper").get_class(), "TileMapLayer")
+	assert_eq(level.get_node("CollisionLayer").get_class(), "TileMapLayer")
+	assert_gt(
+		(level.get_node("Interior") as TileMapLayer).get_used_cells().size(),
+		0,
+		"interior tiles spawned"
+	)
 
 
 func test_collision_notes_object_bounds() -> void:
