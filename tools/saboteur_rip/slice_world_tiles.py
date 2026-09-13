@@ -545,6 +545,7 @@ def fill_small_islands(
     kind: str,
     into: set[str],
     max_size: int,
+    prefer: tuple[str, ...] = (),
 ) -> int:
     """Paint a small CC of `kind` as the majority border label, if that label is in `into`."""
     seen = [False] * (cw * ch)
@@ -574,9 +575,15 @@ def fill_small_islands(
                 border[nk] += 1
         if len(comp) > max_size or not border:
             continue
-        winner, votes = border.most_common(1)[0]
-        if winner not in into or votes * 2 < sum(border.values()):
-            continue
+        winner = None
+        for p in prefer:
+            if p in into and border[p]:
+                winner = p
+                break
+        if winner is None:
+            winner, votes = border.most_common(1)[0]
+            if winner not in into or votes * 2 < sum(border.values()):
+                continue
         paint = CLS_SKY if winner == CLS_SKIP else winner
         for i in comp:
             labels[i] = paint
@@ -623,8 +630,9 @@ def erode_into(
 
 
 def trim_thin_earth_strips(labels: list[str], cw: int, ch: int) -> int:
-    """1-cell earth bars inside wallpaper/mosaic rooms — leftover object stems.
-    Does not use sky, so outdoor antennas stay.
+    """1-cell vertical earth bars inside rooms — leftover object stems.
+
+    Horizontal earth ledges stay: they are indoor dirt stairs, not furniture.
     """
     bg = {CLS_WALLPAPER, CLS_MOSAIC}
     filled = 0
@@ -644,14 +652,9 @@ def trim_thin_earth_strips(labels: list[str], cw: int, ch: int) -> int:
                         return CLS_SKY
                     return labels[ny * cw + nx]
 
-                left, right, up, down = neigh(-1, 0), neigh(1, 0), neigh(0, -1), neigh(0, 1)
-                winner = None
+                left, right = neigh(-1, 0), neigh(1, 0)
                 if left in bg and right in bg:
-                    winner = left
-                elif up in bg and down in bg:
-                    winner = up
-                if winner:
-                    updates.append((i, winner))
+                    updates.append((i, left))
         for i, winner in updates:
             if labels[i] != winner:
                 labels[i] = winner
@@ -663,13 +666,12 @@ def trim_thin_earth_strips(labels: list[str], cw: int, ch: int) -> int:
 def close_room_gaps(
     labels: list[str], cw: int, ch: int, room: str, max_gap: int
 ) -> int:
-    """Fill short earth/skip gaps between room tiles on the same row.
+    """Fill short skip gaps between room tiles on the same row.
 
     Objects on a tunnel floor sit in the wallpaper/mosaic band with room tiles
-    on both sides. Real floors are a solid earth or brick row, so they stay.
-    Vertical gaps are not closed: they are stacked rooms and brick floors.
+    on both sides. Dirt stairs and ledges stay earth.
     """
-    plug = {CLS_EARTH, CLS_SKIP}
+    plug = {CLS_SKIP}
     filled = 0
     for y in range(ch):
         base = y * cw
@@ -701,8 +703,8 @@ def close_room_gaps(
 def fill_boxed_into_room(
     labels: list[str], cw: int, ch: int, room: str, max_passes: int = 8
 ) -> int:
-    """Earth/skip boxed by room tiles: wall alcoves and 1-cell-tall shelves."""
-    plug = {CLS_EARTH, CLS_SKIP}
+    """Skip boxed by room tiles: wall alcoves and 1-cell-tall shelves."""
+    plug = {CLS_SKIP}
     filled = 0
     for _ in range(max_passes):
         updates: list[int] = []
@@ -762,8 +764,8 @@ def fill_wallpaper_in_structure(labels: list[str], cw: int, ch: int) -> int:
 def fill_edge_notches(
     labels: list[str], cw: int, ch: int, room: str, max_depth: int = 16
 ) -> int:
-    """Fill earth bites in a room facade: this row's edge is indented vs both neighbours."""
-    plug = {CLS_EARTH, CLS_SKIP}
+    """Fill skip bites in a room facade: this row's edge is indented vs both neighbours."""
+    plug = {CLS_SKIP}
     left: list[int | None] = [None] * ch
     right: list[int | None] = [None] * ch
     for y in range(ch):
@@ -1004,7 +1006,7 @@ def main() -> None:
     n_mosaic_sky = demote_mosaic_islands(labels, cw, ch)
     n_skip_fill = fill_skip_sky_with_background(labels, cw, ch)
     n_earth_fill = fill_small_islands(
-        labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 96
+        labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 12
     )
     n_earth_sky = fill_small_islands(
         labels, cw, ch, CLS_EARTH, {CLS_SKY, CLS_SKIP}, 32
@@ -1016,12 +1018,17 @@ def main() -> None:
         labels, cw, ch, CLS_MOSAIC, {CLS_EARTH}, 8
     )
     n_skip_earth = fill_small_islands(
-        labels, cw, ch, CLS_SKIP, {CLS_EARTH, CLS_MOSAIC, CLS_WALLPAPER}, 16
+        labels,
+        cw,
+        ch,
+        CLS_SKIP,
+        {CLS_EARTH, CLS_MOSAIC, CLS_WALLPAPER},
+        16,
+        prefer=(CLS_MOSAIC, CLS_WALLPAPER),
     )
     n_erode = 0
     n_erode += erode_into(labels, cw, ch, CLS_EARTH, CLS_SKY)
     n_erode += erode_into(labels, cw, ch, CLS_EARTH, CLS_WALLPAPER)
-    n_erode += erode_into(labels, cw, ch, CLS_EARTH, CLS_MOSAIC)
     n_erode += erode_into(
         labels, cw, ch, CLS_STRUCTURE, CLS_EARTH, min_votes=5, max_passes=8
     )
@@ -1073,16 +1080,32 @@ def main() -> None:
     n_mosaic_sky += demote_exposed_mosaic(labels, cw, ch)
     n_mosaic_sky += demote_mosaic_islands(labels, cw, ch)
     n_sky_rooms = fill_small_islands(
-        labels, cw, ch, CLS_SKY, {CLS_MOSAIC, CLS_WALLPAPER}, 80
+        labels,
+        cw,
+        ch,
+        CLS_SKY,
+        {CLS_MOSAIC, CLS_WALLPAPER},
+        80,
+        prefer=(CLS_MOSAIC, CLS_WALLPAPER),
     )
     n_skip_fill += fill_skip_sky_with_background(labels, cw, ch)
     n_earth_fill += fill_small_islands(
-        labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 48
+        labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 12
     )
     n_basement, drip_cells, basement_fill = restore_secret_basement(
         labels, original, cell_bufs, basement, cw, ch
     )
     basement |= drip_cells
+    n_wp_earth += fill_small_islands(
+        labels, cw, ch, CLS_WALLPAPER, {CLS_EARTH}, 12
+    )
+    n_skip_earth += fill_small_islands(
+        labels, cw, ch, CLS_SKIP, {CLS_EARTH}, 128
+    )
+    # Motorcycle / chrome crumbs classify as ZX red brick but sit in cave tunnels.
+    n_st_wp = fill_small_islands(
+        labels, cw, ch, CLS_STRUCTURE, {CLS_WALLPAPER}, 8
+    )
     object_mask = [
         i not in basement
         and (
@@ -1255,6 +1278,7 @@ def main() -> None:
         "filled_wallpaper_in_earth": n_wp_earth,
         "filled_mosaic_in_earth": n_mosaic_earth,
         "filled_skip_crumbs": n_skip_earth,
+        "filled_structure_in_wallpaper": n_st_wp,
         "eroded_earth": n_erode,
         "demoted_uncommon_bg": n_uncommon,
         "demoted_furniture_structure": n_furniture,
@@ -1276,7 +1300,7 @@ def main() -> None:
     print("  wallpaper-in-earth", n_wp_earth, "mosaic-in-earth", n_mosaic_earth)
     print("  wallpaper-in-mosaic", n_wp_mosaic, "skip crumbs", n_skip_earth, "eroded earth", n_erode)
     print("  room gaps", n_room_gaps, "boxed", n_boxed, "notches", n_notch)
-    print("  wallpaper-in-brick", n_wp_in_brick)
+    print("  wallpaper-in-brick", n_wp_in_brick, "structure-in-wallpaper", n_st_wp)
     print("  demoted uncommon", n_uncommon, "furniture structure", n_furniture)
     print("  demoted roof mosaic", n_roof_mosaic, "mosaic islands", n_mosaic_sky)
     print("  secret basement", n_basement, "cells", len(basement))
