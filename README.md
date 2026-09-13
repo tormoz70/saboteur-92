@@ -20,7 +20,15 @@ addons/          Editor plugins (GUT, Level Editor)
 exports/         Built APK/AAB output (gitignored)
 ```
 
-World tilesets and tile JSON were cleared on `refactor/tilemap-migration` and will be generated again. Mission entities remain in `assets/world/s2_entities.json`. The source mosaic is `assets/world/saboteur2_world.png`.
+World tilesets are rebuilt from `assets/world/saboteur2_world2.png`:
+
+```bash
+python tools/saboteur_rip/slice_world_tiles.py
+```
+
+That writes `assets/tilesets/s2_*_tileset.*`, `assets/world/s2_world_tiles.json`,
+and `assets/world/s2_collision_tiles.json`. Mission entities stay in
+`assets/world/s2_entities.json`.
 
 ## Art assets (Saboteur 1985 style)
 

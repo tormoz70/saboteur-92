@@ -11,6 +11,7 @@ const LAYER_NODES := {
 	"earth": "Earth",
 	"structure": "Structure",
 	"wallpaper": "Wallpaper",
+	"mosaic": "Mosaic",
 	"interior": "Interior",
 	"fg": "Foreground",
 }

@@ -37,10 +37,12 @@ var _map_layers: Dictionary = {}
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var world: Node2D = $World
+@onready var sky_fill: Polygon2D = $SkyFill
 @onready var sky_layer: TileMapLayer = $Sky
 @onready var earth_layer: TileMapLayer = $Earth
 @onready var structure_layer: TileMapLayer = $Structure
 @onready var wallpaper_layer: TileMapLayer = $Wallpaper
+@onready var mosaic_layer: TileMapLayer = $Mosaic
 @onready var interior_layer: TileMapLayer = $Interior
 @onready var artifacts_layer: Node2D = $Artifacts
 @onready var machines_layer: Node2D = $Machines
@@ -87,7 +89,7 @@ func _setup_world() -> void:
 		push_error("Missing %s — world collision tiles have not been generated yet" % COLLISION_TILES_PATH)
 		return
 
-	var data := _load_json(COLLISION_PATH)
+	var data := _load_json(COLLISION_PATH, false)
 	if not data.is_empty():
 		var scr: Array = data.get("screen", [_screen.x, _screen.y])
 		_screen = Vector2(float(scr[0]), float(scr[1]))
@@ -149,6 +151,18 @@ func _setup_world() -> void:
 		vp.size_changed.connect(_on_viewport_size_changed)
 
 
+func _setup_sky_fill(tiles: Dictionary) -> void:
+	if sky_fill == null:
+		return
+	var col: Array = tiles.get("sky_color", [0, 0, 206])
+	sky_fill.color = Color8(int(col[0]), int(col[1]), int(col[2]))
+	var world_px := _world_size * _scale
+	sky_fill.polygon = PackedVector2Array(
+		[Vector2.ZERO, Vector2(world_px.x, 0.0), world_px, Vector2(0.0, world_px.y)]
+	)
+	sky_fill.z_index = WorldLayers.Z_SKY - 1
+
+
 func _setup_from_tilemap() -> void:
 	var tiles := _load_json(TILES_PATH)
 	if tiles.is_empty():
@@ -157,12 +171,16 @@ func _setup_from_tilemap() -> void:
 	_scale = float(tiles.get("scale", _scale))
 	var sz: Array = tiles.get("size", [_world_size.x, _world_size.y])
 	_world_size = Vector2(float(sz[0]), float(sz[1]))
+	var scr: Array = tiles.get("screen", [_screen.x, _screen.y])
+	_screen = Vector2(float(scr[0]), float(scr[1]))
+	_setup_sky_fill(tiles)
 	_map_layers.clear()
 	var layer_nodes := {
 		"sky": sky_layer,
 		"earth": earth_layer,
 		"structure": structure_layer,
 		"wallpaper": wallpaper_layer,
+		"mosaic": mosaic_layer,
 		"interior": interior_layer,
 		"fg": fg_layer,
 	}
@@ -183,6 +201,8 @@ func _setup_from_tilemap() -> void:
 			fill_spec["grid"] = tiles.get("grid", spec.get("grid", []))
 			TileMapUtils.fill_from_rle(layer, fill_spec)
 		_map_layers[layer_name] = layer
+	if sky_fill:
+		_map_layers["sky"] = sky_fill
 	_map_layers["artifacts"] = artifacts_layer
 	_map_layers["machines"] = machines_layer
 	_map_layers["actors"] = actors_layer
@@ -265,9 +285,10 @@ func _png_to_world(x: float, y: float) -> Vector2:
 	return Vector2(x, y) * _scale
 
 
-func _load_json(path: String) -> Dictionary:
+func _load_json(path: String, required: bool = true) -> Dictionary:
 	if not FileAccess.file_exists(path):
-		push_error("Missing %s" % path)
+		if required:
+			push_error("Missing %s" % path)
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if typeof(parsed) != TYPE_DICTIONARY:
@@ -660,7 +681,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_3:
 			layer_name = "wallpaper"
 		KEY_4:
-			layer_name = "interior"
+			layer_name = "mosaic"
 		KEY_5:
 			layer_name = "machines"
 		KEY_6:

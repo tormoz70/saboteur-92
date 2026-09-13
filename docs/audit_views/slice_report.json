@@ -1,0 +1,43 @@
+{
+  "source": "C:/data/prjs/saboteur-92/assets/world/saboteur2_world2.png",
+  "grid": [
+    1024,
+    576
+  ],
+  "cells": 589824,
+  "counts": {
+    "sky": 196986,
+    "skip": 2560,
+    "earth": 200666,
+    "mosaic": 88577,
+    "structure": 6829,
+    "wallpaper": 94206
+  },
+  "unique_tiles": {
+    "earth": 35,
+    "structure": 6,
+    "wallpaper": 29,
+    "mosaic": 1
+  },
+  "sky_color": [
+    0,
+    0,
+    206
+  ],
+  "solid_cells": 207495,
+  "filled_skip_sky": 26870,
+  "filled_earth_holes": 1337,
+  "filled_earth_in_sky": 102,
+  "filled_sky_rooms": 2268,
+  "filled_wallpaper_in_earth": 0,
+  "filled_mosaic_in_earth": 0,
+  "filled_skip_crumbs": 1206,
+  "eroded_earth": 1425,
+  "demoted_uncommon_bg": 4369,
+  "demoted_furniture_structure": 0,
+  "leftover_cells": 32669,
+  "allowed_mosaic_tiles": 1,
+  "allowed_wallpaper_tiles": 2,
+  "rebuild": "C:/data/prjs/saboteur-92/docs/audit_views/slice_rebuild.png",
+  "rebuild_quarter": "C:/data/prjs/saboteur-92/docs/audit_views/slice_rebuild_quarter.png"
+}

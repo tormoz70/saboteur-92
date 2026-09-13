@@ -5,8 +5,11 @@ original dumps. Those dumps are **local developer reference only** — they stay
 out of git (`assets/reference/` is in `.gitignore`) and they must not ship in
 the APK.
 
-World tilesets, tile JSON and the old world parse/generate scripts were cleared
-on `refactor/tilemap-migration`. They will be rebuilt from scratch.
+World tilesets are built from the cleaned mosaic, not from MAC dumps:
+
+| Script | Needs | Writes |
+|---|---|---|
+| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `s2_*_tileset.*`, `s2_world_tiles.json`, `s2_collision_tiles.json`, `docs/audit_views/slice_*.png` |
 
 Game runtime does **not** need this folder.
 
@@ -56,6 +59,7 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 
 | Script | Needs | Writes |
 |---|---|---|
+| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `s2_*_tileset.*`, `s2_world_tiles.json`, `s2_collision_tiles.json`, `docs/audit_views/slice_*` |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
 | `extract_from_disasm.py` | `sabot1core.asm` | `ripped/` |
 | `extract_from_z80.py` | `snap/SABOTEUR.Z80` | `extracted/` |

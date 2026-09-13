@@ -10,6 +10,10 @@ script = ExtResource("1")
 position_smoothing_enabled = false
 zoom = Vector2(1.875, 1.875)
 
+[node name="SkyFill" type="Polygon2D" parent="."]
+z_index = -31
+color = Color(0, 0, 0.807843, 1)
+
 [node name="Sky" type="TileMapLayer" parent="."]
 z_index = -30
 
@@ -21,6 +25,9 @@ z_index = -10
 
 [node name="Wallpaper" type="TileMapLayer" parent="."]
 z_index = -5
+
+[node name="Mosaic" type="TileMapLayer" parent="."]
+z_index = -4
 
 [node name="Interior" type="TileMapLayer" parent="."]
 z_index = 0

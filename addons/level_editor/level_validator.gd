@@ -13,7 +13,7 @@ func validate(level: Node) -> PackedStringArray:
 		return errors
 	if level.get_node_or_null("CollisionLayer") == null:
 		errors.append("Missing CollisionLayer")
-	for name in ["Sky", "Earth", "Structure", "Wallpaper", "Interior", "Foreground"]:
+	for name in ["Sky", "Earth", "Structure", "Wallpaper", "Mosaic", "Interior", "Foreground"]:
 		if level.get_node_or_null(name) == null:
 			errors.append("Missing visual layer %s" % name)
 	if not FileAccess.file_exists(ENTITIES_PATH):
