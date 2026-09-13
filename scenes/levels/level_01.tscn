@@ -43,5 +43,10 @@ z_index = 20
 
 [node name="World" type="Node2D" parent="."]
 
+[node name="Entities" type="Node2D" parent="."]
+
+[node name="SpawnPoint" type="Marker2D" parent="Entities"]
+position = Vector2(4480, 1200)
+
 [node name="Player" parent="." instance=ExtResource("3")]
 position = Vector2(4480, 1200)

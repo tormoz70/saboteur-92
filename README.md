@@ -16,8 +16,11 @@ Mobile remake of **Saboteur** (1985) built with **Godot 4.6**.
 scenes/          Game scenes (player, levels, UI, enemies, items)
 scripts/         GDScript (player, AI, systems, items)
 assets/          Sprites, tilesets, icons
+addons/          Editor plugins (GUT, Level Editor)
 exports/         Built APK/AAB output (gitignored)
 ```
+
+World tilesets and tile JSON were cleared on `refactor/tilemap-migration` and will be generated again. Mission entities remain in `assets/world/s2_entities.json`. The source mosaic is `assets/world/saboteur2_world.png`.
 
 ## Art assets (Saboteur 1985 style)
 
@@ -32,7 +35,6 @@ Outputs:
 - `assets/sprites/saboteur85_player.png` — ninja (idle, run, jump, punch, climb, death)
 - `assets/sprites/saboteur85_guard.png` — beret guard
 - `assets/sprites/saboteur85_items.png` — key, document, bomb
-- `assets/tilesets/saboteur85_tileset.png` — brick, floor, ladder, door, crate, window
 
 Sprites render at 16x24 native pixels, scaled 3x in-game (nearest-neighbor).
 

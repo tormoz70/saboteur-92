@@ -1,6 +1,9 @@
 class_name WorldObject
 extends Node2D
 
+## Deprecated. Runtime paints TileMapLayers from RLE; this node is kept as a
+## catalog preview helper for type sprites in s2_objects.json.
+
 ## One placed world object. Visual comes from the type sprite; instance
 ## size can tile a module (ladders, fills) or show a prefab as-is.
 

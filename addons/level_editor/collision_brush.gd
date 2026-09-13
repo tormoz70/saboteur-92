@@ -21,8 +21,8 @@ func collision_layer_from(root: Node) -> TileMapLayer:
 	return root.find_child("CollisionLayer", true, false) as TileMapLayer
 
 
-func handle_canvas_input(event: InputEvent, editor: EditorInterface) -> bool:
-	var layer := _edited_collision_layer(editor)
+func handle_canvas_input(event: InputEvent) -> bool:
+	var layer := _edited_collision_layer()
 	if layer == null:
 		return false
 	var button := event as InputEventMouseButton
@@ -64,17 +64,12 @@ func stamp_default_if_empty(collision: TileMapLayer, cell: Vector2i, kind: Strin
 			collision.set_cell(cell, 0, TILE[BrushType.LADDER])
 
 
-func _edited_collision_layer(editor: EditorInterface) -> TileMapLayer:
-	var scene := editor.get_edited_scene_root()
-	if scene == null:
-		return null
-	var selected := editor.get_selection().get_selected_nodes()
+func _edited_collision_layer() -> TileMapLayer:
+	var selected := EditorInterface.get_selection().get_selected_nodes()
 	for node in selected:
 		if node is TileMapLayer and node.name == "CollisionLayer":
 			return node
-		if str(node.name) == "CollisionLayer":
-			return node as TileMapLayer
-	return collision_layer_from(scene)
+	return null
 
 
 func _paint_at(layer: TileMapLayer, _canvas_pos: Vector2) -> void:

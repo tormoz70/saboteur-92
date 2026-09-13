@@ -46,21 +46,44 @@ func export_from_level(level: Node) -> Dictionary:
 	return {"tiles": tiles, "collision": collision}
 
 
-func import_into_level(level: Node) -> void:
+func import_into_level(level: Node) -> Dictionary:
+	if level == null:
+		return {"ok": false, "error": "No scene root"}
 	var tiles := _load_json(TILES_PATH)
+	if tiles.is_empty():
+		return {"ok": false, "error": "Missing s2_world_tiles.json"}
+	var scale := float(tiles.get("scale", 2))
+	var filled := 0
 	var specs: Dictionary = tiles.get("layers", {})
 	for key in LAYER_NODES:
 		var node := level.get_node_or_null(LAYER_NODES[key]) as TileMapLayer
 		var spec: Dictionary = specs.get(key, {})
 		if node == null or spec.is_empty():
 			continue
+		_prepare_layer(node, spec, scale)
 		var fill_spec := spec.duplicate()
 		fill_spec["grid"] = tiles.get("grid", [])
 		TileMapUtils.fill_from_rle(node, fill_spec)
+		filled += node.get_used_cells().size()
 	var collision := _load_json(COLLISION_TILES_PATH)
 	var clayer := level.get_node_or_null("CollisionLayer") as TileMapLayer
 	if clayer and not collision.is_empty():
-		TileMapUtils.fill_from_rle(clayer, collision)
+		_prepare_layer(clayer, collision, scale)
+		var cfill := collision.duplicate()
+		if not cfill.has("grid"):
+			cfill["grid"] = tiles.get("grid", [])
+		TileMapUtils.fill_from_rle(clayer, cfill)
+		filled += clayer.get_used_cells().size()
+	return {"ok": true, "cells": filled}
+
+
+func _prepare_layer(layer: TileMapLayer, spec: Dictionary, scale: float) -> void:
+	layer.z_index = int(spec.get("z", layer.z_index))
+	layer.scale = Vector2(scale, scale)
+	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var tileset_path := str(spec.get("tileset", ""))
+	if tileset_path != "" and ResourceLoader.exists(tileset_path):
+		layer.tile_set = load(tileset_path)
 
 
 func rle_matches(a: Array, b: Array) -> bool:

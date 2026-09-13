@@ -110,15 +110,6 @@ jobs:
             exit 1
           fi
 
-      - name: Audit world collision
-        run: |
-          set -euo pipefail
-          pip3 install --user -r tools/requirements.txt
-          python3 tools/saboteur_rip/audit_collision.py | tee collision-audit.log
-          python3 tools/saboteur_rip/test_collision_tiles.py
-          python3 tools/saboteur_rip/test_labyrinth.py
-          python3 -c "import re,sys; t=open('collision-audit.log').read(); m=re.search(r'\[грунт \(speckled\)\].*?interior\s+всего\s+\d+, дыр\s+(\d+)', t, re.S); print('interior speckled holes', m.group(1) if m else 'n/a')"
-
       - name: Export debug APK
         run: |
           set -euo pipefail

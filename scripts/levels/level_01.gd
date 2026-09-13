@@ -50,7 +50,7 @@ var _map_layers: Dictionary = {}
 
 
 func _ready() -> void:
-	_load_original_world()
+	_setup_world()
 	_add_entities()
 	_add_letterbox()
 	if player:
@@ -80,19 +80,17 @@ func _process(delta: float) -> void:
 			player.take_damage(player.energy)
 
 
-func _load_original_world() -> void:
-	var data := _load_json(COLLISION_PATH)
-	if data.is_empty():
-		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % COLLISION_PATH)
-		return
-	_scale = float(data.get("scale", 2))
-	var scr: Array = data.get("screen", [256, 192])
-	_screen = Vector2(float(scr[0]), float(scr[1]))
-	var sz: Array = data.get("size", [8192, 4608])
-	_world_size = Vector2(float(sz[0]), float(sz[1]))
-	# Spawn is not in this file — s2_entities.json is the source of truth.
-
+func _setup_world() -> void:
 	_setup_from_tilemap()
+	var from_tiles := _collision_rects_from_tiles()
+	if from_tiles.is_empty():
+		push_error("Missing %s — world collision tiles have not been generated yet" % COLLISION_TILES_PATH)
+		return
+
+	var data := _load_json(COLLISION_PATH)
+	if not data.is_empty():
+		var scr: Array = data.get("screen", [_screen.x, _screen.y])
+		_screen = Vector2(float(scr[0]), float(scr[1]))
 
 	_bookcases.clear()
 	for rect in data.get("bookcases", []):
@@ -107,12 +105,8 @@ func _load_original_world() -> void:
 		world.remove_child(child)
 		child.free()
 
-	var solids: Array = data.get("solids", [])
-	var ladders_rects: Array = data.get("ladders", [])
-	var from_tiles := _collision_rects_from_tiles()
-	if not from_tiles.is_empty():
-		solids = from_tiles.get("solids", solids)
-		ladders_rects = from_tiles.get("ladders", ladders_rects)
+	var solids: Array = from_tiles.get("solids", [])
+	var ladders_rects: Array = from_tiles.get("ladders", [])
 
 	var body := StaticBody2D.new()
 	body.name = "Solids"
@@ -142,9 +136,6 @@ func _load_original_world() -> void:
 
 	_add_lifts(data)
 
-	# Vertical view is one 192px Spectrum screen (384 world px at zoom
-	# viewport_height/384). Extra horizontal pixels show more of the map
-	# instead of being covered by letterbox bars.
 	var world_px := _world_size * _scale
 	camera.limit_left = 0
 	camera.limit_top = 0
@@ -161,7 +152,7 @@ func _load_original_world() -> void:
 func _setup_from_tilemap() -> void:
 	var tiles := _load_json(TILES_PATH)
 	if tiles.is_empty():
-		push_error("Missing %s — run tools/saboteur_rip/decompose_world.py" % TILES_PATH)
+		push_error("Missing %s — world visual tiles have not been generated yet" % TILES_PATH)
 		return
 	_scale = float(tiles.get("scale", _scale))
 	var sz: Array = tiles.get("size", [_world_size.x, _world_size.y])
@@ -302,6 +293,17 @@ func _add_entities() -> void:
 		push_error("s2_entities.json: spawn missing")
 		return
 	_spawn = _png_to_world(float(sp[0]), float(sp[1]))
+	var spawn_mark := get_node_or_null("Entities/SpawnPoint") as Marker2D
+	if spawn_mark == null:
+		var entities := get_node_or_null("Entities")
+		if entities == null:
+			entities = Node2D.new()
+			entities.name = "Entities"
+			add_child(entities)
+		spawn_mark = Marker2D.new()
+		spawn_mark.name = "SpawnPoint"
+		entities.add_child(spawn_mark)
+	spawn_mark.position = _spawn
 	if data.has("fuse"):
 		GameManager.bomb_fuse_time = float(data["fuse"])
 

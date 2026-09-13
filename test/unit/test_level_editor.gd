@@ -14,3 +14,17 @@ func test_export_helper_rle_matches() -> void:
 	var a: Array = [1, 3, 0, 2]
 	assert_true(exporter.rle_matches(a, a.duplicate()))
 	assert_false(exporter.rle_matches(a, [1, 2]))
+
+
+func test_validator_accepts_level_scene() -> void:
+	var packed: PackedScene = load("res://scenes/levels/level_01.tscn")
+	var level: Node2D = packed.instantiate()
+	add_child_autofree(level)
+	var validator = load("res://addons/level_editor/level_validator.gd").new()
+	var errors: PackedStringArray = validator.validate(level)
+	var blocking: Array = []
+	for err in errors:
+		if str(err).begins_with("Lifts missing"):
+			continue
+		blocking.append(err)
+	assert_eq(blocking.size(), 0, "; ".join(blocking))

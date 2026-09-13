@@ -1,3 +1,4 @@
+@tool
 class_name TileMapUtils
 extends Object
 
@@ -211,3 +212,37 @@ static func ladder_rects(climb: Array, cell: int = CELL) -> Array:
 			continue
 		rects.append([int(rect[0]) - 4, rect[1], int(rect[2]) + 8, rect[3]])
 	return rects
+
+
+static func cell_to_rect(cell: Vector2i, cell_px: int = CELL) -> Rect2:
+	return Rect2(Vector2(cell) * float(cell_px), Vector2(cell_px, cell_px))
+
+
+static func find_ladders(tilemap: TileMapLayer, cell: int = CELL) -> Array:
+	if tilemap == null:
+		return []
+	var used := tilemap.get_used_cells()
+	if used.is_empty():
+		return []
+	var max_x := 0
+	var max_y := 0
+	var cells: Dictionary = {}
+	for c in used:
+		if get_collision_type(tilemap, c) != "ladder":
+			continue
+		cells[c] = true
+		max_x = maxi(max_x, c.x)
+		max_y = maxi(max_y, c.y)
+	if cells.is_empty():
+		return []
+	var cw := max_x + 1
+	var ch := max_y + 1
+	var grid: Array = []
+	for y in ch:
+		var row := PackedInt32Array()
+		row.resize(cw)
+		for x in cw:
+			if cells.has(Vector2i(x, y)):
+				row[x] = 1
+		grid.append(row)
+	return ladder_rects(grid, cell)
