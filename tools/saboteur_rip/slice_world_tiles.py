@@ -284,11 +284,14 @@ def demote_furniture_structure(
     return demoted
 
 
-def fill_skip_sky_with_background(labels: list[str], cw: int, ch: int) -> int:
-    """Paint skip holes that sit inside mosaic or wallpaper.
+def fill_skip_sky_with_background(
+    labels: list[str], cw: int, ch: int, bufs: list[bytes] | None = None
+) -> int:
+    """Inpaint skip that covers mosaic/wallpaper; do not grow the room into sprites.
 
-    Sky is never converted here. Skip cells that touch sky stay leftover:
-    outdoor grass, trees and sprites must not become room wallpaper.
+    Per cell, not whole CCs: a rocket or ladder blob spans mosaic and earth, and
+    filling the blob would paint mosaic over dirt. Skip that touches sky stays
+    leftover unless the cell still shows room ink (`?` on a mosaic wall).
     """
     filled = 0
     changed = True
@@ -303,6 +306,7 @@ def fill_skip_sky_with_background(labels: list[str], cw: int, ch: int) -> int:
                 mosaic_n = 0
                 wallpaper_n = 0
                 sky_n = 0
+                earth_n = 0
                 for dx, dy in _DIRS:
                     nx, ny = x + dx, y + dy
                     if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
@@ -315,15 +319,421 @@ def fill_skip_sky_with_background(labels: list[str], cw: int, ch: int) -> int:
                         wallpaper_n += 1
                     elif nk == CLS_SKY:
                         sky_n += 1
-                if sky_n or mosaic_n + wallpaper_n == 0:
+                    elif nk == CLS_EARTH:
+                        earth_n += 1
+                room_n = mosaic_n + wallpaper_n
+                if room_n == 0:
                     continue
                 winner = CLS_MOSAIC if mosaic_n >= wallpaper_n else CLS_WALLPAPER
+                if bufs is not None and _magenta_n(bufs[i]) >= 8:
+                    if _count_ink(bufs[i], GREEN) < 8:
+                        continue
+                if sky_n:
+                    if mosaic_n >= 3 or wallpaper_n >= 3:
+                        updates.append((i, winner))
+                        continue
+                    if bufs is None:
+                        continue
+                    ink = GREEN if winner == CLS_MOSAIC else SKY_BLUE
+                    n = _count_ink(bufs[i], ink)
+                    if winner == CLS_WALLPAPER:
+                        n += _count_ink(bufs[i], SKY_BLUE_B)
+                    if n >= 8:
+                        updates.append((i, winner))
+                    continue
+                if earth_n >= room_n:
+                    continue
                 updates.append((i, winner))
         for i, winner in updates:
             if labels[i] != winner:
                 labels[i] = winner
                 filled += 1
                 changed = True
+    return filled
+
+
+def _magenta_n(buf: bytes) -> int:
+    n = 0
+    for i in range(0, len(buf), 3):
+        r, g, b = buf[i], buf[i + 1], buf[i + 2]
+        if r >= 180 and b >= 180 and g < 40:
+            n += 1
+    return n
+
+
+def _is_window_ink(buf: bytes) -> bool:
+    """Black frame, ZX blue glass, cyan or white moon — not magenta `?`."""
+    red_n, _green_n, blue_n, black_n, _other_n = _color_counts(buf)
+    if red_n:
+        return False
+    magenta_n = 0
+    moon_n = 0
+    for i in range(0, len(buf), 3):
+        r, g, b = buf[i], buf[i + 1], buf[i + 2]
+        if r >= 180 and b >= 180 and g < 40:
+            magenta_n += 1
+        elif g >= 180 and b >= 180:
+            moon_n += 1
+    if magenta_n:
+        return False
+    if blue_n < 8 and moon_n < 8:
+        return False
+    return blue_n + black_n + moon_n >= 32
+
+
+def fill_windows_in_rooms(
+    labels: list[str], bufs: list[bytes], cw: int, ch: int
+) -> int:
+    """Fill window glass and frames as the surrounding mosaic/wallpaper.
+
+    Glass classifies as sky inside a skip/earth frame, so sky→mosaic never
+    sees mosaic on the border. Frames that touch sky were also left as holes.
+    Only compact CCs are filled — outdoor lattice is also blue+black skip.
+    """
+    filled = 0
+
+    def fill_ink_islands(kind: str, max_size: int) -> int:
+        n = 0
+        seen = [False] * (cw * ch)
+        for start in range(cw * ch):
+            if labels[start] != kind or seen[start]:
+                continue
+            stack = [start]
+            seen[start] = True
+            comp: list[int] = []
+            border: Counter[str] = Counter()
+            while stack:
+                i = stack.pop()
+                comp.append(i)
+                x, y = i % cw, i // cw
+                for dx, dy in _DIRS:
+                    nx, ny = x + dx, y + dy
+                    if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                        continue
+                    ni = ny * cw + nx
+                    nk = labels[ni]
+                    if nk == kind:
+                        if not seen[ni]:
+                            seen[ni] = True
+                            stack.append(ni)
+                        continue
+                    border[nk] += 1
+            if not (1 <= len(comp) <= max_size) or not border:
+                continue
+            if border[CLS_MOSAIC] + border[CLS_WALLPAPER] == 0:
+                continue
+            ink_n = sum(1 for i in comp if _is_window_ink(bufs[i]))
+            if ink_n * 2 < len(comp):
+                continue
+            winner = (
+                CLS_MOSAIC
+                if border[CLS_MOSAIC] >= border[CLS_WALLPAPER]
+                else CLS_WALLPAPER
+            )
+            for i in comp:
+                labels[i] = winner
+                n += 1
+        return n
+
+    filled += fill_ink_islands(CLS_EARTH, 48)
+    filled += fill_ink_islands(CLS_SKIP, 48)
+
+    seen = [False] * (cw * ch)
+    for start in range(cw * ch):
+        if labels[start] != CLS_SKY or seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        comp: list[int] = []
+        border: Counter[str] = Counter()
+        while stack:
+            i = stack.pop()
+            comp.append(i)
+            x, y = i % cw, i // cw
+            for dx, dy in _DIRS:
+                nx, ny = x + dx, y + dy
+                if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                    border[CLS_SKY] += 1
+                    continue
+                ni = ny * cw + nx
+                nk = labels[ni]
+                if nk == CLS_SKY:
+                    if not seen[ni]:
+                        seen[ni] = True
+                        stack.append(ni)
+                    continue
+                border[nk] += 1
+        if not (1 <= len(comp) <= 80) or not border:
+            continue
+        if border[CLS_SKY]:
+            continue
+        mosaic_n = border[CLS_MOSAIC]
+        wallpaper_n = border[CLS_WALLPAPER]
+        if mosaic_n + wallpaper_n == 0:
+            if len(comp) < 8:
+                continue
+            near_m = 0
+            near_w = 0
+            for i in comp:
+                x, y = i % cw, i // cw
+                for dy in range(-2, 3):
+                    for dx in range(-2, 3):
+                        nx, ny = x + dx, y + dy
+                        if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                            continue
+                        nk = labels[ny * cw + nx]
+                        if nk == CLS_MOSAIC:
+                            near_m += 1
+                        elif nk == CLS_WALLPAPER:
+                            near_w += 1
+            mosaic_n, wallpaper_n = near_m, near_w
+        if mosaic_n + wallpaper_n == 0:
+            continue
+        winner = CLS_MOSAIC if mosaic_n >= wallpaper_n else CLS_WALLPAPER
+        for i in comp:
+            labels[i] = winner
+            filled += 1
+    filled += fill_ink_islands(CLS_SKIP, 48)
+    return filled
+
+
+def peel_hanging_window_earth(
+    labels: list[str], bufs: list[bytes], cw: int, ch: int
+) -> int:
+    """Window frames glued to a dirt floor stay inside the huge earth CC.
+
+    Isolated window islands are filled elsewhere. These hang off a roof slab:
+    blue/black ticks, 1-wide mullions, then the extra black header row that is
+    shorter than the dirt floor and already has mosaic on the same row.
+    """
+    rooms = {CLS_MOSAIC, CLS_WALLPAPER}
+    filled = 0
+
+    def at(x: int, y: int, dx: int, dy: int) -> str | None:
+        nx, ny = x + dx, y + dy
+        if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+            return None
+        return labels[ny * cw + nx]
+
+    def room_run(x: int, y: int, dx: int, room: str) -> int:
+        n = 0
+        nx = x + dx
+        while 0 <= nx < cw and labels[y * cw + nx] == room:
+            n += 1
+            nx += dx
+        return n
+
+    for _ in range(48):
+        updates: list[tuple[int, str]] = []
+        for y in range(ch):
+            x = 0
+            while x < cw:
+                i = y * cw + x
+                if labels[i] != CLS_EARTH:
+                    x += 1
+                    continue
+                x0 = x
+                while x < cw and labels[y * cw + x] == CLS_EARTH:
+                    x += 1
+                x1 = x - 1
+                left = at(x0, y, -1, 0)
+                right = at(x1, y, 1, 0)
+                if y == 0 or y + 1 >= ch:
+                    continue
+                up_earth = all(
+                    labels[(y - 1) * cw + t] == CLS_EARTH for t in range(x0, x1 + 1)
+                )
+                down_mosaic = all(
+                    labels[(y + 1) * cw + t] == CLS_MOSAIC for t in range(x0, x1 + 1)
+                )
+                if not (
+                    up_earth
+                    and down_mosaic
+                    and (left == CLS_MOSAIC or right == CLS_MOSAIC)
+                ):
+                    continue
+                above0 = x0
+                while above0 > 0 and labels[(y - 1) * cw + above0 - 1] == CLS_EARTH:
+                    above0 -= 1
+                above1 = x1
+                while (
+                    above1 + 1 < cw
+                    and labels[(y - 1) * cw + above1 + 1] == CLS_EARTH
+                ):
+                    above1 += 1
+                if (x1 - x0 + 1) >= (above1 - above0 + 1) - 2:
+                    continue
+                hang = False
+                if left == CLS_MOSAIC and room_run(x0, y, -1, CLS_MOSAIC) >= 16:
+                    if at(x0, y - 1, -1, 0) == CLS_EARTH:
+                        hang = True
+                if right == CLS_MOSAIC and room_run(x1, y, 1, CLS_MOSAIC) >= 16:
+                    if at(x1, y - 1, 1, 0) == CLS_EARTH:
+                        hang = True
+                if hang:
+                    for t in range(x0, x1 + 1):
+                        updates.append((y * cw + t, CLS_MOSAIC))
+        for y in range(ch):
+            for x in range(cw):
+                i = y * cw + x
+                if labels[i] != CLS_EARTH:
+                    continue
+                left, right = at(x, y, -1, 0), at(x, y, 1, 0)
+                up, down = at(x, y, 0, -1), at(x, y, 0, 1)
+                mosaic_n = (left == CLS_MOSAIC) + (right == CLS_MOSAIC) + (
+                    up == CLS_MOSAIC
+                ) + (down == CLS_MOSAIC)
+                wallpaper_n = (left == CLS_WALLPAPER) + (right == CLS_WALLPAPER) + (
+                    up == CLS_WALLPAPER
+                ) + (down == CLS_WALLPAPER)
+                if mosaic_n + wallpaper_n < 2:
+                    continue
+                winner = None
+                if mosaic_n >= 2 and _is_window_ink(bufs[i]):
+                    winner = CLS_MOSAIC
+                elif left in rooms and right in rooms:
+                    winner = left if left == CLS_MOSAIC else right
+                if winner is None:
+                    continue
+                updates.append((i, winner))
+        if not updates:
+            break
+        progressed = False
+        for i, winner in updates:
+            if labels[i] != winner:
+                labels[i] = winner
+                filled += 1
+                progressed = True
+        if not progressed:
+            break
+    return filled
+
+
+def peel_question_into_sky(
+    labels: list[str], original: list[str], bufs: list[bytes], cw: int, ch: int
+) -> int:
+    """Undo mosaic grown from a `?` into sky. Wall cells with green stay."""
+    filled = 0
+    changed = True
+    while changed:
+        changed = False
+        for y in range(ch):
+            for x in range(cw):
+                i = y * cw + x
+                if labels[i] != CLS_MOSAIC or original[i] != CLS_SKIP:
+                    continue
+                if _count_ink(bufs[i], GREEN) >= 8:
+                    continue
+                if _magenta_n(bufs[i]) < 8:
+                    continue
+                for dx, dy in _DIRS:
+                    nx, ny = x + dx, y + dy
+                    if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                        sky = True
+                    else:
+                        sky = labels[ny * cw + nx] == CLS_SKY
+                    if sky:
+                        labels[i] = CLS_SKIP
+                        filled += 1
+                        changed = True
+                        break
+    return filled
+
+
+def demote_structure_on_rooms(labels: list[str], cw: int, ch: int, max_size: int = 16) -> int:
+    """Rocket fins / motorcycle red sit on rooms; 1-high brick floors stay."""
+    rooms = {CLS_MOSAIC, CLS_WALLPAPER}
+    seen = [False] * (cw * ch)
+    filled = 0
+    for start in range(cw * ch):
+        if labels[start] != CLS_STRUCTURE or seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        comp: list[int] = []
+        border: Counter[str] = Counter()
+        while stack:
+            i = stack.pop()
+            comp.append(i)
+            x, y = i % cw, i // cw
+            for dx, dy in _DIRS:
+                nx, ny = x + dx, y + dy
+                if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                    continue
+                ni = ny * cw + nx
+                nk = labels[ni]
+                if nk == CLS_STRUCTURE:
+                    if not seen[ni]:
+                        seen[ni] = True
+                        stack.append(ni)
+                    continue
+                border[nk] += 1
+        if len(comp) > max_size or not border:
+            continue
+        # Skip around a fin is the rest of the rocket, not the wall.
+        effective = Counter(
+            {k: n for k, n in border.items() if k != CLS_SKIP}
+        )
+        if not effective:
+            continue
+        winner, votes = effective.most_common(1)[0]
+        if winner not in rooms or votes * 2 < sum(effective.values()):
+            continue
+        xs = [i % cw for i in comp]
+        ys = [i // cw for i in comp]
+        height = max(ys) - min(ys) + 1
+        width = max(xs) - min(xs) + 1
+        if height == 1 and width >= 8:
+            continue
+        for i in comp:
+            labels[i] = winner
+            filled += 1
+    return filled
+
+
+def fill_compact_earth_in_rooms(
+    labels: list[str], cw: int, ch: int, max_size: int = 80
+) -> int:
+    """Door-sized earth blobs boxed by mosaic; not 1–2 cell dirt ledges."""
+    rooms = {CLS_MOSAIC, CLS_WALLPAPER}
+    seen = [False] * (cw * ch)
+    filled = 0
+    for start in range(cw * ch):
+        if labels[start] != CLS_EARTH or seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        comp: list[int] = []
+        border: Counter[str] = Counter()
+        while stack:
+            i = stack.pop()
+            comp.append(i)
+            x, y = i % cw, i // cw
+            for dx, dy in _DIRS:
+                nx, ny = x + dx, y + dy
+                if nx < 0 or ny < 0 or nx >= cw or ny >= ch:
+                    border[CLS_SKY] += 1
+                    continue
+                ni = ny * cw + nx
+                nk = labels[ni]
+                if nk == CLS_EARTH:
+                    if not seen[ni]:
+                        seen[ni] = True
+                        stack.append(ni)
+                    continue
+                border[nk] += 1
+        if len(comp) > max_size or not border or CLS_SKY in border:
+            continue
+        winner, votes = border.most_common(1)[0]
+        if winner not in rooms or votes * 2 < sum(border.values()):
+            continue
+        xs = [i % cw for i in comp]
+        ys = [i // cw for i in comp]
+        if max(ys) - min(ys) + 1 < 3 or max(xs) - min(xs) + 1 < 3:
+            continue
+        for i in comp:
+            labels[i] = winner
+            filled += 1
     return filled
 
 
@@ -575,8 +985,15 @@ def fill_small_islands(
                 border[nk] += 1
         if len(comp) > max_size or not border:
             continue
+        # Sprites on a facade (`?`, antennas) touch sky; filling the whole CC
+        # grows the room into leftover chrome.
+        if CLS_SKY in border and CLS_SKY not in into and CLS_SKIP not in into:
+            continue
         winner = None
-        for p in prefer:
+        # Objects on dirt (rocket legs) often touch one mosaic cell; don't
+        # prefer room over earth in that case.
+        use_prefer = prefer if CLS_EARTH not in border else ()
+        for p in use_prefer:
             if p in into and border[p]:
                 winner = p
                 break
@@ -1004,7 +1421,7 @@ def main() -> None:
     n_furniture = demote_furniture_structure(labels, cell_bufs, cw, ch)
     n_roof_mosaic = demote_exposed_mosaic(labels, cw, ch)
     n_mosaic_sky = demote_mosaic_islands(labels, cw, ch)
-    n_skip_fill = fill_skip_sky_with_background(labels, cw, ch)
+    n_skip_fill = fill_skip_sky_with_background(labels, cw, ch, cell_bufs)
     n_earth_fill = fill_small_islands(
         labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 12
     )
@@ -1088,7 +1505,7 @@ def main() -> None:
         80,
         prefer=(CLS_MOSAIC, CLS_WALLPAPER),
     )
-    n_skip_fill += fill_skip_sky_with_background(labels, cw, ch)
+    n_skip_fill += fill_skip_sky_with_background(labels, cw, ch, cell_bufs)
     n_earth_fill += fill_small_islands(
         labels, cw, ch, CLS_EARTH, {CLS_MOSAIC, CLS_WALLPAPER}, 12
     )
@@ -1102,10 +1519,24 @@ def main() -> None:
     n_skip_earth += fill_small_islands(
         labels, cw, ch, CLS_SKIP, {CLS_EARTH}, 128
     )
-    # Motorcycle / chrome crumbs classify as ZX red brick but sit in cave tunnels.
-    n_st_wp = fill_small_islands(
-        labels, cw, ch, CLS_STRUCTURE, {CLS_WALLPAPER}, 8
+    n_earth_fill += fill_compact_earth_in_rooms(labels, cw, ch)
+    # Motorcycle / rocket fins classify as ZX red brick but sit on room tiles.
+    n_st_wp = demote_structure_on_rooms(labels, cw, ch)
+    n_skip_fill += fill_skip_sky_with_background(labels, cw, ch, cell_bufs)
+    n_windows = fill_windows_in_rooms(labels, cell_bufs, cw, ch)
+    n_windows += peel_hanging_window_earth(labels, cell_bufs, cw, ch)
+    n_erode += trim_thin_earth_strips(labels, cw, ch)
+    n_skip_fill += fill_skip_sky_with_background(labels, cw, ch, cell_bufs)
+    n_skip_earth += fill_small_islands(
+        labels,
+        cw,
+        ch,
+        CLS_SKIP,
+        {CLS_EARTH, CLS_MOSAIC, CLS_WALLPAPER},
+        16,
+        prefer=(CLS_MOSAIC, CLS_WALLPAPER),
     )
+    n_windows += peel_question_into_sky(labels, original, cell_bufs, cw, ch)
     object_mask = [
         i not in basement
         and (
@@ -1138,6 +1569,13 @@ def main() -> None:
             if raw_freq
             else b"\x00" * (CELL * CELL * 3)
         )
+    st_freq: Counter[bytes] = Counter()
+    for i, kind in enumerate(original):
+        if kind == CLS_STRUCTURE:
+            st_freq[cell_bufs[i]] += 1
+    mode_tile[CLS_STRUCTURE] = (
+        st_freq.most_common(1)[0][0] if st_freq else b"\x00" * (CELL * CELL * 3)
+    )
     basement_mode = (
         Counter(cell_bufs[i] for i in basement).most_common(1)[0][0]
         if basement
@@ -1188,6 +1626,8 @@ def main() -> None:
             ):
                 buf = mode_tile[kind]
             elif kind == CLS_EARTH and raw_kind != kind:
+                buf = mode_tile[kind]
+            elif kind == CLS_STRUCTURE and raw_kind != kind:
                 buf = mode_tile[kind]
             atlas = layer_tiles[kind]
             tid = atlas.get(buf)
@@ -1279,6 +1719,7 @@ def main() -> None:
         "filled_mosaic_in_earth": n_mosaic_earth,
         "filled_skip_crumbs": n_skip_earth,
         "filled_structure_in_wallpaper": n_st_wp,
+        "filled_windows": n_windows,
         "eroded_earth": n_erode,
         "demoted_uncommon_bg": n_uncommon,
         "demoted_furniture_structure": n_furniture,
@@ -1301,6 +1742,7 @@ def main() -> None:
     print("  wallpaper-in-mosaic", n_wp_mosaic, "skip crumbs", n_skip_earth, "eroded earth", n_erode)
     print("  room gaps", n_room_gaps, "boxed", n_boxed, "notches", n_notch)
     print("  wallpaper-in-brick", n_wp_in_brick, "structure-in-wallpaper", n_st_wp)
+    print("  filled windows", n_windows)
     print("  demoted uncommon", n_uncommon, "furniture structure", n_furniture)
     print("  demoted roof mosaic", n_roof_mosaic, "mosaic islands", n_mosaic_sky)
     print("  secret basement", n_basement, "cells", len(basement))
