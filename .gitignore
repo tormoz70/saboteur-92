@@ -11,6 +11,13 @@ mcp_bridge.gd
 # Original game rips — dev reference only, do not ship
 assets/reference/
 
+# Local Godot editor drop (Windows/Linux binaries, not the engine project)
+tools/godot/
+
+# Local rip dump previews next to the scripts (Godot also writes .import sidecars)
+tools/saboteur_rip/_*.png
+tools/saboteur_rip/_*.png.import
+
 # Android build artifacts
 android/build/
 android/.build_version
