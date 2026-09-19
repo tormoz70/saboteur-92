@@ -1,0 +1,19 @@
+{
+  "note": "tile_id -> layer. Edit a layer here to re-file a tile; pixels never change.",
+  "layers": [
+    "earth",
+    "structure",
+    "wallpaper",
+    "mosaic",
+    "interior",
+    "fg"
+  ],
+  "counts": {
+    "earth": 1,
+    "structure": 25,
+    "wallpaper": 339,
+    "mosaic": 216,
+    "interior": 991,
+    "fg": 0
+  }
+}

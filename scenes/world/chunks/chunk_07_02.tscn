@@ -1,0 +1,50 @@
+[gd_scene format=4]
+
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_earth_tileset.tres" id="1_qj122"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_structure_tileset.tres" id="2_hkglm"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_wallpaper_tileset.tres" id="3_npvem"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_mosaic_tileset.tres" id="4_xfss3"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_interior_tileset.tres" id="5_y2kpa"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_fg_tileset.tres" id="6_m80g2"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_collision_tileset.tres" id="7_ccqv2"]
+
+[node name="Chunk_07_02" type="Node2D" unique_id=760643249]
+
+[node name="Earth" type="TileMapLayer" parent="." unique_id=95155183]
+z_index = -20
+texture_filter = 1
+tile_map_data = PackedByteArray("AAAAAEYAAAABAAAAAAABAEYAAAABAAAAAAACAEYAAAABAAAAAAAAAEcAAAABAAAAAAABAEcAAAABAAAAAAA=")
+tile_set = ExtResource("1_qj122")
+
+[node name="Structure" type="TileMapLayer" parent="." unique_id=1799980761]
+z_index = -10
+texture_filter = 1
+tile_set = ExtResource("2_hkglm")
+
+[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=939500007]
+z_index = -5
+texture_filter = 1
+tile_set = ExtResource("3_npvem")
+
+[node name="Mosaic" type="TileMapLayer" parent="." unique_id=1661725720]
+z_index = -4
+texture_filter = 1
+tile_map_data = PackedByteArray("AAAAAEUAAAAEAAAAAAABAEUAAAAEAAAAAAA=")
+tile_set = ExtResource("4_xfss3")
+
+[node name="Interior" type="TileMapLayer" parent="." unique_id=1128657992]
+texture_filter = 1
+tile_map_data = PackedByteArray("AAACAEUAAAAQAAEAAAADAEYAAAAQAAEAAAACAEcAAAALAAAAAAADAEcAAAAHAAAAAAA=")
+tile_set = ExtResource("5_y2kpa")
+
+[node name="Foreground" type="TileMapLayer" parent="." unique_id=428502468]
+z_index = 12
+texture_filter = 1
+tile_set = ExtResource("6_m80g2")
+
+[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=1954977509]
+visible = false
+z_index = 20
+texture_filter = 1
+tile_map_data = PackedByteArray("AAACAEUAAAABAAAAAAAAAEYAAAABAAAAAAABAEYAAAABAAAAAAACAEYAAAABAAAAAAADAEYAAAABAAAAAAAAAEcAAAABAAAAAAABAEcAAAABAAAAAAACAEcAAAABAAAAAAADAEcAAAABAAAAAAA=")
+tile_set = ExtResource("7_ccqv2")

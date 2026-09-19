@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_earth_tileset.tres" id="1_mrt1t"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_structure_tileset.tres" id="2_so1dx"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_wallpaper_tileset.tres" id="3_a10fw"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_mosaic_tileset.tres" id="4_xpkep"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_interior_tileset.tres" id="5_k8nkf"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_fg_tileset.tres" id="6_6iy5c"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_collision_tileset.tres" id="7_tmajm"]
+
+[node name="Chunk_07_01" type="Node2D" unique_id=1228436785]
+
+[node name="Earth" type="TileMapLayer" parent="." unique_id=659343818]
+z_index = -20
+texture_filter = 1
+tile_set = ExtResource("1_mrt1t")
+
+[node name="Structure" type="TileMapLayer" parent="." unique_id=2022323362]
+z_index = -10
+texture_filter = 1
+tile_set = ExtResource("2_so1dx")
+
+[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=955501103]
+z_index = -5
+texture_filter = 1
+tile_set = ExtResource("3_a10fw")
+
+[node name="Mosaic" type="TileMapLayer" parent="." unique_id=1627071516]
+z_index = -4
+texture_filter = 1
+tile_set = ExtResource("4_xpkep")
+
+[node name="Interior" type="TileMapLayer" parent="." unique_id=1630044301]
+texture_filter = 1
+tile_set = ExtResource("5_k8nkf")
+
+[node name="Foreground" type="TileMapLayer" parent="." unique_id=2127947806]
+z_index = 12
+texture_filter = 1
+tile_set = ExtResource("6_6iy5c")
+
+[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=2138270002]
+visible = false
+z_index = 20
+texture_filter = 1
+tile_set = ExtResource("7_tmajm")

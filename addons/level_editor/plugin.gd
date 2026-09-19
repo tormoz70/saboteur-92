@@ -24,12 +24,10 @@ func _enter_tree() -> void:
 	_bottom.brush = _brush
 	_bottom.plugin = self
 	add_control_to_bottom_panel(_bottom, "Level Editor")
-	add_tool_menu_item("Level Editor: Load World JSON", _on_tools_load)
 	print("Level Editor ready: FileSystem tabs (left) or bottom bar next to GUT")
 
 
 func _exit_tree() -> void:
-	remove_tool_menu_item("Level Editor: Load World JSON")
 	if _bottom:
 		remove_control_from_bottom_panel(_bottom)
 		_bottom.queue_free()
@@ -53,10 +51,3 @@ func _forward_canvas_gui_input(event: InputEvent) -> bool:
 	if not consumed and _sync:
 		_sync.handle_visual_input(event, _brush)
 	return consumed
-
-
-func _on_tools_load() -> void:
-	if _dock:
-		_dock._on_load()
-		if _bottom:
-			make_bottom_panel_item_visible(_bottom)

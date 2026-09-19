@@ -1,0 +1,11 @@
+{
+  "decoder_solid_cells": 134651,
+  "reference_solid_cells": 276694,
+  "intersection": 66231,
+  "precision": 0.4919,
+  "recall": 0.2394,
+  "f1": 0.322,
+  "sky_violation_cells": 9689,
+  "sky_violation_rate": 0.072,
+  "note": "recall is bounded above because the decoder marks structural floors/walls, not the bulk earth mass; the fan-map reference (structure + rock) is the complete solid source."
+}

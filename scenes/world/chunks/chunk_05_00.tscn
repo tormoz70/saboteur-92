@@ -1,0 +1,47 @@
+[gd_scene format=4]
+
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_earth_tileset.tres" id="1_gaym3"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_structure_tileset.tres" id="2_vd8y6"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_wallpaper_tileset.tres" id="3_2epm7"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_mosaic_tileset.tres" id="4_qxd5u"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_interior_tileset.tres" id="5_aix6e"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_fg_tileset.tres" id="6_8ioro"]
+[ext_resource type="TileSet" path="res://assets/tilesets/s2_collision_tileset.tres" id="7_0821m"]
+
+[node name="Chunk_05_00" type="Node2D" unique_id=584366359]
+
+[node name="Earth" type="TileMapLayer" parent="." unique_id=1814228138]
+z_index = -20
+texture_filter = 1
+tile_set = ExtResource("1_gaym3")
+
+[node name="Structure" type="TileMapLayer" parent="." unique_id=2018926244]
+z_index = -10
+texture_filter = 1
+tile_set = ExtResource("2_vd8y6")
+
+[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=2095707252]
+z_index = -5
+texture_filter = 1
+tile_set = ExtResource("3_2epm7")
+
+[node name="Mosaic" type="TileMapLayer" parent="." unique_id=1925937462]
+z_index = -4
+texture_filter = 1
+tile_set = ExtResource("4_qxd5u")
+
+[node name="Interior" type="TileMapLayer" parent="." unique_id=1232416785]
+texture_filter = 1
+tile_map_data = PackedByteArray("AAB1ADMAAAAPAAMAAAB1ADQAAAAPAAMAAAB1ADUAAAAPAAMAAAB1ADYAAAAPAAMAAAB1ADcAAAAPAAMAAAB1ADgAAAAPAAMAAAB1ADkAAAAPAAMAAAB1ADoAAAAPAAMAAAB1ADsAAAAPAAMAAAB1ADwAAAAPAAMAAAB1AD0AAAAPAAMAAAB1AD4AAAAPAAMAAAB1AD8AAAAPAAMAAAB1AEAAAAAPAAMAAAB1AEEAAAAPAAMAAAB1AEIAAAAPAAMAAAB1AEMAAAAPAAMAAAB1AEQAAAAPAAMAAAB1AEUAAAAPAAMAAAB0AEYAAAAYAAsAAAB1AEYAAAAYAB4AAAB2AEYAAAAYAAsAAAB0AEcAAAAAAA0AAAB2AEcAAAAAAA0AAAA=")
+tile_set = ExtResource("5_aix6e")
+
+[node name="Foreground" type="TileMapLayer" parent="." unique_id=969787082]
+z_index = 12
+texture_filter = 1
+tile_set = ExtResource("6_8ioro")
+
+[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=117336726]
+visible = false
+z_index = 20
+texture_filter = 1
+tile_set = ExtResource("7_0821m")
