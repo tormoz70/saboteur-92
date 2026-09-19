@@ -295,9 +295,30 @@ class Labyrinth:
         if on_climb:
             for dy in (-1, 1):
                 add(cx, cy + dy)
-        # Hatch: climb bit lives on the solid lid under the feet.
-        if on_stand and cy + 1 < ch and self.climb[cy + 1][cx]:
-            add(cx, cy + 1)
+            # Emerge through a 1–2 cell hatch lid onto the floor above.
+            for depth in (1, 2):
+                lid0 = cy - depth
+                stand_y = lid0 - 1
+                if lid0 < 0 or stand_y < 0:
+                    break
+                if not all(solid[lid0 + d][cx] for d in range(depth)):
+                    continue
+                if (cx, stand_y) in self.stand:
+                    add(cx, stand_y)
+                    break
+        # Hatch: walkable lid with a shaft under the feet (lid is solid, not climb).
+        if on_stand:
+            for depth in (1, 2):
+                shaft_y = cy + 1 + depth
+                if shaft_y >= ch:
+                    break
+                if not all(solid[cy + 1 + d][cx] for d in range(depth)):
+                    continue
+                if (cx, shaft_y) in self.climb_cells:
+                    add(cx, shaft_y)
+                    break
+            if cy + 1 < ch and self.climb[cy + 1][cx]:
+                add(cx, cy + 1)
         return out
 
     def _bfs(self) -> None:

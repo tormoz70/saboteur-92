@@ -374,6 +374,28 @@ func test_climb_through_hatch_when_rungs_end_at_the_floor() -> void:
 	)
 
 
+func test_climb_up_stands_when_ladder_aabb_overhangs_the_floor() -> void:
+	# Runtime hatch areas are padded 16 native px above the last rung so the
+	# detector still overlaps the lid. That overhang must not be treated as
+	# more ladder — otherwise Nina climbs the wallpaper after the rungs end.
+	var player := await _spawn_on_floor()
+	_lid = _add_solid(Vector2(240, 0), Vector2(480, 8))
+	# Lid top is y=-4. AABB top at y=-20 matches the 16px production pad.
+	_add_ladder(Vector2(140, 32), Vector2(160, 104))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	for _i in 120:
+		await wait_physics_frames(1)
+		if not player.on_ladder and player.global_position.y < 20.0:
+			break
+	assert_false(player.on_ladder)
+	assert_true(player.is_on_floor(), "stands on the floor")
+	# Origin sits 56px above the soles. Lid top is y=-4, so standing origin
+	# is ~-60. Climbing the wallpaper would keep going toward -120 and up.
+	assert_gt(player.global_position.y, -80.0, "must not climb the wall above the floor")
+	assert_lt(player.global_position.y, 8.0, "should have reached the landing")
+
+
 func test_jump_off_ladder_into_ceiling_does_not_wedge() -> void:
 	# Climb to the lid, then MOVE without UP to hop off. Restoring world
 	# collision while the head is in the brick used to freeze the pose.

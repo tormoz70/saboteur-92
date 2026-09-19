@@ -2,7 +2,7 @@
 """Generate native Godot TileSet .tres resources from the atlases.
 
 Visual tilesets: one per layer, plain atlas, no physics.
-Collision tileset: 4 semantic tiles with a physics layer and a
+Collision tileset: 5 semantic tiles with a physics layer and a
 collision_type custom data layer, so TileMapLayer physics and ladder
 detection both work from the same resource.
 
@@ -24,12 +24,13 @@ CELLS = ROOT / "assets" / "world" / "s2_world_cells.json"
 
 CELL = 8
 
-# Collision tile ids in the 4x1 collision atlas.
+# Collision tile ids in the 5x1 collision atlas.
 COLLISION_TILES = [
     ("empty", None),      # 0:0 transparent, no polygon
     ("solid", "solid"),   # 1:0 red, full square
     ("ladder", "ladder"), # 2:0 yellow, no polygon (climb is an Area2D)
     ("oneway", "oneway"), # 3:0 cyan, one-way platform
+    ("rope", None),       # 4:0 orange, no polygon (tightrope is gameplay)
 ]
 
 # Full-square polygon for an 8x8 tile, centred on the tile origin.
@@ -116,13 +117,14 @@ def write_collision_tileset() -> Path:
 def _write_collision_png(png: Path) -> None:
     from PIL import ImageDraw
 
-    img = Image.new("RGBA", (CELL * 4, CELL), (0, 0, 0, 0))
+    img = Image.new("RGBA", (CELL * len(COLLISION_TILES), CELL), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     colors = [
         (0, 0, 0, 0),
         (200, 40, 40, 255),
         (220, 200, 40, 255),
         (40, 180, 220, 255),
+        (255, 128, 0, 255),
     ]
     for i, color in enumerate(colors):
         if color[3] == 0:

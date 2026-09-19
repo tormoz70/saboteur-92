@@ -8,39 +8,39 @@
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_fg_tileset.tres" id="6_8ioro"]
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_collision_tileset.tres" id="7_0821m"]
 
-[node name="Chunk_05_00" type="Node2D" unique_id=584366359]
+[node name="Chunk_05_00" type="Node2D" unique_id=1432302512]
 
-[node name="Earth" type="TileMapLayer" parent="." unique_id=1814228138]
+[node name="Earth" type="TileMapLayer" parent="." unique_id=1182138703]
 z_index = -20
 texture_filter = 1
 tile_set = ExtResource("1_gaym3")
 
-[node name="Structure" type="TileMapLayer" parent="." unique_id=2018926244]
+[node name="Structure" type="TileMapLayer" parent="." unique_id=1902169707]
 z_index = -10
 texture_filter = 1
 tile_set = ExtResource("2_vd8y6")
 
-[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=2095707252]
+[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=1152565485]
 z_index = -5
 texture_filter = 1
 tile_set = ExtResource("3_2epm7")
 
-[node name="Mosaic" type="TileMapLayer" parent="." unique_id=1925937462]
+[node name="Mosaic" type="TileMapLayer" parent="." unique_id=2011422148]
 z_index = -4
 texture_filter = 1
 tile_set = ExtResource("4_qxd5u")
 
-[node name="Interior" type="TileMapLayer" parent="." unique_id=1232416785]
+[node name="Interior" type="TileMapLayer" parent="." unique_id=1230563960]
 texture_filter = 1
-tile_map_data = PackedByteArray("AAB1ADMAAAAPAAMAAAB1ADQAAAAPAAMAAAB1ADUAAAAPAAMAAAB1ADYAAAAPAAMAAAB1ADcAAAAPAAMAAAB1ADgAAAAPAAMAAAB1ADkAAAAPAAMAAAB1ADoAAAAPAAMAAAB1ADsAAAAPAAMAAAB1ADwAAAAPAAMAAAB1AD0AAAAPAAMAAAB1AD4AAAAPAAMAAAB1AD8AAAAPAAMAAAB1AEAAAAAPAAMAAAB1AEEAAAAPAAMAAAB1AEIAAAAPAAMAAAB1AEMAAAAPAAMAAAB1AEQAAAAPAAMAAAB1AEUAAAAPAAMAAAB0AEYAAAAYAAsAAAB1AEYAAAAYAB4AAAB2AEYAAAAYAAsAAAB0AEcAAAAAAA0AAAB2AEcAAAAAAA0AAAA=")
+tile_map_data = PackedByteArray("AAB1ADMAAAAPAAMAAAB1ADQAAAAPAAMAAAB1ADUAAAAPAAMAAAB1ADYAAAAPAAMAAAB1ADcAAAAPAAMAAAB1ADgAAAAPAAMAAAB1ADkAAAAPAAMAAAB1ADoAAAAPAAMAAAB1ADsAAAAPAAMAAAB1ADwAAAAPAAMAAAB1AD0AAAAPAAMAAAB1AD4AAAAPAAMAAAB1AD8AAAAPAAMAAAB1AEAAAAAPAAMAAAB1AEEAAAAPAAMAAAB1AEIAAAAPAAMAAAB1AEMAAAAPAAMAAAB1AEQAAAAPAAMAAAB1AEUAAAAPAAMAAAB0AEYAAAAWAAsAAAB1AEYAAAARAB4AAAB2AEYAAAAWAAsAAAB0AEcAAAAeAAwAAAB2AEcAAAAeAAwAAAA=")
 tile_set = ExtResource("5_aix6e")
 
-[node name="Foreground" type="TileMapLayer" parent="." unique_id=969787082]
+[node name="Foreground" type="TileMapLayer" parent="." unique_id=650892487]
 z_index = 12
 texture_filter = 1
 tile_set = ExtResource("6_8ioro")
 
-[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=117336726]
+[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=967726451]
 visible = false
 z_index = 20
 texture_filter = 1

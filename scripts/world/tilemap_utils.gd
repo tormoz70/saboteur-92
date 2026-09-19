@@ -9,6 +9,7 @@ const TILE_EMPTY := 0
 const TILE_SOLID := 1
 const TILE_LADDER := 2
 const TILE_ONEWAY := 3
+const TILE_ROPE := 4
 const CELL := 8
 
 
@@ -89,13 +90,19 @@ static func fill_from_rle(layer: TileMapLayer, spec: Dictionary) -> void:
 
 
 static func get_collision_type(tilemap: TileMapLayer, cell: Vector2i) -> String:
+	var source_id := tilemap.get_cell_source_id(cell)
+	if source_id < 0 or tilemap.tile_set == null:
+		return "empty"
+	var atlas := tilemap.get_cell_atlas_coords(cell)
+	var source := tilemap.tile_set.get_source(source_id) as TileSetAtlasSource
+	if source == null or not source.has_tile(atlas):
+		return "empty"
 	var tile_data := tilemap.get_cell_tile_data(cell)
 	if tile_data == null:
 		return "empty"
 	var value: Variant = tile_data.get_custom_data("collision_type")
 	if typeof(value) == TYPE_STRING and str(value) != "":
 		return str(value)
-	var atlas := tilemap.get_cell_atlas_coords(cell)
 	match atlas.x:
 		TILE_SOLID:
 			return "solid"
@@ -103,6 +110,8 @@ static func get_collision_type(tilemap: TileMapLayer, cell: Vector2i) -> String:
 			return "ladder"
 		TILE_ONEWAY:
 			return "oneway"
+		TILE_ROPE:
+			return "rope"
 		_:
 			return "empty"
 
@@ -210,7 +219,9 @@ static func ladder_rects(climb: Array, cell: int = CELL) -> Array:
 	for rect in greedy_merge_rects(climb, cell):
 		if int(rect[3]) < 24:
 			continue
-		rects.append([int(rect[0]) - 4, rect[1], int(rect[2]) + 8, rect[3]])
+		rects.append(
+			[int(rect[0]) - 4, int(rect[1]) - 16, int(rect[2]) + 8, int(rect[3]) + 32]
+		)
 	return rects
 
 

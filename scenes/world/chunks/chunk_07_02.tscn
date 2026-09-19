@@ -1,4 +1,4 @@
-[gd_scene format=4]
+[gd_scene format=3]
 
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_earth_tileset.tres" id="1_qj122"]
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_structure_tileset.tres" id="2_hkglm"]
@@ -8,43 +8,43 @@
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_fg_tileset.tres" id="6_m80g2"]
 [ext_resource type="TileSet" path="res://assets/tilesets/s2_collision_tileset.tres" id="7_ccqv2"]
 
-[node name="Chunk_07_02" type="Node2D" unique_id=760643249]
+[node name="Chunk_07_02" type="Node2D" unique_id=2089291566]
 
-[node name="Earth" type="TileMapLayer" parent="." unique_id=95155183]
+[node name="Earth" type="TileMapLayer" parent="." unique_id=284325413]
 z_index = -20
 texture_filter = 1
-tile_map_data = PackedByteArray("AAAAAEYAAAABAAAAAAABAEYAAAABAAAAAAACAEYAAAABAAAAAAAAAEcAAAABAAAAAAABAEcAAAABAAAAAAA=")
+tile_map_data = PackedByteArray(0, 0, 0, 0, 70, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 70, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2, 0, 70, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 71, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 71, 0, 0, 0, 1, 0, 0, 0, 0, 0)
 tile_set = ExtResource("1_qj122")
 
-[node name="Structure" type="TileMapLayer" parent="." unique_id=1799980761]
+[node name="Structure" type="TileMapLayer" parent="." unique_id=1984022390]
 z_index = -10
 texture_filter = 1
 tile_set = ExtResource("2_hkglm")
 
-[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=939500007]
+[node name="Wallpaper" type="TileMapLayer" parent="." unique_id=1405328453]
 z_index = -5
 texture_filter = 1
 tile_set = ExtResource("3_npvem")
 
-[node name="Mosaic" type="TileMapLayer" parent="." unique_id=1661725720]
+[node name="Mosaic" type="TileMapLayer" parent="." unique_id=559396430]
 z_index = -4
 texture_filter = 1
-tile_map_data = PackedByteArray("AAAAAEUAAAAEAAAAAAABAEUAAAAEAAAAAAA=")
+tile_map_data = PackedByteArray(0, 0, 0, 0, 69, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1, 0, 69, 0, 0, 0, 4, 0, 0, 0, 0, 0)
 tile_set = ExtResource("4_xfss3")
 
-[node name="Interior" type="TileMapLayer" parent="." unique_id=1128657992]
+[node name="Interior" type="TileMapLayer" parent="." unique_id=1909324522]
 texture_filter = 1
-tile_map_data = PackedByteArray("AAACAEUAAAAQAAEAAAADAEYAAAAQAAEAAAACAEcAAAALAAAAAAADAEcAAAAHAAAAAAA=")
+tile_map_data = PackedByteArray(0, 0, 2, 0, 69, 0, 0, 0, 16, 0, 1, 0, 0, 0, 3, 0, 70, 0, 0, 0, 16, 0, 1, 0, 0, 0, 2, 0, 71, 0, 0, 0, 11, 0, 0, 0, 0, 0, 3, 0, 71, 0, 0, 0, 7, 0, 0, 0, 0, 0)
 tile_set = ExtResource("5_y2kpa")
 
-[node name="Foreground" type="TileMapLayer" parent="." unique_id=428502468]
+[node name="Foreground" type="TileMapLayer" parent="." unique_id=903766500]
 z_index = 12
 texture_filter = 1
 tile_set = ExtResource("6_m80g2")
 
-[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=1954977509]
+[node name="CollisionLayer" type="TileMapLayer" parent="." unique_id=2063130653]
 visible = false
 z_index = 20
 texture_filter = 1
-tile_map_data = PackedByteArray("AAACAEUAAAABAAAAAAAAAEYAAAABAAAAAAABAEYAAAABAAAAAAACAEYAAAABAAAAAAADAEYAAAABAAAAAAAAAEcAAAABAAAAAAABAEcAAAABAAAAAAACAEcAAAABAAAAAAADAEcAAAABAAAAAAA=")
+tile_map_data = PackedByteArray(0, 0, 2, 0, 71, 0, 0, 0, 1, 0, 0, 0, 0, 0, 3, 0, 71, 0, 0, 0, 1, 0, 0, 0, 0, 0)
 tile_set = ExtResource("7_ccqv2")

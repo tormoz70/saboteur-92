@@ -2,6 +2,9 @@ class_name LadderController
 extends RefCounted
 
 const CLIMB_STEP_PX := 16.0
+# Hatch Area2D is padded 16 native px above the last rung so the detector
+# still overlaps a lid. Probe past that; the overhang is not more ladder.
+const RUNG_PAD_NATIVE := 20.0
 
 var climb_frame: int = 0
 
@@ -87,6 +90,13 @@ func process_climb(delta: float, axis: float) -> void:
 		# climbing, so is_on_floor() is false and Nina looks standing but
 		# cannot walk. Leave as soon as the soles rest on a slab.
 		if _idle_on_walkable_floor():
+			_leave()
+		return
+	# Holding UP at a landing: stand. A padded AABB above the last rung is
+	# not a wall to climb. Another UP from the floor enters a real shaft.
+	if axis < 0.0 and _idle_on_walkable_floor() and not _rungs_continue_above(_feet_y()):
+		_dismount_if_close_floor()
+		if _p.on_ladder:
 			_leave()
 		return
 	var step_time := CLIMB_STEP_PX / maxf(_p.climb_speed, 1.0)
@@ -274,15 +284,19 @@ func _try_climb_up_past_lid(step: Vector2) -> bool:
 	var head := _head_y()
 	var hit := _vertical_solid(head + 1.0, head + step.y - 2.0)
 	if hit.is_empty():
+		# Open shaft, or wallpaper above a landing. Do not climb the wall.
+		if _idle_on_walkable_floor() and not _rungs_continue_above(_feet_y()):
+			_dismount_if_close_floor()
+			if _p.on_ladder:
+				_leave()
+			return false
 		return true
 	var bottom: float = hit.position.y
-	# Shaft continues through the lid.
-	if _at_world(Vector2(_body_cx(), bottom - 32.0)):
-		return true
-	# Thin walkable floor (document hatch): rungs often stop at the slab.
-	# Climb through until the feet reach the TOP, never the underside.
 	var top := _walkable_top(bottom)
 	if top < INF:
+		# Through-hatch only when rungs really continue above the slab.
+		if _rungs_continue_above(top):
+			return true
 		if _feet_y() + step.y <= top + 2.0:
 			_dismount_to_y(top)
 			return false
@@ -290,6 +304,11 @@ func _try_climb_up_past_lid(step: Vector2) -> bool:
 	# Dead-end mass: stay on the last rung. Do not plant feet on the underside.
 	_dismount_if_landing()
 	return false
+
+
+func _rungs_continue_above(floor_top: float) -> bool:
+	var pad := RUNG_PAD_NATIVE * maxf(_p.scale.y, 1.0)
+	return _at_world(Vector2(_body_cx(), floor_top - pad))
 
 
 func _walkable_top(bottom_y: float) -> float:
@@ -364,9 +383,9 @@ func _dismount_if_landing() -> bool:
 	var space := _p.get_world_2d().direct_space_state
 	var feet := _feet_y()
 	var cx := _body_cx()
-	for side in [-48.0, 48.0, -72.0, 72.0]:
+	for side in [0.0, -48.0, 48.0, -72.0, 72.0]:
 		var from := Vector2(cx + side, feet - 12.0)
-		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 28.0))
+		var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(0.0, 48.0))
 		q.collision_mask = _p.get_world_mask()
 		q.exclude = [_p.get_rid()]
 		var hit := space.intersect_ray(q)
@@ -376,7 +395,7 @@ func _dismount_if_landing() -> bool:
 		if n.y > -0.5:
 			continue
 		var fy: float = hit.position.y
-		if absf(fy - feet) > 20.0:
+		if absf(fy - feet) > 36.0:
 			continue
 		_dismount_to_y(fy)
 		return true

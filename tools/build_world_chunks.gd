@@ -145,7 +145,12 @@ func _build_chunk(
 				if node.tile_set != null:
 					var source := node.tile_set.get_source(0) as TileSetAtlasSource
 					if source != null:
-						var cols: int = source.get_atlas_grid_size().x
+						# Pack order is tile_id in a grid of PNG_width/8, not
+						# Godot's padded atlas-grid size (stale .tres used to
+						# report 31 rows for a 32-row interior atlas).
+						var cols: int = CELL
+						if source.texture != null:
+							cols = maxi(1, source.texture.get_width() / CELL)
 						node.set_cell(Vector2i(x, y), 0, Vector2i(tid % cols, tid / cols))
 			if has_collision:
 				var ctype := int(collision[(y0 + y) * cw + (x0 + x)])

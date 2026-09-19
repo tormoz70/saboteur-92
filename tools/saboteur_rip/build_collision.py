@@ -391,6 +391,75 @@ def _clear_tree_trunks(
     return cleared
 
 
+def _solid_outdoor_grass(
+    collision: np.ndarray,
+    img: np.ndarray,
+    layer_of: np.ndarray,
+    mosaic_idx: int,
+) -> int:
+    """The green grass strip is the floor. Indoor mosaic wallpaper stays empty.
+
+    Mosaic cells are paper inside the HQ. Outdoors the same layer is a 1–2 cell
+    grass cap on black earth; without this, Nina walks on the dirt under it.
+    """
+    ch, cw = collision.shape
+    grid = img.reshape(ch, CELL, cw, CELL, 3).transpose(0, 2, 1, 3, 4)
+    sky = (grid == ZX_BLUE).all(axis=(2, 3, 4))
+    green = (
+        (grid[:, :, :, :, 1] >= 180)
+        & (grid[:, :, :, :, 0] < 80)
+        & (grid[:, :, :, :, 2] < 80)
+    )
+    gfrac = green.mean(axis=(2, 3))
+    floorish = (collision == SOLID) | (collision == ONEWAY)
+    n = 0
+    seeds: list[tuple[int, int]] = []
+    for y in range(1, ch - 1):
+        for x in range(cw):
+            if collision[y, x] != EMPTY:
+                continue
+            if gfrac[y, x] < 0.25:
+                continue
+            if not bool(sky[y - 1, x]):
+                continue
+            below_floor = bool(floorish[y + 1, x])
+            grass_then_floor = (
+                y + 2 < ch
+                and gfrac[y + 1, x] >= 0.25
+                and collision[y + 1, x] == EMPTY
+                and bool(floorish[y + 2, x])
+            )
+            if not below_floor and not grass_then_floor:
+                continue
+            collision[y, x] = SOLID
+            seeds.append((x, y))
+            n += 1
+            if grass_then_floor:
+                collision[y + 1, x] = SOLID
+                seeds.append((x, y + 1))
+                n += 1
+    # Tree / panther / crate sprites sit on the grass, so those cells have no
+    # sky above. Grow along the strip; do not promote indoor mosaic on the
+    # same world row.
+    i = 0
+    while i < len(seeds):
+        x, y = seeds[i]
+        i += 1
+        for nx in (x - 1, x + 1):
+            if not (0 <= nx < cw) or collision[y, nx] != EMPTY:
+                continue
+            if int(layer_of[y, nx]) != mosaic_idx:
+                continue
+            if gfrac[y, nx] < 0.25:
+                continue
+            if y + 1 >= ch or collision[y + 1, nx] not in (SOLID, ONEWAY):
+                continue
+            collision[y, nx] = SOLID
+            seeds.append((nx, y))
+            n += 1
+    return n
+
+
 def _clear_facade_nubs(
     collision: np.ndarray,
     img: np.ndarray,
@@ -680,6 +749,11 @@ def _maybe_rope_run(
     if span > max_run:
         # Long both-anchored sky runs are screenshot seams, not tightropes.
         return
+    # Sky sitting on outdoor grass / floor is not a tightrope.
+    if y + 1 < collision.shape[0]:
+        below = collision[y + 1, run_start:run_end]
+        if int(np.isin(below, [SOLID, ONEWAY]).sum()) >= span // 2:
+            return
     # Local rope: a real roof, not a 1–2 cell facade nub.
     if not has_oneway and floor_hits < 3:
         return
@@ -690,11 +764,11 @@ def _maybe_rope_run(
 
 
 def _open_ladder_hatches(collision: np.ndarray, speckle: np.ndarray) -> None:
-    """Speckle cells stacked on a ladder are floor/roof hatches, not plugs.
+    """Punch thick speckle stacks on a ladder; keep 1–2 cell lids solid.
 
-    Pure black is the ground mass and is left solid. Speckle is the thin lid
-    a ladder already occupies in the original (roof of the west warehouse,
-    INVINCIBILITY hatch).
+    Speckle is the thin fill a ladder already occupies. A 1–2 cell lid is a
+    hatch Nina walks on (she only passes it while climbing). Three or more
+    cells is a plug through the ground mass and becomes climbable.
     """
     ch, cw = collision.shape
     for x in range(cw):
@@ -706,15 +780,217 @@ def _open_ladder_hatches(collision: np.ndarray, speckle: np.ndarray) -> None:
             y1 = y
             while y1 < ch and collision[y1, x] == LADDER:
                 y1 += 1
+            stack: list[int] = []
             yy = y - 1
             while yy >= 0 and speckle[yy, x] and collision[yy, x] == SOLID:
-                collision[yy, x] = LADDER
+                stack.append(yy)
                 yy -= 1
+            if len(stack) >= 3:
+                for sy in stack:
+                    collision[sy, x] = LADDER
+            stack = []
             yy = y1
             while yy < ch and speckle[yy, x] and collision[yy, x] == SOLID:
-                collision[yy, x] = LADDER
+                stack.append(yy)
                 yy += 1
+            if len(stack) >= 3:
+                for sy in stack:
+                    collision[sy, x] = LADDER
             y = y1
+
+
+def _seal_ladder_hatches(collision: np.ndarray) -> int:
+    """Walkable lids on any floor a ladder punches through.
+
+    Indoor hatches are 1–2 cells. White roof ladders go through 3–4 cells of
+    speckle; leaving the whole stack as LADDER is a hole Nina falls through.
+    Seal the top 1–2 cells of each floor-embedded run (walk on the lid, pass
+    only while climbing). A 2-wide shaft still counts when the floor continues
+    on both sides of the pair.
+    """
+    ch, cw = collision.shape
+    floorish = (collision == SOLID) | (collision == ONEWAY)
+
+    def floor_beyond(x: int, y: int, dx: int) -> bool:
+        xx = x + dx
+        while 0 <= xx < cw and collision[y, xx] == LADDER:
+            xx += dx
+        return 0 <= xx < cw and bool(floorish[y, xx])
+
+    sealed = 0
+    for x in range(cw):
+        y = 0
+        while y < ch:
+            if collision[y, x] != LADDER:
+                y += 1
+                continue
+            y_end = y
+            while y_end < ch and collision[y_end, x] == LADDER:
+                y_end += 1
+            yy = y
+            while yy < y_end:
+                if not (floor_beyond(x, yy, -1) and floor_beyond(x, yy, 1)):
+                    yy += 1
+                    continue
+                y1 = yy
+                while y1 < y_end and floor_beyond(x, y1, -1) and floor_beyond(x, y1, 1):
+                    y1 += 1
+                if (
+                    yy > 0
+                    and collision[yy - 1, x] == SOLID
+                    and floor_beyond(x, yy - 1, -1)
+                    and floor_beyond(x, yy - 1, 1)
+                    and y1 < y_end
+                ):
+                    yy = y1
+                    continue
+                if y1 >= y_end:
+                    # Plug through a floor with no shaft below: fill it.
+                    collision[yy:y1, x] = SOLID
+                    sealed += y1 - yy
+                else:
+                    lid = min(2, y1 - yy)
+                    collision[yy : yy + lid, x] = SOLID
+                    sealed += lid
+                yy = y1
+            y = y_end
+    return sealed
+
+
+def _bridge_ladder_gaps(
+    collision: np.ndarray, layer_of: np.ndarray, paper: set[int]
+) -> int:
+    """Join a ladder that stops short of the floor (baked figures cover rungs)."""
+    ch, cw = collision.shape
+    bridged = 0
+    for x in range(cw):
+        y = 0
+        while y < ch:
+            if collision[y, x] != LADDER:
+                y += 1
+                continue
+            y1 = y
+            while y1 < ch and collision[y1, x] == LADDER:
+                y1 += 1
+            y2 = y1
+            while (
+                y2 < ch
+                and (y2 - y1) <= 8
+                and collision[y2, x] == EMPTY
+                and int(layer_of[y2, x]) in paper
+            ):
+                y2 += 1
+            if (
+                y2 > y1
+                and y2 < ch
+                and (y2 - y1) <= 8
+                and collision[y2, x] in (SOLID, ONEWAY)
+            ):
+                collision[y1:y2, x] = LADDER
+                bridged += y2 - y1
+            y = y2 if y2 > y1 else y1
+    return bridged
+
+
+def _thin_hatch_lids(collision: np.ndarray, ladder_mask: np.ndarray) -> int:
+    """Keep a 1–2 cell lid; extra solid on a ladder glyph is a climbable shaft.
+
+    Sealing twice (before and after floor nubs) can stack two lids on one
+    2-wide hatch so Nina never overlaps the climb Area2D.
+    """
+    ch, cw = collision.shape
+    restored = 0
+    for x in range(cw):
+        y = 0
+        while y < ch:
+            if not (
+                collision[y, x] in (SOLID, ONEWAY)
+                and (y == 0 or collision[y - 1, x] == EMPTY)
+            ):
+                y += 1
+                continue
+            y_end = y
+            while y_end < ch and collision[y_end, x] in (SOLID, ONEWAY):
+                y_end += 1
+            has_glyph = bool(ladder_mask[y:y_end, x].any())
+            has_shaft = bool((collision[y:y_end, x] == LADDER).any()) or (
+                y_end < ch and collision[y_end, x] == LADDER
+            )
+            if not (has_glyph and has_shaft):
+                y = y_end
+                continue
+            lid = 2
+            for k, yy in enumerate(range(y, y_end)):
+                if not ladder_mask[yy, x] and collision[yy, x] != LADDER:
+                    continue
+                if k < lid:
+                    if collision[yy, x] == LADDER:
+                        collision[yy, x] = SOLID
+                elif collision[yy, x] != LADDER:
+                    collision[yy, x] = LADDER
+                    restored += 1
+            y = y_end
+    return restored
+
+
+def _is_flood_water(tile: np.ndarray) -> bool:
+    """Cave flood fill: dense ZX-blue brick, not pure sky and not a ladder glyph."""
+    blue = (tile == ZX_BLUE).all(axis=2)
+    frac = float(blue.mean())
+    return 0.70 <= frac < 0.98
+
+
+def _extend_ladders_through_water(
+    collision: np.ndarray,
+    img: np.ndarray,
+    layer_of: np.ndarray,
+    tile_of: np.ndarray,
+    interior_idx: int,
+    max_gap: int = 12,
+) -> int:
+    """Grow painted cave ladders down through flood water to the floor.
+
+    The fan map stops white ladders at the waterline; original Saboteur II
+    lets Nina climb out of the drink. Only interior blue-brick water is
+    extended — sky shafts and HQ wallpaper are left alone.
+    """
+    ch, cw = collision.shape
+    extended = 0
+    for x in range(cw):
+        y = 0
+        while y < ch:
+            if collision[y, x] != LADDER:
+                y += 1
+                continue
+            while y < ch and collision[y, x] == LADDER:
+                y += 1
+            src_y = y - 1
+            src_li = int(layer_of[src_y, x])
+            src_tid = int(tile_of[src_y, x])
+            water: list[int] = []
+            yy = y
+            while yy < ch and len(water) < max_gap:
+                if collision[yy, x] in (SOLID, ONEWAY, LADDER, ROPE):
+                    break
+                if int(layer_of[yy, x]) != interior_idx:
+                    water = []
+                    break
+                tile = img[yy * CELL : (yy + 1) * CELL, x * CELL : (x + 1) * CELL]
+                if not _is_flood_water(tile):
+                    water = []
+                    break
+                water.append(yy)
+                yy += 1
+            if not water:
+                continue
+            if yy >= ch or collision[yy, x] not in (SOLID, ONEWAY):
+                continue
+            for wy in water:
+                collision[wy, x] = LADDER
+                layer_of[wy, x] = src_li
+                tile_of[wy, x] = src_tid
+            extended += len(water)
+    return extended
 
 
 def _shaft_empty(collision: np.ndarray, x0: int, x1: int, row: int) -> bool:
@@ -887,6 +1163,21 @@ def main() -> None:
     collision[is_cladding] = EMPTY  # red-brick veneer on solid earth
     collision[ladder] = LADDER  # climbable overrides solid/empty
     _open_ladder_hatches(collision, speckle)
+    n_bridge = _bridge_ladder_gaps(
+        collision, layer_of, {mosaic_idx, interior_idx, wallpaper_idx}
+    )
+    n_hatches = _seal_ladder_hatches(collision)
+    n_water_ladders = _extend_ladders_through_water(
+        collision, img, layer_of, tile_of, interior_idx
+    )
+    if n_water_ladders:
+        cells_doc["cells"] = np.stack(
+            (layer_of.reshape(-1), tile_of.reshape(-1)), axis=1
+        ).tolist()
+        CELLS.write_text(
+            json.dumps(cells_doc, separators=(",", ":")), encoding="utf-8"
+        )
+        print(f"stamped {n_water_ladders} flood-ladder cells into {CELLS}")
     # Iron balconies / I-beams / 45° braces: walk on top, not a climb.
     iron_tiles = _iron_platform_tiles(img, layer_of, tile_of, interior_idx)
     iron_tids = [tid for li, tid in iron_tiles if li == interior_idx]
@@ -909,6 +1200,9 @@ def main() -> None:
         n_nubs += n
         if n == 0:
             break
+    n_grass = _solid_outdoor_grass(collision, img, layer_of, mosaic_idx)
+    n_hatches += _seal_ladder_hatches(collision)
+    n_thin = _thin_hatch_lids(collision, ladder)
     rope = _rope_cells(img, collision)
     collision[rope] = ROPE
     n_fan_sky = clear_fan_sky_collision(collision, EMPTY)
@@ -942,8 +1236,10 @@ def main() -> None:
         f"grid={cw}x{ch} counts={counts} guard_cells_erased={n_guard} "
         f"fan_sky_cleared={n_fan_sky} screens_cleared={n_screens} "
         f"notches_filled={n_notches} window_nubs={n_window_nubs} "
-        f"trees_cleared={n_trees} nubs_cleared={n_nubs} "
+        f"trees_cleared={n_trees} nubs_cleared={n_nubs} grass={n_grass} "
         f"ladder_tiles={len(ladder_tiles)} "
+        f"water_ladders={n_water_ladders} hatches_sealed={n_hatches} "
+        f"ladder_gaps={n_bridge} hatch_shafts={n_thin} "
         f"iron_tiles={sorted(tid for _li, tid in iron_tiles)} "
         f"seam_tiles={sorted(seam_tids)}"
     )

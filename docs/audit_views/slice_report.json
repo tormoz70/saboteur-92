@@ -6,23 +6,23 @@
   ],
   "cells": 589824,
   "counts": {
-    "sky": 199112,
-    "interior": 67599,
-    "wallpaper": 82413,
-    "mosaic": 76754,
-    "structure": 7475,
+    "sky": 199226,
+    "interior": 67570,
+    "wallpaper": 82342,
+    "mosaic": 76744,
+    "structure": 7471,
     "earth": 156471
   },
   "unique_tiles": {
     "earth": 1,
     "structure": 25,
-    "wallpaper": 339,
+    "wallpaper": 293,
     "mosaic": 216,
-    "interior": 991,
+    "interior": 984,
     "fg": 0
   },
-  "unique_total": 1572,
-  "guard_cells_erased": 2086,
+  "unique_total": 1519,
+  "guard_cells_erased": 475,
   "sky_color": [
     0,
     0,
