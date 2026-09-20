@@ -215,7 +215,7 @@ AABB climb, люк — пересечение пола и лестницы. `thi
 
 ### 4.1. Инверсия сделана
 
-Рип больше не нужен рантайму. Источник правды — визуальный RLE (`s2_world_tiles.json`) плюс семантический `s2_collision_tiles.json`. Редактор — плагин `addons/level_editor`. Повторный рип (`decompose_world.py`) только если меняются дампы в `assets/reference/`.
+Рип больше не нужен рантайму. Источник правды — чанки `scenes/world/chunks/` с `tile_map_data` и общие `TileSet` (`.tres`). Правка — штатный редактор тайлов Godot. Повторный рип (`decompose_world.py`) только если меняются дампы в `assets/reference/`.
 
 ### 4.2. Два слоя, а не один
 

@@ -16,7 +16,7 @@ Mobile remake of **Saboteur** (1985) built with **Godot 4.6**.
 scenes/          Game scenes (player, levels, UI, enemies, items)
 scripts/         GDScript (player, AI, systems, items)
 assets/          Sprites, tilesets, icons
-addons/          Editor plugins (GUT, Level Editor)
+addons/          Editor plugins (GUT)
 exports/         Built APK/AAB output (gitignored)
 ```
 

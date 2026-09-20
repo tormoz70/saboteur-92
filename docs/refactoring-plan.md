@@ -628,7 +628,7 @@ func validate(level: Node2D) -> Array[String]:
 
 ## 🚀 Следующие шаги
 
-Инверсия закрыта: TileMap + Level Editor + greedy physics. Дальше — контент (новые экраны, арт атласов), не пайплайн.
+Инверсия закрыта: TileMap + штатный редактор Godot + greedy physics. Дальше — контент (новые экраны, арт атласов), не пайплайн.
 
 Видео-туториал (п. 6.2) заменён гайдом [level_editor.md](level_editor.md).
 

@@ -1,11 +1,10 @@
-[gd_resource type="TileSet" load_steps=2 format=3]
+[gd_resource type="TileSet" format=3 uid="uid://du5d0jtl8idu1"]
 
-[ext_resource type="Texture2D" path="res://assets/tilesets/s2_interior_tileset.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://dajqsnork23h6" path="res://assets/tilesets/s2_interior_tileset.png" id="1"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]
 texture = ExtResource("1")
 texture_region_size = Vector2i(8, 8)
-use_texture_padding = true
 0:0/0 = 0
 1:0/0 = 0
 2:0/0 = 0

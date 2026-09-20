@@ -36,7 +36,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/mcp_bridge/plugin.cfg", "res://addons/gut/plugin.cfg", "res://addons/level_editor/plugin.cfg")
+enabled=PackedStringArray("res://addons/mcp_bridge/plugin.cfg", "res://addons/gut/plugin.cfg")
 
 [input]
 
