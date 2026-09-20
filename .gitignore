@@ -28,7 +28,25 @@ Thumbs.db
 *.log
 .mcp/
 .idea/
+.vscode/
+
+# Local scratch dumps, one-off scripts, audit leftovers
 .tmp/
+/tmp_*.png
+/tmp_*.txt
+/_head_world.png
+/_head_world.png.import
+tools/saboteur_rip/_*.py
+
+# Local Godot editor drop (binaries; .cursor/mcp.json points here)
+tools/godot/
+
+# Godot sidecars for ripped world objects and audit shots.
+# Tileset/sprite .import files that matter are already tracked.
+assets/world/objects/**/*.import
+assets/world/s2_object_world.png.import
+assets/world/s2_object_world_overview.png.import
+docs/audit_views/**/*.import
 
 # Python bytecode (was committed under tools/saboteur_rip/__pycache__/)
 __pycache__/
