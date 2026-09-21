@@ -25,6 +25,8 @@ const LAYER_NODES := {
 	"structure": "Structure",
 	"wallpaper": "Wallpaper",
 	"mosaic": "Mosaic",
+	# Hand-edited chunks call this node Interior1 and put yellow crates on
+	# Interior2 (z=10, in front of Nina). Rebuilding flattens that split.
 	"interior": "Interior",
 	"fg": "Foreground",
 }

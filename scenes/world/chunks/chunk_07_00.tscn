@@ -30,7 +30,13 @@ z_index = -4
 texture_filter = 1
 tile_set = ExtResource("4_ey1jo")
 
-[node name="Interior" type="TileMapLayer" parent="." unique_id=2080042045]
+[node name="Interior1" type="TileMapLayer" parent="." unique_id=2080042045]
+z_index = 0
+texture_filter = 1
+tile_set = ExtResource("5_7sd47")
+
+[node name="Interior2" type="TileMapLayer" parent="." unique_id=2080042046]
+z_index = 10
 texture_filter = 1
 tile_set = ExtResource("5_7sd47")
 

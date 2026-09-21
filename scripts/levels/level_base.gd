@@ -60,6 +60,8 @@ func _ready() -> void:
 		player.scale = Vector2(_scale, _scale)
 		player.spawn_point = _spawn
 		player.global_position = _spawn
+		# Interior1 is behind Nina. Interior2 (yellow crates) is in front of her
+		# and behind Foreground.
 		player.z_index = WorldLayers.Z_ACTORS
 	_setup_ink_outline()
 	camera.position_smoothing_enabled = false
@@ -192,8 +194,10 @@ func _layer_key(node_name: String) -> String:
 			return "wallpaper"
 		"Mosaic":
 			return "mosaic"
-		"Interior":
+		"Interior", "Interior1":
 			return "interior"
+		"Interior2":
+			return "interior2"
 		"Foreground":
 			return "fg"
 		"CollisionLayer":

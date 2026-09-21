@@ -14,7 +14,8 @@
 | Structure | `s2_structure_tileset.tres` | красный кирпич | визуал |
 | Wallpaper | `s2_wallpaper_tileset.tres` | синий кирпич подземных залов | визуал |
 | Mosaic | `s2_mosaic_tileset.tres` | зелёная мозаика штаба | визуал |
-| Interior | `s2_interior_tileset.tres` | лестницы, мебель, окна, ящики | визуал |
+| Interior1 | `s2_interior_tileset.tres` | лестницы, мебель, окна. Нина рисуется поверх | визуал, z=0 |
+| Interior2 | `s2_interior_tileset.tres` | жёлтые ящики. Нина рисуется за ними, коллизии нет | визуал, z=10 |
 | Foreground | `s2_fg_tileset.tres` | передний план | визуал |
 | CollisionLayer | `s2_collision_tileset.tres` | `empty`/`solid`/`ladder`/`oneway`/`rope` | **физика** |
 

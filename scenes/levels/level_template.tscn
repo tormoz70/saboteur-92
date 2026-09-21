@@ -45,7 +45,14 @@ scale = Vector2(2, 2)
 texture_filter = 1
 tile_set = ExtResource("6")
 
-[node name="Interior" type="TileMapLayer" parent="."]
+[node name="Interior1" type="TileMapLayer" parent="."]
+z_index = 0
+scale = Vector2(2, 2)
+texture_filter = 1
+tile_set = ExtResource("7")
+
+[node name="Interior2" type="TileMapLayer" parent="."]
+z_index = 10
 scale = Vector2(2, 2)
 texture_filter = 1
 tile_set = ExtResource("7")

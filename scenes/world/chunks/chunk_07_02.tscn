@@ -32,9 +32,14 @@ texture_filter = 1
 tile_map_data = PackedByteArray(0, 0, 0, 0, 69, 0, 0, 0, 4, 0, 0, 0, 0, 0, 1, 0, 69, 0, 0, 0, 4, 0, 0, 0, 0, 0)
 tile_set = ExtResource("4_xfss3")
 
-[node name="Interior" type="TileMapLayer" parent="." unique_id=1909324522]
+[node name="Interior1" type="TileMapLayer" parent="." unique_id=1909324522]
+z_index = 0
 texture_filter = 1
-tile_map_data = PackedByteArray(0, 0, 2, 0, 69, 0, 0, 0, 16, 0, 1, 0, 0, 0, 3, 0, 70, 0, 0, 0, 16, 0, 1, 0, 0, 0, 2, 0, 71, 0, 0, 0, 11, 0, 0, 0, 0, 0, 3, 0, 71, 0, 0, 0, 7, 0, 0, 0, 0, 0)
+tile_set = ExtResource("5_y2kpa")
+
+[node name="Interior2" type="TileMapLayer" parent="." unique_id=2089291567]
+z_index = 10
+texture_filter = 1
 tile_set = ExtResource("5_y2kpa")
 
 [node name="Foreground" type="TileMapLayer" parent="." unique_id=903766500]

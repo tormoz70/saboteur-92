@@ -23,6 +23,8 @@ const Z_WALLPAPER := -5
 const Z_MOSAIC := -4
 const Z_INTERIOR := 0
 const Z_INTERIOR_PROPS := 1
+# Yellow crates. Nina (Z_ACTORS) draws in front of Interior1 and behind Interior2.
+const Z_INTERIOR2 := 10
 const Z_ARTIFACTS := 7
 const Z_MACHINES := 6
 const Z_ACTORS := 8
@@ -53,6 +55,7 @@ const LAYER_Z: Dictionary = {
 	"wallpaper": Z_WALLPAPER,
 	"mosaic": Z_MOSAIC,
 	"interior": Z_INTERIOR,
+	"interior2": Z_INTERIOR2,
 	"artifacts": Z_ARTIFACTS,
 	"machines": Z_MACHINES,
 	"actors": Z_ACTORS,

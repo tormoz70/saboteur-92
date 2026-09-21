@@ -4,9 +4,11 @@ description: >-
   Observe and edit Saboteur II world chunk TileMaps through Godot MCP.
   Finds and erases baked ZX figures (guards, panthers) split across Mosaic,
   Wallpaper, Interior, and Structure; restores wallpaper and furniture from a
-  clean twin; saves with editor undo. Use when the user edits chunks, paints
-  TileMap, asks to watch Godot, or to remove baked guards/sprites from mosaic,
-  wallpaper, interior, or structure layers.
+  clean twin; lifts furniture parts baked into the wall (desk/chair legs stuck
+  on Mosaic) onto Interior as transparent tiles; saves with editor undo. Use
+  when the user edits chunks, paints TileMap, asks to watch Godot, says a desk
+  or prop fell apart across two layers, or asks to remove baked
+  guards/sprites from mosaic, wallpaper, interior, or structure layers.
 ---
 
 # Edit world chunks via Godot MCP
@@ -19,17 +21,40 @@ Do not rebuild chunks with `tools/build_world_chunks.gd` after a hand edit.
 Namespace: `project-0-saboteur-92-godot` (`godot-mcp-runtime`).
 
 1. If tools are missing: Customize → MCP → enable **godot**.
-2. Godot editor must already be open on this project. The editor plugin
-   `addons/mcp_bridge` listens on `127.0.0.1:35676`.
-3. `attach_project` with `projectPath` = repo root and `bridgePort` = 35676.
-4. If attach writes `McpBridge=...` into `project.godot`, **revert that line**.
-   The editor plugin already hosts the bridge; a second autoload is wrong.
-5. `take_screenshot` times out in the editor. Capture via `run_script` instead.
+2. The bridge is hosted by the editor plugin `addons/mcp_bridge`, which loads
+   `res://mcp_bridge.gd` **at editor start**. That file is gitignored and is
+   often absent — then nothing listens on `127.0.0.1:35676` and every
+   `run_script` fails with `ECONNREFUSED`.
+3. Restore it before launching the editor: copy
+   `<node_modules>/godot-mcp-runtime/dist/scripts/mcp_bridge.gd`, replace
+   `const PORT := 9900` with `35676`, write **UTF-8 without BOM**
+   (`[System.IO.File]::WriteAllText` with `UTF8Encoding($false)`; PowerShell
+   `Set-Content -Encoding UTF8` adds a BOM and GDScript then fails to load).
+4. Restart the editor — the plugin only reads the file in `_enter_tree()`.
+   Touching `plugin.gd` does not hot-reload it. Wait ~20 s, then confirm
+   `netstat -ano | findstr LISTENING | findstr 35676` before attaching.
+   `launch_editor` returns before the process is up; do not launch a second
+   editor on the same project while checking.
+5. `attach_project` with `bridgePort` 35676 and `projectPath` in the **exact
+   case Godot reports** (`C:\data\prjs\saboteur-92`). A case mismatch answers
+   `Bridge reports project C:/... expected c:/...`, and the server then shuts
+   the bridge down **and deletes `mcp_bridge.gd`**. Any failed attach deletes
+   it, so rewrite the file before every restart.
+6. If attach writes `McpBridge=...` into `project.godot`, **revert that line**
+   (`git checkout -- project.godot`). The editor plugin already hosts the
+   bridge; a second autoload is wrong.
+7. `take_screenshot` times out in the editor. Capture via `run_script` instead.
+8. `open_scene_from_path` switches at most about five scenes inside one
+   `run_script`; the next call returns and the edited scene stays put.
+   Batch chunk edits by three. The edit is idempotent, so a stopped batch
+   can be rerun.
 
 `run_script` must `extends RefCounted` and define
 `func execute(scene_tree: SceneTree) -> Variant`.
 
 Do not call `Engine.get_singleton` (blocked). Use `EditorInterface` by name.
+Never `await RenderingServer.frame_post_draw` — an unfocused editor does not
+redraw and the call hangs until the 30 s tool timeout.
 
 ## Observe the 2D view
 
@@ -58,8 +83,15 @@ If editor undo does nothing after a bad save: `git checkout --` the chunk
 |---|---|---|
 | Mosaic | HQ greek-key `(1,0)`; panel stripes `(2,0)`/`(3,0)` — never overwrite stripes | unique atlas + holes under Interior |
 | Wallpaper | blue-brick halls `(1,0)` | same as Mosaic when the figure is underground |
-| Interior | `(1,0)` is common black fill, not a figure; desks/ladders count ≥20 | rare overlay on the body |
+| Interior1 | `(1,0)` is common black fill, not a figure; desks/ladders count ≥20. Node z=0, behind Nina | rare overlay on the body |
+| Interior2 | yellow crates only (z=10, in front of Nina, behind Foreground). No collision | do not put desks, signs, or baked figures here |
 | Structure | red brick floor `(1,0)` only | rare non-floor tiles (count 1–2) on the silhouette — **erase**, do not fill |
+
+Nina (`Z_ACTORS` = 8) walks between them: Interior1 behind her, Interior2 in front,
+Foreground (12) in front of both. Crate body tiles plus the `04` plate in
+`chunk_00_02` are on Interior2. A figure standing in the gap between two crates
+stays on Interior1. `blit_scan.parse_chunk` merges both nodes back into
+`"Interior"` for the scanners.
 
 Dump **both** Interior and Mosaic/Wallpaper per cell (`i=` and `m=`). An
 Interior-first grid hides empty mosaic under furniture.
@@ -135,6 +167,66 @@ When a figure overlaps a prop:
 6. Diff the prop bbox against the twin. It must match, including `m=-`
    under Interior.
 
+## Lift baked legs out of Mosaic
+
+Symptom the user reports: "стол развалился на 2 слоя" — the desk body sits on
+Interior while its legs and the chair post sit on Mosaic and blend into the
+wall. The rip baked those ZX characters as *wall + leg* composites, so the leg
+is not a separate tile anywhere; `punch_wallpaper` in
+`tools/saboteur_rip/decompose_world.py` never saw them as part of the prop.
+
+Mosaic `(5,0)` `(6,0)` `(7,0)` `(8,0)` `(9,0)` `(10,0)` are those composites:
+`(8,0)`/`(10,0)` the chair post row, the rest desk feet. They are the same
+cells the "Furniture" section calls cavity/feet.
+
+Split pixels, do not move the tile: **a column that is black in all 8 rows is
+the leg**; everything else in the tile is wallpaper. In chunk_02_01 that gave
+four distinct overlays — `(5,0)`→cols 1-3, `(6,0)`→cols 4-6, `(7,0)`/`(8,0)`
+→col 7, `(9,0)`/`(10,0)`→col 0.
+
+1. Find free Interior atlas slots: fully transparent **and** unused by any
+   `chunk_*.tscn`. The tail of the atlas has them (`(25,30)`…`(31,30)`);
+   leave `(0,0)` alone. `s2_interior_tileset.tres` already declares all
+   32×31 slots, so only the PNG changes — no `.tres` edit, no atlas resize.
+2. Paint the leg columns (opaque black, rest transparent) into those slots in
+   `assets/tilesets/s2_interior_tileset.png` **before** restarting the editor,
+   so the import picks them up. Refuse to write a slot that is not empty.
+3. Per cell: `Interior.set_cell(cell, 0, slot)` and `Mosaic.set_cell(cell, 0,
+   (1,0))`. This is the one case where filling mosaic under Interior is right
+   — the Interior tile is a transparent overlay, not opaque furniture.
+4. The wall behind the leg changes by 5–13 px per cell: the ZX composite
+   clipped the wallpaper square, the plain `(1,0)` square is not clipped.
+   Render a before/after blit and show it before committing.
+5. Verify from the saved `.tscn`: no Mosaic cell keeps a leg atlas, and every
+   moved cell reads `interior=<slot>, mosaic=(1,0)`.
+
+Then fill the wall behind the prop when asked ("заполни обоями стену за
+столом"): the rip leaves Mosaic **empty** under the whole desk footprint, so
+the wall layer has a prop-shaped hole. Fill those cells with `(1,0)` too.
+This is the exception to "never paint mosaic under Interior" — check it, do
+not assume: read the Interior tile out of the atlas and refuse the fill if
+any pixel has `a < 1.0`. HQ desk/chair tiles are fully opaque with the wall
+baked in, so the fill is invisible today and correct the day those tiles get
+their background punched out. Transparent furniture (see the Furniture
+section) still keeps mosaic empty.
+
+The standalone desk is the 6-wide cyan one. Match it on Interior before
+touching anything: top row `(22,1) (23,1) (28,0) (28,0) (20,1) (19,1)`, the
+row under it `(0,1) (4,1) (24,1) (26,1) (1,1) (31,0)`, side cells of the next
+row `(0,1) (4,1)` … `(1,1) (31,0)`. The footprint to fill is that origin
+shifted up one row (the red chair back) and down through the feet, 6×5.
+Yellow cabinet rows are a different prop: they only bake the outer feet
+`(5,0)`/`(6,0)` and do not match this signature — leave them. Mosaic
+`(17,0)` on a desk is near-wallpaper (2 px off), not a leg; leave it.
+
+Done once, across every chunk that has this desk (124 desks, 14 chunks:
+`01_03`, `02_01`–`02_04`, `03_00`–`03_04`, `04_02`, `04_03`, `05_02`,
+`06_02`). Leg slots are the four tiles above. Two desks in `chunk_01_03`
+(`(105,65)`, `(116,65)`) keep `(17,0)` where the chair post was.
+
+Re-running `build_world_atlas.py` / `build_tilesets.py` regenerates the PNG
+and wipes the appended tiles. Treat them like any other hand edit.
+
 ## Erase a figure
 
 Per cell, decide from the twin (or from empty wallpaper), then:
@@ -163,10 +255,14 @@ tiles left on the silhouette.
 
 ## Examples
 
-`chunk_02_04` — Mosaic wallpaper only, no furniture. Two standing guards
-`(42,5)–(44,11)` and `(15,23)–(17,29)`.
+`chunk_02_04` — Mosaic wallpaper halls. Two standing guards `(42,5)–(44,11)`
+and `(15,23)–(17,29)`. One HQ desk at `(52,46)–(57,50)`: 6 legs lifted onto
+Interior, 18 footprint cells filled with wallpaper.
 
 `chunk_02_06` — blue hall: same recipe on **Wallpaper** `(1,0)`, not Mosaic.
+
+`chunk_02_01` — two standalone desks (`(25,30)`, `(119,67)`) plus a yellow
+cabinet row at `x 17-22`. Cabinet feet stayed on Mosaic.
 
 `chunk_03_02` — HQ with desks/cabinets. Standing guards on Mosaic+Interior;
 one also left Structure `(20,0)`/`(24,0)` on the desk — erase those. Restore
