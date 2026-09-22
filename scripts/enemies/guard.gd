@@ -52,6 +52,9 @@ func _physics_process(delta: float) -> void:
 
 	if not is_on_floor():
 		velocity.y += 600.0 * delta
+		# Same cap as Nina. An uncapped fall tunnels through one-cell floors
+		# and the sweep in move_and_slide freezes the game.
+		velocity.y = minf(velocity.y, 420.0)
 
 	move_and_slide()
 	_update_anim()

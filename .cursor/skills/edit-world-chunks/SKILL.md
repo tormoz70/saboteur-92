@@ -112,11 +112,13 @@ rider+panther, 6-wide wallpaper standing, and wallpaper-hall panthers.
 3. Cluster **Interior + Mosaic + Wallpaper together**. Interior overlay
    punches holes in wallpaper/mosaic, so a layer-only blob splits.
 4. Shapes: standing 2–7 × 6–8 (wallpaper halls are often 6 wide).
-   Panther 3–12 × 2–5. Rider+panther ~5–12 × 6–8. Magenta `02` signs
-   are props — leave them. Isolated mosaic `(17,0)` / `(17,1)` is a
+   Panther 3–12 × 2–5. Rider+panther ~5–12 × 6–8. Isolated mosaic `(17,0)` / `(17,1)` is a
    desk/door false positive, not a figure.
-5. Confirm visually before mutating. Do not erase `?` marks, furniture,
-   ladders, or a panther unless asked.
+5. Confirm visually before mutating. Do not erase furniture, ladders, or a
+   panther unless asked. The fan map's magenta `?NN` code signs (14 of them,
+   `02` included) are already erased: `.mcp/screenshots/qmark_erase.py`
+   refills each sign cell from a clean neighbour and restores hidden crate
+   cells by hand. The small yellow box under each sign is a prop — keep it.
 
 Known pose keys live in `.mcp/screenshots/scan_figures.py` (`POSES`):
 HQ cabinet-guard / desk-panther / bookcase-guard, HQ mosaic-wall panther,
@@ -267,4 +269,4 @@ cabinet row at `x 17-22`. Cabinet feet stayed on Mosaic.
 `chunk_03_02` — HQ with desks/cabinets. Standing guards on Mosaic+Interior;
 one also left Structure `(20,0)`/`(24,0)` on the desk — erase those. Restore
 desk/cabinet from a twin; do not fill mosaic under Interior. Leave the panther
-and the magenta `02` sign unless asked.
+unless asked.

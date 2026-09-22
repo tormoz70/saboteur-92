@@ -94,9 +94,11 @@ pointing/emulate_touch_from_mouse=true
 2d_physics/layer_3="world"
 2d_physics/layer_4="items"
 2d_physics/layer_5="triggers"
+2d_physics/layer_6="lift_shaft"
 
 [physics]
 
+common/physics_interpolation=true
 3d/physics_engine="Jolt Physics"
 
 [rendering]

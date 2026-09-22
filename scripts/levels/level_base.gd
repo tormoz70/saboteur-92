@@ -8,6 +8,9 @@ extends Node2D
 
 const WorldLayers := preload("res://scripts/world/world_layers.gd")
 
+## Emitted once `_ready` has built the world, entities and camera.
+signal world_ready
+
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
@@ -25,6 +28,8 @@ const LETTERBOX_PX := 0.0
 const CAMERA_EDGE_FRACTION := 1.0 / 3.0
 const CAMERA_CATCHUP := 3.2
 const CAMERA_STILL_DELAY := 0.12
+# A jump between ticks larger than this is a respawn/teleport, not motion.
+const TELEPORT_PX := 64.0
 
 @export var level_scale := 2.0
 @export var screen_size := Vector2(256, 192)
@@ -40,6 +45,9 @@ var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
 var _alarm_guard_spawned := false
 var _map_layers: Dictionary = {}
+var world_loaded := false
+var _player_tick := Vector2.ZERO
+var _player_prev_tick := Vector2.ZERO
 
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Camera2D
@@ -51,6 +59,10 @@ var _map_layers: Dictionary = {}
 
 
 func _ready() -> void:
+	# Paused while the world streams in so Nina and guards do not act on a
+	# half-built map; PROCESS_MODE_ALWAYS autoloads (MCP bridge) keep ticking.
+	get_tree().paused = true
+	await _load_world()
 	_setup_world()
 	_add_entities()
 	_add_letterbox()
@@ -60,11 +72,16 @@ func _ready() -> void:
 		player.scale = Vector2(_scale, _scale)
 		player.spawn_point = _spawn
 		player.global_position = _spawn
+		player.reset_physics_interpolation()
 		# Interior1 is behind Nina. Interior2 (yellow crates) is in front of her
 		# and behind Foreground.
 		player.z_index = WorldLayers.Z_ACTORS
 	_setup_ink_outline()
 	camera.position_smoothing_enabled = false
+	# Moved every render frame from Nina's drawn position (see _update_camera),
+	# so the camera itself must not be interpolated between ticks.
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	process_physics_priority = 100
 	camera.make_current()
 	_update_camera(0.0, true)
 	_connect_punch_areas()
@@ -73,6 +90,26 @@ func _ready() -> void:
 	if not EventBus.alarm_raised.is_connected(_on_alarm_raised):
 		EventBus.alarm_raised.connect(_on_alarm_raised)
 	_start_demo_if_requested()
+	get_tree().paused = false
+	world_loaded = true
+	world_ready.emit()
+
+
+## Streams heavy world content in over several frames before `_setup_world`.
+## Base levels draw their tiles in-scene and have nothing to stream.
+func _load_world() -> void:
+	pass
+
+
+func _physics_process(_delta: float) -> void:
+	# Runs after Nina's tick (process_physics_priority) so these are the two
+	# positions the renderer interpolates between.
+	if player == null:
+		return
+	_player_prev_tick = _player_tick
+	_player_tick = player.global_position
+	if _player_prev_tick.distance_squared_to(_player_tick) > TELEPORT_PX * TELEPORT_PX:
+		_player_prev_tick = _player_tick
 
 
 func _process(delta: float) -> void:
@@ -498,6 +535,7 @@ func _reset_mission_entities() -> void:
 		player.spawn_point = _spawn
 		player.global_position = _spawn
 		player.velocity = Vector2.ZERO
+		player.reset_physics_interpolation()
 	for node_name in [
 		"Items",
 		"Guards",
@@ -541,7 +579,25 @@ func _update_ink_outline() -> void:
 
 
 func _player_center() -> Vector2:
-	return player.global_position + Vector2(24.0, 28.0) * _scale
+	return _player_drawn_position() + Vector2(24.0, 28.0) * _scale
+
+
+## Where Nina is drawn this frame. Physics interpolation renders her between
+## the last two ticks; a camera that tracked the raw tick position would
+## step against her. There is no 2D getter for the interpolated transform.
+func _player_drawn_position() -> Vector2:
+	if not get_tree().physics_interpolation or not player.is_physics_interpolated():
+		return player.global_position
+	return _player_prev_tick.lerp(_player_tick, Engine.get_physics_interpolation_fraction())
+
+
+func _snap_camera_to_player(cam: Vector2, center: Vector2) -> Vector2:
+	# Pixel snapping rounds Nina and the scroll separately. At a zoom like
+	# 1.875 that made her wobble ±1 px against a background that steps 3 or
+	# 4 px. Keep the camera a whole number of screen pixels from her.
+	var z := camera.zoom
+	var off := ((center - cam) * z).round()
+	return ((center * z).round() - off) / z
 
 
 func _player_is_moving() -> bool:
@@ -555,11 +611,13 @@ func _player_is_moving() -> bool:
 func _update_camera(delta: float, force: bool) -> void:
 	if player == null:
 		return
+	if force:
+		_player_tick = player.global_position
+		_player_prev_tick = _player_tick
 	var center := _player_center()
 	if force:
 		_cam_still = 0.0
-		camera.global_position = center
-		camera.reset_physics_interpolation()
+		_move_camera(_snap_camera_to_player(center, center))
 		return
 	if _player_is_moving():
 		_cam_still = 0.0
@@ -575,13 +633,25 @@ func _update_camera(delta: float, force: bool) -> void:
 			cam.y = center.y - max_off.y
 		elif off.y < -max_off.y:
 			cam.y = center.y + max_off.y
-		camera.global_position = cam
+		_move_camera(_snap_camera_to_player(cam, center))
 		return
 	_cam_still += delta
 	if _cam_still < CAMERA_STILL_DELAY:
 		return
 	var t := 1.0 - exp(-CAMERA_CATCHUP * delta)
-	camera.global_position = camera.global_position.lerp(center, t)
+	var cam := camera.global_position.lerp(center, t)
+	# Rounding would stall the ease a few pixels short; finish with 1 px steps.
+	var step := Vector2.ONE / camera.zoom
+	cam.x = move_toward(camera.global_position.x, center.x, maxf(absf(cam.x - camera.global_position.x), step.x))
+	cam.y = move_toward(camera.global_position.y, center.y, maxf(absf(cam.y - camera.global_position.y), step.y))
+	_move_camera(_snap_camera_to_player(cam, center))
+
+
+func _move_camera(pos: Vector2) -> void:
+	camera.global_position = pos
+	# Camera2D applies its scroll in its own process step, which may already
+	# have run this frame; the view would then lag Nina by one frame.
+	camera.force_update_scroll()
 
 
 func _playfield_zoom() -> float:

@@ -25,6 +25,8 @@ const Z_INTERIOR := 0
 const Z_INTERIOR_PROPS := 1
 # Yellow crates. Nina (Z_ACTORS) draws in front of Interior1 and behind Interior2.
 const Z_INTERIOR2 := 10
+# Brick either side of a ladder hatch, copied over Nina so she climbs behind it.
+const Z_STRUCTURE_FRONT := 9
 const Z_ARTIFACTS := 7
 const Z_MACHINES := 6
 const Z_ACTORS := 8

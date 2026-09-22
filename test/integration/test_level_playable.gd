@@ -16,9 +16,9 @@ func _spawn_level() -> Node2D:
 	var packed: PackedScene = load("res://scenes/levels/level_01.tscn")
 	var level: Node2D = packed.instantiate()
 	add_child_autofree(level)
-	# Two frames: _ready() instances chunks and builds ladders/lifts.
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# _ready() streams chunks in over several frames, then builds ladders/lifts.
+	while not level.world_loaded:
+		await get_tree().process_frame
 	return level
 
 

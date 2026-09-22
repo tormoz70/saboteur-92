@@ -7,6 +7,7 @@ extends LevelBase
 const CHUNKS_MANIFEST_PATH := "res://scenes/world/chunks/chunks.json"
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
+const CHUNKS_PER_FRAME := 4
 
 @onready var world_map: Node2D = $WorldMap
 
@@ -21,6 +22,34 @@ func _collision_data_path() -> String:
 
 func _setup_layers() -> bool:
 	return _setup_from_chunks()
+
+
+## Loads and adds the chunk scenes a few per frame.
+## Built in a single frame the map blocked the main loop for ~7 s, longer
+## than the MCP bridge handshake waits.
+func _load_world() -> void:
+	await get_tree().process_frame
+	var manifest := _load_json(CHUNKS_MANIFEST_PATH, false)
+	if manifest.is_empty():
+		return
+	var chunk_cells: Array = manifest.get("chunk_cells", [128, 72])
+	var cell := int(manifest.get("cell", 8))
+	var chunks_x := int(manifest.get("chunks_x", 1))
+	var paths: Array = manifest.get("paths", [])
+	var origin := Vector2(float(chunk_cells[0]) * cell, float(chunk_cells[1]) * cell)
+
+	# Not ResourceLoader.load_threaded_request: parallel chunk loads left an
+	# atlas image empty and crashed the engine after other scenes had run.
+	for i in paths.size():
+		var packed := load(str(paths[i])) as PackedScene
+		var chunk := packed.instantiate() as Node2D if packed else null
+		if chunk == null:
+			push_error("Chunk %s failed to load" % paths[i])
+			continue
+		chunk.position = Vector2(i % chunks_x, i / chunks_x) * origin
+		world_map.add_child(chunk)
+		if i % CHUNKS_PER_FRAME == CHUNKS_PER_FRAME - 1:
+			await get_tree().process_frame
 
 
 func _collision_sources() -> Array:
@@ -49,25 +78,9 @@ func _setup_from_chunks() -> bool:
 	_screen = Vector2(float(scr[0]), float(scr[1]))
 	_setup_sky_fill(manifest)
 
-	var chunk_cells: Array = manifest.get("chunk_cells", [128, 72])
-	var cell := int(manifest.get("cell", 8))
-	var chunks_x := int(manifest.get("chunks_x", 1))
-	var paths: Array = manifest.get("paths", [])
-	var origin := Vector2(float(chunk_cells[0]) * cell, float(chunk_cells[1]) * cell)
-
 	_map_layers.clear()
-	for i in paths.size():
-		var packed: PackedScene = load(str(paths[i]))
-		if packed == null:
-			continue
-		var chunk := packed.instantiate() as Node2D
-		if chunk == null:
-			continue
-		var gx := i % chunks_x
-		var gy := i / chunks_x
-		chunk.position = Vector2(gx, gy) * origin
-		world_map.add_child(chunk)
-		for child in chunk.get_children():
+	for chunk_node in world_map.get_children():
+		for child in chunk_node.get_children():
 			if child is TileMapLayer:
 				_register_layer(child)
 	if sky_fill:

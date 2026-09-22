@@ -315,6 +315,53 @@ func test_climb_stops_under_a_dead_end_ceiling() -> void:
 	assert_gt(player.global_position.y, y_at_lid + 8.0, "DOWN still climbs away from the lid")
 
 
+func test_climb_stops_under_a_thick_lid_with_room_above() -> void:
+	# chunk_02_01: rungs end under four cells of monolith with open wallpaper
+	# above. The ladder Area2D overhangs into the mass; that reach is not a
+	# hatch, so Nina must not climb head-first into the solid.
+	# Same shaft as the map at scale 1: lid underside one body height above
+	# the floor, Area2D padded 16 px into it.
+	var player := await _spawn_on_floor()
+	_lid = _add_solid(Vector2(240, 0), Vector2(480, 32))
+	_add_ladder(Vector2(140, 44), Vector2(160, 88))
+	await wait_physics_frames(1)
+	Input.action_press("move_up")
+	await wait_physics_frames(90)
+	assert_false(_overlaps_ceiling(player), "body must not sit inside the lid")
+	assert_gte(player.global_position.y + 14.0, 16.0, "head stays below the lid")
+
+
+func test_down_at_the_foot_of_a_ladder_stays_on_the_floor() -> void:
+	# chunk_03_02: rungs end on a brick floor with a room and no ladder under
+	# it. The Area2D overhang below the last rung reaches into the slab; that
+	# is not a hatch, so DOWN must not sink Nina through the floor.
+	var player := await _spawn_on_floor()
+	_add_ladder(Vector2(140, 24), Vector2(160, 128))
+	await wait_physics_frames(1)
+	Input.action_press("move_down")
+	await wait_physics_frames(60)
+	assert_false(player.on_ladder, "no rungs under the floor to climb")
+	assert_lt(player.global_position.y, 24.0, "feet stay on the floor")
+
+
+func test_climb_down_a_shaft_beside_a_wall_lands_on_the_floor() -> void:
+	# One-column rungs against a wall (chunk_03_05). Leaving the ladder used
+	# to count the wall as a lid over the head and slide Nina 320 px down
+	# into the floor.
+	# Wall ends at x=132, the 8 px rung column spans 132..140 and the Area2D
+	# is padded like ladder_rects (4 px each side, 16 px above and below).
+	var player := await _spawn_on_floor()
+	_add_solid(Vector2(112, -40), Vector2(40, 224))
+	_add_ladder(Vector2(136, -4), Vector2(16, 184))
+	player.global_position = Vector2(112, -44)
+	await wait_physics_frames(1)
+	player._ladder._enter()
+	Input.action_press("move_down")
+	await wait_physics_frames(90)
+	assert_false(player.on_ladder, "stood up at the foot of the ladder")
+	assert_lt(player.global_position.y, 24.0, "feet stay on the floor")
+
+
 func test_climb_through_hatch_still_emerges() -> void:
 	# Rungs continue above the lid, so this is a hatch, not a dead-end.
 	# Stopping at head height would leave Nina stuck under every floor.

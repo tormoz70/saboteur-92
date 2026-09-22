@@ -2,8 +2,9 @@ class_name LadderController
 extends RefCounted
 
 const CLIMB_STEP_PX := 16.0
-# Hatch Area2D is padded 16 native px above the last rung so the detector
-# still overlaps a lid. Probe past that; the overhang is not more ladder.
+# Hatch Area2D is padded 16 native px above the top rung (and below the
+# bottom one) so the detector still overlaps a lid. Probe past that; the
+# overhang is not more ladder.
 const RUNG_PAD_NATIVE := 20.0
 
 var climb_frame: int = 0
@@ -228,9 +229,11 @@ func _above_feet() -> bool:
 
 func _below_feet() -> bool:
 	# Entirely under the soles so a dead-end floor with rungs at foot height
-	# does not count as a hatch.
+	# does not count as a hatch. Ladder Area2Ds also overhang 16 native px
+	# below the last rung, into the floor; probe past that overhang.
+	var pad := RUNG_PAD_NATIVE * maxf(_p.scale.y, 1.0)
 	return _probe(
-		Vector2(Player.BODY_STAND_POS.x * _p.scale.x, _feet_y() - _p.global_position.y + 24.0),
+		Vector2(Player.BODY_STAND_POS.x * _p.scale.x, _feet_y() - _p.global_position.y + pad + 8.0),
 		Vector2(10.0, 16.0)
 	)
 
@@ -297,10 +300,13 @@ func _try_climb_up_past_lid(step: Vector2) -> bool:
 		# Through-hatch only when rungs really continue above the slab.
 		if _rungs_continue_above(top):
 			return true
-		if _feet_y() + step.y <= top + 2.0:
-			_dismount_to_y(top)
-			return false
-		return true
+		# Rungs end under the slab: only the Area2D overhang carries Nina up,
+		# so a lid thicker than that is a dead-end ceiling, not a hatch.
+		if bottom - top <= RUNG_PAD_NATIVE * maxf(_p.scale.y, 1.0):
+			if _feet_y() + step.y <= top + 2.0:
+				_dismount_to_y(top)
+				return false
+			return true
 	# Dead-end mass: stay on the last rung. Do not plant feet on the underside.
 	_dismount_if_landing()
 	return false
@@ -402,15 +408,10 @@ func _dismount_if_landing() -> bool:
 	return false
 
 
-func _body_overlaps_world() -> bool:
-	var col := _p.body_collision
-	if col == null or col.shape == null:
-		return false
-	return _shape_hits(col.shape, col.global_transform, _p.get_world_mask(), false, true)
-
-
 func _head_in_world_solid() -> bool:
-	_probe_shape.size = Vector2(10.0, 8.0) * _p.scale
+	# Narrower than a one-column shaft (8 native px): a wall beside the rungs
+	# is not a lid over the head.
+	_probe_shape.size = Vector2(4.0, 8.0) * _p.scale
 	var center := Vector2(_body_cx(), _head_y() + 4.0 * _p.scale.y)
 	return _shape_hits(
 		_probe_shape, Transform2D(0.0, center), _p.get_world_mask(), false, true
@@ -420,14 +421,14 @@ func _head_in_world_solid() -> bool:
 func _unstick_from_solids() -> void:
 	# Climbing has world collision off, so a leave under a lid can restore
 	# the mask while the head is still inside the brick. Slide down until the
-	# collider is free. Do not run this for a normal floor rest: soles overlap
-	# the slab by a safe-margin and shoving down would drop through it.
+	# head is clear. Not until the whole body is free: beside a wall the body
+	# always overlaps it, and sliding on sinks Nina through the floor.
 	if not _head_in_world_solid():
 		return
 	var step := 4.0 * _p.scale.y
 	for _i in 40:
 		_p.global_position.y += step
-		if not _body_overlaps_world():
+		if not _head_in_world_solid():
 			_p.velocity.y = maxf(_p.velocity.y, 0.0)
 			return
 

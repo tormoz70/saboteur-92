@@ -21,6 +21,11 @@ func _process(_dt: float) -> bool:
 		push_error("verify_entities: Level01 missing")
 		quit(1)
 		return false
+	if not level.world_loaded:
+		if _frames > 1200:
+			push_error("verify_entities: world never finished loading")
+			quit(1)
+		return false
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(ENTITIES_PATH))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("verify_entities: cannot parse %s" % ENTITIES_PATH)

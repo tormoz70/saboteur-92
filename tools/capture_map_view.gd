@@ -31,11 +31,11 @@ func _initialize() -> void:
 
 func _process(_dt: float) -> bool:
 	_frames += 1
-	if _frames == 8:
+	if _level == null and _frames >= 8 and _world_loaded():
 		_prepare_scene()
 		return false
 	if _level == null:
-		if _frames > 120:
+		if _frames > 1200:
 			push_error("capture_map_view: main scene did not load")
 			quit()
 		return false
@@ -50,6 +50,12 @@ func _process(_dt: float) -> bool:
 		_camera.global_position = POINTS[_idx]["pos"]
 		_camera.reset_physics_interpolation()
 	return false
+
+
+func _world_loaded() -> bool:
+	var main := root.get_child(root.get_child_count() - 1)
+	var level := main.get_node_or_null("Level01")
+	return level != null and bool(level.get("world_loaded"))
 
 
 func _prepare_scene() -> void:

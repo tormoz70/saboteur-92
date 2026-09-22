@@ -118,7 +118,13 @@ func _physics_process(delta: float) -> void:
 	_ladder.update_state(climb_axis)
 	_lifts.update_state()
 	floor_snap_length = 0.0 if on_ladder else 16.0
-	collision_mask = 0 if on_ladder else _world_mask
+	if on_ladder:
+		collision_mask = 0
+	elif _lifts.is_riding():
+		# The cabin carries Nina through the rock around its shaft.
+		collision_mask = _world_mask & ~CollisionLayers.LAYER_LIFT_SHAFT
+	else:
+		collision_mask = _world_mask
 
 	_tick_attack(delta)
 	if not _lifts.is_riding():
@@ -584,6 +590,7 @@ func respawn(to_position: Vector2) -> void:
 	anim.modulate = Color.WHITE
 	global_position = to_position
 	velocity = Vector2.ZERO
+	reset_physics_interpolation()
 	EventBus.energy_changed.emit(energy, max_energy)
 
 
