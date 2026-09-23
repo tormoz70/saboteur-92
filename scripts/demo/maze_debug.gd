@@ -3,11 +3,11 @@ extends Node
 ## Turns on collision shapes + CollisionLayer overlay, then walks / jumps /
 ## climbs as far as the solids allow. Does not quit: watch the window.
 
+enum Mode { LAND, WALK, JUMP, CLIMB_UP, CLIMB_DOWN }
+
 const ARG := "--demo-maze"
 const ACTIONS := ["move_left", "move_right", "move_up", "move_down", "jump", "punch"]
 const COLLISION_PATH := "res://assets/world/s2_collision.json"
-
-enum Mode { LAND, WALK, JUMP, CLIMB_UP, CLIMB_DOWN }
 
 var _player: CharacterBody2D
 var _mode: Mode = Mode.LAND
@@ -193,7 +193,10 @@ func _note_bounds() -> void:
 
 func _log() -> void:
 	print(
-		"[Maze] t=%.0fs pos=(%.0f, %.0f) floor=%s wall=%s climb=%s dir=%s span=(%.0f,%.0f)-(%.0f,%.0f) rev=%d jumps=%d climbs=%d"
+		(
+			"[Maze] t=%.0fs pos=(%.0f, %.0f) floor=%s wall=%s climb=%s dir=%s"
+			+ " span=(%.0f,%.0f)-(%.0f,%.0f) rev=%d jumps=%d climbs=%d"
+		)
 		% [
 			_elapsed,
 			_player.global_position.x,

@@ -6,11 +6,10 @@ extends Node2D
 ## instancing world chunks (override `_setup_layers`, see level_01.gd) or by
 ## drawing TileMapLayer nodes directly in its own scene (see level_template).
 
-const WorldLayers := preload("res://scripts/world/world_layers.gd")
-
 ## Emitted once `_ready` has built the world, entities and camera.
 signal world_ready
 
+const WorldLayers := preload("res://scripts/world/world_layers.gd")
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
@@ -30,12 +29,24 @@ const CAMERA_CATCHUP := 3.2
 const CAMERA_STILL_DELAY := 0.12
 # A jump between ticks larger than this is a respawn/teleport, not motion.
 const TELEPORT_PX := 64.0
+const LAYER_KEYS := {
+	"Earth": "earth",
+	"Structure": "structure",
+	"Wallpaper": "wallpaper",
+	"Mosaic": "mosaic",
+	"Interior": "interior",
+	"Interior1": "interior",
+	"Interior2": "interior2",
+	"Foreground": "fg",
+	"CollisionLayer": "collision",
+}
 
 @export var level_scale := 2.0
 @export var screen_size := Vector2(256, 192)
 @export var world_size := Vector2(2048, 1152)
 @export var sky_color := Color(0.0, 0.0, 0.808)
 
+var world_loaded := false
 var _scale: float = 2.0
 var _screen := Vector2(256, 192)
 var _world_size := Vector2(8192, 4608)
@@ -45,7 +56,6 @@ var _bookcases: Array[Rect2] = []
 var _ink_material: ShaderMaterial = null
 var _alarm_guard_spawned := false
 var _map_layers: Dictionary = {}
-var world_loaded := false
 var _player_tick := Vector2.ZERO
 var _player_prev_tick := Vector2.ZERO
 
@@ -222,48 +232,27 @@ func _register_layer(layer: TileMapLayer) -> void:
 
 
 func _layer_key(node_name: String) -> String:
-	match node_name:
-		"Earth":
-			return "earth"
-		"Structure":
-			return "structure"
-		"Wallpaper":
-			return "wallpaper"
-		"Mosaic":
-			return "mosaic"
-		"Interior", "Interior1":
-			return "interior"
-		"Interior2":
-			return "interior2"
-		"Foreground":
-			return "fg"
-		"CollisionLayer":
-			return "collision"
-	return ""
+	return LAYER_KEYS.get(node_name, "")
 
 
 func _build_ladder_areas() -> void:
 	var ladders := Node2D.new()
 	ladders.name = "Ladders"
 	world.add_child(ladders)
-	for source in _collision_sources():
-		var layer: TileMapLayer = source[0]
-		var offset: Vector2 = source[1]
-		for rect in TileMapUtils.find_ladders(layer):
-			var area := Area2D.new()
-			area.collision_layer = CollisionLayers.LAYER_TRIGGERS
-			area.collision_mask = 0
-			area.monitorable = true
-			area.monitoring = false
-			var col := CollisionShape2D.new()
-			var shape := RectangleShape2D.new()
-			var size := Vector2(float(rect[2]), float(rect[3])) * _scale
-			shape.size = size
-			col.shape = shape
-			var origin := (offset + Vector2(float(rect[0]), float(rect[1]))) * _scale
-			col.position = origin + size * 0.5
-			area.add_child(col)
-			ladders.add_child(area)
+	for rect in TileMapUtils.find_ladders_across(_collision_sources()):
+		var area := Area2D.new()
+		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
+		area.collision_mask = 0
+		area.monitorable = true
+		area.monitoring = false
+		var col := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		var size := Vector2(float(rect[2]), float(rect[3])) * _scale
+		shape.size = size
+		col.shape = shape
+		col.position = Vector2(float(rect[0]), float(rect[1])) * _scale + size * 0.5
+		area.add_child(col)
+		ladders.add_child(area)
 
 
 func _add_lifts(data: Dictionary) -> void:
@@ -642,8 +631,9 @@ func _update_camera(delta: float, force: bool) -> void:
 	var cam := camera.global_position.lerp(center, t)
 	# Rounding would stall the ease a few pixels short; finish with 1 px steps.
 	var step := Vector2.ONE / camera.zoom
-	cam.x = move_toward(camera.global_position.x, center.x, maxf(absf(cam.x - camera.global_position.x), step.x))
-	cam.y = move_toward(camera.global_position.y, center.y, maxf(absf(cam.y - camera.global_position.y), step.y))
+	var from := camera.global_position
+	cam.x = move_toward(from.x, center.x, maxf(absf(cam.x - from.x), step.x))
+	cam.y = move_toward(from.y, center.y, maxf(absf(cam.y - from.y), step.y))
 	_move_camera(_snap_camera_to_player(cam, center))
 
 

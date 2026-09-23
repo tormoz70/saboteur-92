@@ -41,12 +41,12 @@ var _quit_in := -1.0
 var _fuse_only := false
 var _scale := 2.0
 var _ladder_doc_x := 0.0
+var _doc_x := 0.0
 var _ground_player_y := 0.0
 var _upper_player_y := 0.0
 var _ladders: Array = []
 var _marker_world: Dictionary = {}
 var _service_lift_x := 0.0
-var _service_lift_top_y := 0.0
 var _service_lift_bottom_y := 0.0
 var _interlock_world := Vector2.ZERO
 var _card_world := Vector2.ZERO
@@ -123,6 +123,7 @@ func _read_spawn_and_doc(entities: Dictionary) -> String:
 	if doc == Vector2.INF:
 		return "entities JSON missing document"
 	_upper_player_y = (doc.y - 48.0) * _scale
+	_doc_x = doc.x * _scale
 	_ladder_doc_x = _ladder_center_near(doc, _ladders)
 	if _ladder_doc_x <= 0.0:
 		return "no ladder covers the document"
@@ -134,7 +135,7 @@ func _read_lift_and_markers(entities: Dictionary, collision: Dictionary) -> Stri
 	var lock: Dictionary = entities.get("locked_lift", {})
 	if not lock.has("x"):
 		return "entities JSON missing locked_lift"
-	var lift_spec := _lift_spec_near(float(lock["x"]), lifts)
+	var lift_spec := _lift_spec_at(float(lock["x"]), float(lock.get("y", -1.0)), lifts)
 	if lift_spec.is_empty():
 		return "no lift matches locked_lift x=%s" % lock["x"]
 	for spec in entities.get("markers", []):
@@ -145,7 +146,6 @@ func _read_lift_and_markers(entities: Dictionary, collision: Dictionary) -> Stri
 	if _marker_world.size() < 3:
 		return "entities JSON missing crate code markers"
 	_service_lift_x = (float(lift_spec["x"]) + float(lift_spec["w"]) * 0.5) * _scale
-	_service_lift_top_y = float(lift_spec["top"]) * _scale
 	_service_lift_bottom_y = float(lift_spec["bottom"]) * _scale
 	return ""
 
@@ -179,11 +179,21 @@ func _item_png(entities: Dictionary, item_id: String) -> Vector2:
 	return Vector2.INF
 
 
-func _lift_spec_near(png_x: float, lifts: Array) -> Dictionary:
+## Shafts carry more than one cabin, so the lock names a cabin by x and y.
+func _lift_spec_at(png_x: float, png_y: float, lifts: Array) -> Dictionary:
 	for spec in lifts:
-		if absf(float(spec.get("x", -1.0)) - png_x) < 1.0:
+		var dx := absf(float(spec.get("x", -1.0)) - png_x)
+		var dy := absf(float(spec.get("y", -1.0)) - png_y)
+		if dx < 1.0 and dy < 1.0:
 			return spec
 	return {}
+
+
+func _locked_lift() -> Node2D:
+	for lift in get_tree().get_nodes_in_group("lifts"):
+		if lift.get("requires_lift_code"):
+			return lift as Node2D
+	return null
 
 
 func _ladder_center_near(doc_png: Vector2, ladders: Array) -> float:
@@ -194,7 +204,8 @@ func _ladder_center_near(doc_png: Vector2, ladders: Array) -> float:
 		var y := float(rect[1])
 		var w := float(rect[2])
 		var h := float(rect[3])
-		if doc_png.y < y - 32.0 or doc_png.y > y + h:
+		# Only ladders that rise from below onto the document's floor.
+		if doc_png.y < y - 32.0 or doc_png.y + 32.0 > y + h:
 			continue
 		var cx := x + w * 0.5
 		var d := absf(cx - doc_png.x)
@@ -310,7 +321,7 @@ func _drive() -> void:
 				elif _player.on_ladder:
 					_press_only("move_right")
 		Step.GET_DOC:
-			_press_only("move_right")
+			_walk_to_x(_doc_x)
 			if GameManager.has_document:
 				_go(Step.CLIMB_FROM_DOC)
 		Step.CLIMB_FROM_DOC:
@@ -321,7 +332,7 @@ func _drive() -> void:
 			_arm_quiet_route()
 			_go(Step.TO_SERVICE_LIFT)
 		Step.TO_SERVICE_LIFT:
-			_approach_lift_top()
+			_release_all()
 			if _player.on_lift and absf(_body_x() - _service_lift_x) <= 32.0:
 				_go(Step.RIDE_SERVICE_DOWN)
 		Step.RIDE_SERVICE_DOWN:
@@ -372,7 +383,13 @@ func _arm_lab_route() -> void:
 func _arm_quiet_route() -> void:
 	for label in GameManager.LIFT_CODE_LABELS:
 		GameManager.note_code(label)
-	_player.global_position = Vector2(_service_lift_x, _service_lift_top_y + 56.0)
+	var lift := _locked_lift()
+	if lift == null:
+		_fail("locked lift not found in the level")
+		return
+	# Straight onto the cabin: the shaft rock is solid until Nina rides it.
+	var cabin_top := lift.global_position.y - 56.0 * _scale - 4.0
+	_player.global_position = Vector2(_service_lift_x - 24.0 * _scale, cabin_top)
 	_player.velocity = Vector2.ZERO
 
 
@@ -383,23 +400,6 @@ func _visit_marker(label: String, target: Vector2) -> void:
 	# Crate codes sit above floor lip; allow extra vertical slack.
 	if _near(target, 48.0, 72.0):
 		GameManager.note_code(label)
-
-
-func _approach_lift_top() -> void:
-	var top := Vector2(_service_lift_x, _service_lift_top_y)
-	if absf(_body_x() - top.x) > 24.0:
-		_walk_to_x(top.x)
-		return
-	if _player.global_position.y > top.y + 48.0:
-		_climb_to_y(_service_lift_x, top.y, false)
-		return
-	if _player.global_position.y < top.y - 24.0:
-		if _player.on_ladder:
-			_press_only("move_down")
-		else:
-			_press_only("move_right")
-		return
-	_release_all()
 
 
 func _ride_service_down() -> void:

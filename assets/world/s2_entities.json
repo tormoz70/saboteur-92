@@ -3,13 +3,13 @@
   "coord_space_note": "Every x/y in this file is playfield-stacked world pixels (32×32 rooms of 256×144). Runtime multiplies by the scale from s2_collision.json (currently 2). Player and guard origins are sprite top-left (48×56). Pickup, sabotage and exit origins are Area2D centres. This file is hand-authored; s2_collision.json is generated. Y values were remapped from the old 192px (HUD-inclusive) stride: y' = (y//192)*144 + (y%192).",
   "spawn": [2240, 600],
   "fuse": 50,
-  "locked_lift": { "x": 2592, "y": 1736 },
+  "locked_lift": { "x": 2856, "y": 2264 },
   "items": [
     {
       "id": "key",
       "type": "key",
       "x": 2480,
-      "y": 648,
+      "y": 680,
       "required": ""
     },
     {
@@ -22,13 +22,15 @@
     {
       "id": "bomb",
       "type": "bomb",
-      "x": 3580,
-      "y": 2596,
+      "x": 2100,
+      "y": 3968,
       "required": "document"
     }
   ],
-  "sabotage": { "x": 3680, "y": 2596 },
+  "sabotage": { "x": 1700, "y": 3968 },
+  "exit": { "x": 200, "y": 3968 },
   "markers": [
+    { "id": "m02", "label": "02", "x": 3600, "y": 1176 },
     { "id": "m06", "label": "06", "x": 1920, "y": 296 },
     { "id": "m11", "label": "11", "x": 4312, "y": 864 }
   ],
@@ -42,8 +44,8 @@
       "need_crouch": true
     }
   ],
-  "interlock": { "x": 2520, "y": 1652 },
-  "alarm_guard": { "x": 720, "y": 3072, "patrol": 48 },
+  "interlock": { "x": 2600, "y": 3968 },
+  "alarm_guard": { "x": 900, "y": 3952, "patrol": 48 },
   "guards": [
     {
       "id": "ground",

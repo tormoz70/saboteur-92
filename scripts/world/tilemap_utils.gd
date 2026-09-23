@@ -215,8 +215,45 @@ static func greedy_merge_rects(grid: Array, cell: int = CELL) -> Array:
 
 
 static func ladder_rects(climb: Array, cell: int = CELL) -> Array:
+	return _pad_ladder_rects(greedy_merge_rects(climb, cell))
+
+
+## Same merge as greedy_merge_rects over a sparse {Vector2i: true} cell set.
+static func greedy_merge_cells(cells: Dictionary, cell: int = CELL) -> Array:
+	var order: Array = cells.keys()
+	order.sort_custom(_row_major_less)
+	var seen: Dictionary = {}
 	var rects: Array = []
-	for rect in greedy_merge_rects(climb, cell):
+	for c: Vector2i in order:
+		if seen.has(c):
+			continue
+		var x1 := c.x
+		while cells.has(Vector2i(x1, c.y)) and not seen.has(Vector2i(x1, c.y)):
+			x1 += 1
+		var y1 := c.y + 1
+		var can_grow := true
+		while can_grow:
+			for xx in range(c.x, x1):
+				var probe := Vector2i(xx, y1)
+				if not cells.has(probe) or seen.has(probe):
+					can_grow = false
+					break
+			if can_grow:
+				y1 += 1
+		for yy in range(c.y, y1):
+			for xx in range(c.x, x1):
+				seen[Vector2i(xx, yy)] = true
+		rects.append([c.x * cell, c.y * cell, (x1 - c.x) * cell, (y1 - c.y) * cell])
+	return rects
+
+
+static func _row_major_less(a: Vector2i, b: Vector2i) -> bool:
+	return a.y < b.y or (a.y == b.y and a.x < b.x)
+
+
+static func _pad_ladder_rects(merged: Array) -> Array:
+	var rects: Array = []
+	for rect in merged:
 		if int(rect[3]) < 24:
 			continue
 		rects.append(
@@ -257,3 +294,17 @@ static func find_ladders(tilemap: TileMapLayer, cell: int = CELL) -> Array:
 				row[x] = 1
 		grid.append(row)
 	return ladder_rects(grid, cell)
+
+
+## Ladders over several [TileMapLayer, offset] pairs (offset in native px).
+## Merged in one set so a shaft crossing a chunk seam stays one Area2D: per
+## layer, the stub above the seam is shorter than 24 px and gets dropped.
+static func find_ladders_across(sources: Array, cell: int = CELL) -> Array:
+	var cells: Dictionary = {}
+	for source in sources:
+		var layer: TileMapLayer = source[0]
+		var base := Vector2i((source[1] as Vector2) / float(cell))
+		for c in layer.get_used_cells():
+			if get_collision_type(layer, c) == "ladder":
+				cells[c + base] = true
+	return _pad_ladder_rects(greedy_merge_cells(cells, cell))

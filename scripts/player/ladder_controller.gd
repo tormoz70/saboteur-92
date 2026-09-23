@@ -46,31 +46,10 @@ func update_state(climb_axis: float) -> void:
 		_up_spent_on_jump = true
 	_was_on_floor = on_floor
 	if _p.on_ladder:
-		if not _p.can_climb:
+		if _should_leave(climb_axis, h_axis, want_climb):
 			_leave()
-			return
-		if absf(h_axis) > 0.0 and not want_climb:
-			_leave()
-			return
-		# Touch pads send left+down together. That must walk across a hatch,
-		# not trap Nina in the shaft (02 office). MOVE+UP still climbs.
-		if climb_axis > 0.0 and absf(h_axis) >= climb_axis:
-			_leave()
-			return
 		return
-	# Mount only from the floor. Airborne grab is off on purpose: a jump,
-	# fall, or hatch fly-through must not become a climb. Overlapping a
-	# shaft still mounts even with MOVE held: NW/NE on the rungs is climb,
-	# not a running jump that leaves Nina stuck at the foot of the ladder.
-	if not _p.is_on_floor():
-		return
-	if not _p.can_climb or not want_climb:
-		return
-	# Leftover UP after a jump is not a new climb press.
-	if climb_axis < 0.0 and _up_spent_on_jump:
-		return
-	# Same hatch rule: a mostly-horizontal pad walks, pure DOWN drops.
-	if climb_axis > 0.0 and absf(h_axis) >= climb_axis:
+	if not _may_mount(climb_axis, h_axis, want_climb):
 		return
 	# Hatch: Down only if rungs continue under the floor. Up only if rungs continue above.
 	if climb_axis > 0.0 and _below_feet():
@@ -79,6 +58,32 @@ func update_state(climb_axis: float) -> void:
 	elif climb_axis < 0.0 and _above_feet():
 		_enter()
 		_take_step(climb_axis)
+
+
+func _should_leave(climb_axis: float, h_axis: float, want_climb: bool) -> bool:
+	if not _p.can_climb:
+		return true
+	if absf(h_axis) > 0.0 and not want_climb:
+		return true
+	# Touch pads send left+down together. That must walk across a hatch,
+	# not trap Nina in the shaft (02 office). MOVE+UP still climbs.
+	return climb_axis > 0.0 and absf(h_axis) >= climb_axis
+
+
+func _may_mount(climb_axis: float, h_axis: float, want_climb: bool) -> bool:
+	# Mount only from the floor. Airborne grab is off on purpose: a jump,
+	# fall, or hatch fly-through must not become a climb. Overlapping a
+	# shaft still mounts even with MOVE held: NW/NE on the rungs is climb,
+	# not a running jump that leaves Nina stuck at the foot of the ladder.
+	if not _p.is_on_floor():
+		return false
+	if not _p.can_climb or not want_climb:
+		return false
+	# Leftover UP after a jump is not a new climb press.
+	if climb_axis < 0.0 and _up_spent_on_jump:
+		return false
+	# Same hatch rule: a mostly-horizontal pad walks, pure DOWN drops.
+	return not (climb_axis > 0.0 and absf(h_axis) >= climb_axis)
 
 
 func process_climb(delta: float, axis: float) -> void:
