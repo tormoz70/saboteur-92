@@ -692,6 +692,8 @@ func _start_demo_if_requested() -> void:
 		_add_probe("TiltDemo", "res://scripts/demo/tilt_demo.gd")
 	if args.has("--demo-maze"):
 		_add_probe("MazeDebug", "res://scripts/demo/maze_debug.gd")
+	if args.has("--demo-explore"):
+		_add_probe("MazeExplorer", "res://scripts/demo/explore_demo.gd")
 
 
 func _add_probe(probe_name: String, script_path: String) -> void:

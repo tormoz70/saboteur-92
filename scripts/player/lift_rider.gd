@@ -45,6 +45,11 @@ func update_state() -> void:
 		if n != null:
 			found = n
 			break
+	if found == null and _p.is_on_floor():
+		for n in _p.get_tree().get_nodes_in_group("lifts"):
+			if n is LiftPlatform and n.carries(_p, _p.body_collision):
+				found = n
+				break
 	if found == null:
 		if _p.on_lift and _lift != null and _lift.dir != 0:
 			return

@@ -13,6 +13,7 @@ var requires_lift_code: bool = false
 
 var _step_acc: float = 0.0
 var _width: float = 96.0
+var _y: float = 0.0
 
 
 func setup(world_top: float, world_bottom: float, width: float) -> void:
@@ -35,12 +36,28 @@ func is_centered(player: Node2D) -> bool:
 	return absf(pcx - center_x()) <= 24.0
 
 
+func carries(player: Node2D, body: CollisionShape2D) -> bool:
+	# At a stop the cabin top is flush with the shaft floor tile, so the floor
+	# may be the only reported contact while Nina stands on both.
+	var rect := body.shape as RectangleShape2D
+	if rect == null or not is_centered(player):
+		return false
+	var feet := body.global_position.y + rect.size.y * 0.5 * body.global_scale.y
+	return absf(feet - cabin_y()) <= 2.0
+
+
+func cabin_y() -> float:
+	# sync_to_physics reverts global_position to the last physics transform
+	# until the next step, so reading it back right after a move is stale.
+	return _y if dir != 0 else global_position.y
+
+
 func at_top() -> bool:
-	return global_position.y <= top_y + 0.5
+	return cabin_y() <= top_y + 0.5
 
 
 func at_bottom() -> bool:
-	return global_position.y >= bottom_y - 0.5
+	return cabin_y() >= bottom_y - 0.5
 
 
 func start_ride(player: CharacterBody2D, want_dir: int) -> bool:
@@ -54,6 +71,7 @@ func start_ride(player: CharacterBody2D, want_dir: int) -> bool:
 		return false
 	if want_dir > 0 and at_bottom():
 		return false
+	_y = global_position.y
 	dir = want_dir
 	rider = player
 	_step_acc = 0.0
@@ -85,12 +103,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _take_step() -> void:
-	var dest := global_position.y + float(dir) * STEP_PX
+	var dest := _y + float(dir) * STEP_PX
 	if dir < 0:
 		dest = maxf(dest, top_y)
 	else:
 		dest = minf(dest, bottom_y)
-	var moved := dest - global_position.y
+	var moved := dest - _y
+	_y = dest
 	global_position.y = dest
 	if rider != null and is_instance_valid(rider):
 		rider.global_position.y += moved
