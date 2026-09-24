@@ -47,7 +47,9 @@ func update_state(climb_axis: float) -> void:
 	_was_on_floor = on_floor
 	if _p.on_ladder:
 		if _should_leave(climb_axis, h_axis, want_climb):
-			_leave()
+			# A sideways press means "step off toward that side"; try the beam
+			# that abuts the rungs there before falling straight down.
+			_leave(signf(h_axis) if not want_climb else 0.0)
 		return
 	if not _may_mount(climb_axis, h_axis, want_climb):
 		return
@@ -131,14 +133,49 @@ func _enter() -> void:
 	_snap_to_ladder()
 
 
-func _leave() -> void:
+func _leave(h_dir: float = 0.0) -> void:
 	_p.on_ladder = false
 	_p.apply_world_mask()
 	_p.floor_snap_length = 16.0
 	_p.velocity = Vector2.ZERO
 	if _head_in_world_solid():
 		_unstick_from_solids()
+	if h_dir != 0.0 and _step_onto_side_beam(h_dir):
+		return
 	_snap_onto_support()
+
+
+func _step_onto_side_beam(h_dir: float) -> bool:
+	# Stepping off toward a beam that abuts the rungs: land on that beam
+	# instead of dropping down the shaft. Probe one cell over on the exit
+	# side, around the feet, for a walkable top close to foot level.
+	var space := _p.get_world_2d().direct_space_state
+	var feet := _feet_y()
+	# One tile over on the exit side. CLIMB_STEP_PX is already world px
+	# (one rung == one cell), so it must not be scaled again.
+	var cell := CLIMB_STEP_PX
+	var cx := _body_cx() + h_dir * cell
+	var from := Vector2(cx, feet - cell)
+	var q := PhysicsRayQueryParameters2D.create(from, Vector2(cx, feet + cell))
+	q.collision_mask = _p.get_world_mask()
+	q.exclude = [_p.get_rid()]
+	var hit := space.intersect_ray(q)
+	if hit.is_empty():
+		return false
+	var n: Vector2 = hit.normal
+	if n.y > -0.5:
+		return false
+	var fy: float = hit.position.y
+	if absf(fy - feet) > cell + 4.0:
+		return false
+	# Shift onto the beam so the soles rest on it and is_on_floor() latches.
+	var dest_x := _p.global_position.x + h_dir * cell
+	var feet_off := (Player.BODY_STAND_POS.y + Player.BODY_STAND_SIZE.y * 0.5) * _p.scale.y
+	_p.global_position = Vector2(dest_x, fy - feet_off)
+	_p.current_state = Player.State.IDLE
+	if _head_in_world_solid():
+		_unstick_from_solids()
+	return true
 
 
 func _snap_to_ladder() -> void:
