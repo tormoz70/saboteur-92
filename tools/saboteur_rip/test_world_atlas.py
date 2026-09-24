@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -39,13 +40,23 @@ def _paint_chrome(img: Image.Image) -> None:
 
 
 def _ensure_built() -> dict:
-    subprocess.run([sys.executable, str(BUILD)], check=True, cwd=ROOT)
-    return json.loads(CELLS.read_text(encoding="utf-8"))
+    # Scratch dir: a plain builder run writes draft/ and must not be
+    # pointed at the hand-edited atlases.
+    out = Path(tempfile.mkdtemp(prefix="s2-atlas-"))
+    cells = out / "s2_world_cells.json"
+    subprocess.run(
+        [sys.executable, str(BUILD), "--tileset-dir", str(out), "--cells", str(cells)],
+        check=True,
+        cwd=ROOT,
+    )
+    return json.loads(cells.read_text(encoding="utf-8"))
 
 
 def _load_atlas(layer: dict) -> Image.Image:
-    path = layer["tileset"].replace("res://", "")
-    return Image.open(ROOT / path).convert("RGB")
+    path = Path(layer["tileset"].replace("res://", ""))
+    if not path.is_absolute():
+        path = ROOT / path
+    return Image.open(path).convert("RGB")
 
 
 def _rebuild(built: dict) -> Image.Image:

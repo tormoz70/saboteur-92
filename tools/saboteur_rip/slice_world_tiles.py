@@ -4,16 +4,23 @@
 Classifies each 8x8 ZX cell as sky / earth / structure / wallpaper / mosaic
 or leftover (skip). Sky is a ColorRect, not unique tiles.
 Fan-map chrome (logo, mission legend, ninja art) is painted to sky first.
+
+Writes draft/ by default. Pass --overwrite to replace assets/tilesets
+and assets/world JSON instead.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from PIL import Image, ImageDraw
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tileset_guard import prepare_draft, writing_live
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets" / "world" / "saboteur2_world2.png"
@@ -22,9 +29,12 @@ FAN_SKY_CELLS = (
     (0, 0, 140, 112),     # loading-screen logo, Pavero credit, maps.speccy.cz
     (936, 0, 1024, 500),  # mission list + ninja; ground belt starts ~y=500
 )
-OUT_WORLD = ROOT / "assets" / "world"
-OUT_TILESETS = ROOT / "assets" / "tilesets"
-OUT_REPORT = ROOT / "docs" / "audit_views"
+LIVE_WORLD = ROOT / "assets" / "world"
+LIVE_TILESETS = ROOT / "assets" / "tilesets"
+LIVE_REPORT = ROOT / "docs" / "audit_views"
+OUT_WORLD = LIVE_WORLD
+OUT_TILESETS = LIVE_TILESETS
+OUT_REPORT = LIVE_REPORT
 
 CELL = 8
 SCALE = 2
@@ -1314,11 +1324,11 @@ def write_tileset_tres(path: Path, texture_res: str, cols: int, n_tiles: int) ->
     _ = rows
 
 
-def write_collision_tres(path: Path) -> None:
+def write_collision_tres(path: Path, texture_res: str) -> None:
     lines = [
         '[gd_resource type="TileSet" load_steps=2 format=3]',
         "",
-        '[ext_resource type="Texture2D" path="res://assets/tilesets/s2_collision_tileset.png" id="1"]',
+        f'[ext_resource type="Texture2D" path="{texture_res}" id="1"]',
         "",
         '[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]',
         "texture = ExtResource(\"1\")",
@@ -1389,6 +1399,18 @@ def _tile_from_bytes(buf: bytes) -> Image.Image:
 
 
 def main() -> None:
+    global OUT_WORLD, OUT_TILESETS, OUT_REPORT
+    if writing_live():
+        OUT_WORLD = LIVE_WORLD
+        OUT_TILESETS = LIVE_TILESETS
+        OUT_REPORT = LIVE_REPORT
+        texture_prefix = "res://assets/tilesets"
+    else:
+        scratch = prepare_draft(ROOT)
+        OUT_WORLD = scratch
+        OUT_TILESETS = scratch / "tilesets"
+        OUT_REPORT = scratch / "audit"
+        texture_prefix = "res://draft/tilesets"
     if not SRC.exists():
         raise SystemExit(f"missing {SRC}")
     src = Image.open(SRC).convert("RGB")
@@ -1655,11 +1677,11 @@ def main() -> None:
         png = OUT_TILESETS / f"s2_{name}_tileset.png"
         tres = OUT_TILESETS / f"s2_{name}_tileset.tres"
         atlas.save(png)
-        write_tileset_tres(tres, f"res://assets/tilesets/s2_{name}_tileset.png", cols, n)
+        write_tileset_tres(tres, f"{texture_prefix}/s2_{name}_tileset.png", cols, n)
         unique_report[name] = n - 1
         layers_json[name] = {
             "z": LAYER_Z[name],
-            "tileset": f"res://assets/tilesets/s2_{name}_tileset.tres",
+            "tileset": f"{texture_prefix}/s2_{name}_tileset.tres",
             "atlas_tiles": [cols, max(1, math.ceil(n / cols))],
             "empty": 0,
             "rle": rle_encode(layer_ids[name]),
@@ -1667,7 +1689,10 @@ def main() -> None:
 
     collision_png = OUT_TILESETS / "s2_collision_tileset.png"
     write_collision_png(collision_png)
-    write_collision_tres(OUT_TILESETS / "s2_collision_tileset.tres")
+    write_collision_tres(
+        OUT_TILESETS / "s2_collision_tileset.tres",
+        f"{texture_prefix}/s2_collision_tileset.png",
+    )
 
     tiles_doc = {
         "scale": SCALE,
@@ -1683,7 +1708,7 @@ def main() -> None:
     )
 
     collision_doc = {
-        "tileset": "res://assets/tilesets/s2_collision_tileset.tres",
+        "tileset": f"{texture_prefix}/s2_collision_tileset.tres",
         "cell": CELL,
         "grid": [cw, ch],
         "empty": 0,

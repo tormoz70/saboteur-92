@@ -6,12 +6,15 @@ rebuild is pixel-exact. Layer assignment comes from the checked-in table
 assets/world/s2_tile_layers.json (tile id -> layer); a wrong layer is fixed
 by editing the table, never by repainting pixels.
 
-Outputs:
-  assets/tilesets/s2_<layer>_tileset.png   one atlas per visual layer
-  assets/world/s2_tile_layers.json         tile_id -> layer table
-  assets/world/s2_world_cells.json         1024x576 grid of [layer, tile_id]
-  docs/audit_views/slice_rebuild*.png      audit renders
-  docs/audit_views/slice_report.json       counters
+Outputs (draft/ by default; --overwrite writes the checked-in paths):
+  draft/tilesets/s2_<layer>_tileset.png   one atlas per visual layer
+  draft/s2_tile_layers.json               tile_id -> layer table
+  draft/s2_world_cells.json               1024x576 grid of [layer, tile_id]
+  draft/audit/slice_rebuild*.png          audit renders
+  draft/audit/slice_report.json           counters
+
+--tileset-dir and --cells write somewhere else (used by the roundtrip test)
+and do not touch the checked-in atlases.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from fan_map_cleanup import paint_fan_chrome as _paint_fan_chrome, paint_fan_gua
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fan_map_cleanup import paint_fan_chrome, paint_fan_guard_sprites
+from tileset_guard import draft_root, prepare_draft, writing_live
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets" / "world" / "saboteur2_world2.png"
@@ -149,7 +153,31 @@ def _blit_cell(dest: bytearray, width: int, cx: int, cy: int, tile: bytes) -> No
         dest[dst : dst + src_row] = tile[src : src + src_row]
 
 
+def _arg(flag: str) -> str | None:
+    if flag not in sys.argv:
+        return None
+    index = sys.argv.index(flag)
+    if index + 1 >= len(sys.argv) or sys.argv[index + 1].startswith("--"):
+        raise SystemExit(f"{flag} needs a path")
+    return sys.argv[index + 1]
+
+
 def main() -> None:
+    tileset_arg = _arg("--tileset-dir")
+    cells_arg = _arg("--cells")
+    live = writing_live() and tileset_arg is None and cells_arg is None
+    if live:
+        tileset_dir = OUT_TILESETS
+        cells_path = OUT_WORLD / "s2_world_cells.json"
+        report_dir = OUT_REPORT
+    else:
+        scratch = draft_root(ROOT)
+        if tileset_arg is None and cells_arg is None:
+            prepare_draft(ROOT)
+        tileset_dir = Path(tileset_arg) if tileset_arg else scratch / "tilesets"
+        cells_path = Path(cells_arg) if cells_arg else scratch / "s2_world_cells.json"
+        report_dir = scratch / "audit" if tileset_arg is None and cells_arg is None else cells_path.parent / "audit"
+    canonical = tileset_dir.resolve() == OUT_TILESETS.resolve()
     if not SRC.exists():
         raise SystemExit(f"missing {SRC}")
     src = Image.open(SRC).convert("RGB")
@@ -158,7 +186,8 @@ def main() -> None:
         raise SystemExit(f"{SRC} size {width}x{height} is not divisible by {CELL}")
     paint_fan_chrome(src)
     n_guard = paint_fan_guard_sprites(src)
-    src.save(SRC)
+    if canonical:
+        src.save(SRC)
     cw = width // CELL
     ch = height // CELL
     raw = memoryview(src.tobytes())
@@ -201,9 +230,12 @@ def main() -> None:
         grid.append([layer_index[name], tile_id[buf]])
         counts[name] += 1
 
-    OUT_TILESETS.mkdir(parents=True, exist_ok=True)
-    OUT_WORLD.mkdir(parents=True, exist_ok=True)
-    OUT_REPORT.mkdir(parents=True, exist_ok=True)
+    layers_path = (
+        OUT_WORLD / "s2_tile_layers.json" if canonical else cells_path.with_name("s2_tile_layers.json")
+    )
+    tileset_dir.mkdir(parents=True, exist_ok=True)
+    cells_path.parent.mkdir(parents=True, exist_ok=True)
+    report_dir.mkdir(parents=True, exist_ok=True)
 
     # Atlases + table.
     unique_report: dict[str, int] = {}
@@ -214,7 +246,7 @@ def main() -> None:
         images = [Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))]
         images.extend(_tile_from_bytes(b) for b in tiles)
         atlas = pack_atlas(images, cols)
-        atlas.save(OUT_TILESETS / f"s2_{name}_tileset.png")
+        atlas.save(tileset_dir / f"s2_{name}_tileset.png")
         unique_report[name] = len(tiles)
 
     table = {
@@ -222,9 +254,7 @@ def main() -> None:
         "layers": VISUAL_LAYERS,
         "counts": {name: len(layer_tiles[name]) for name in VISUAL_LAYERS},
     }
-    (OUT_WORLD / "s2_tile_layers.json").write_text(
-        json.dumps(table, indent=2), encoding="utf-8"
-    )
+    layers_path.write_text(json.dumps(table, indent=2), encoding="utf-8")
 
     cells_doc = {
         "scale": SCALE,
@@ -234,14 +264,20 @@ def main() -> None:
         "grid": [cw, ch],
         "sky_color": list(SKY_BLUE),
         "layers": [
-            {"name": name, "z": LAYER_Z[name], "tileset": f"res://assets/tilesets/s2_{name}_tileset.png"}
+            {
+                "name": name,
+                "z": LAYER_Z[name],
+                "tileset": (
+                    f"res://assets/tilesets/s2_{name}_tileset.png"
+                    if canonical
+                    else (tileset_dir / f"s2_{name}_tileset.png").resolve().as_posix()
+                ),
+            }
             for name in VISUAL_LAYERS
         ],
         "cells": grid,
     }
-    (OUT_WORLD / "s2_world_cells.json").write_text(
-        json.dumps(cells_doc, separators=(",", ":")), encoding="utf-8"
-    )
+    cells_path.write_text(json.dumps(cells_doc, separators=(",", ":")), encoding="utf-8")
 
     # Audit render: rebuild from the emitted grid only.
     rebuild_buf = bytearray(width * height * 3)
@@ -256,10 +292,10 @@ def main() -> None:
                 tile = layer_tiles[VISUAL_LAYERS[li]][tid - 1]
             _blit_cell(rebuild_buf, width, cx, cy, tile)
     rebuild = Image.frombytes("RGB", (width, height), bytes(rebuild_buf))
-    rebuild_path = OUT_REPORT / "slice_rebuild.png"
+    rebuild_path = report_dir / "slice_rebuild.png"
     rebuild.save(rebuild_path)
     overview = rebuild.resize((width // 4, height // 4), Image.Resampling.NEAREST)
-    overview_path = OUT_REPORT / "slice_rebuild_quarter.png"
+    overview_path = report_dir / "slice_rebuild_quarter.png"
     overview.save(overview_path)
 
     report = {
@@ -274,14 +310,14 @@ def main() -> None:
         "rebuild": rebuild_path.as_posix(),
         "rebuild_quarter": overview_path.as_posix(),
     }
-    (OUT_REPORT / "slice_report.json").write_text(
+    (report_dir / "slice_report.json").write_text(
         json.dumps(report, indent=2), encoding="utf-8"
     )
     print("build_world_atlas:")
     for name in ("sky",) + VISUAL_LAYERS:
         print(f"  {name:10} {counts[name]}")
     print("  unique", unique_report, "total", sum(unique_report.values()))
-    print("  wrote", OUT_WORLD / "s2_world_cells.json")
+    print("  wrote", cells_path)
     print("  rebuild", rebuild_path)
 
 

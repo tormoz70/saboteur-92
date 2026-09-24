@@ -31,6 +31,7 @@ Thumbs.db
 .vscode/
 
 # Local scratch dumps, one-off scripts, audit leftovers
+/draft/
 .tmp/
 /tmp_*.png
 /tmp_*.txt

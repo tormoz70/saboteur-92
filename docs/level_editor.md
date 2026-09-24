@@ -62,11 +62,15 @@
 ## Пересборка библиотеки тайлов и чанков
 
 ```bash
-python tools/saboteur_rip/build_world_atlas.py    # атласы + s2_world_cells.json
-python tools/saboteur_rip/build_tilesets.py       # .tres TileSet
+python tools/saboteur_rip/build_world_atlas.py    # draft/tilesets + draft/s2_world_cells.json
+python tools/saboteur_rip/build_tilesets.py       # draft/tilesets/*.tres
 tools/godot/Godot_v4.6-stable_win64_console.exe --headless --path . --import
 tools/godot/Godot_v4.6-stable_win64_console.exe --headless --path . --script tools/build_world_chunks.gd
 ```
+
+Обычный запуск пишет в `draft/` и не трогает `assets/tilesets`. Туда же
+кладёт результат `slice_world_tiles.py`. `--overwrite` заменяет рабочие
+тайлсеты и JSON в `assets/`.
 
 Назначение ячеек слоям — в чекинной таблице `assets/world/s2_tile_layers.json`
 (`tile_id → layer`). Неверный слой правится строкой в таблице (и пересборкой)

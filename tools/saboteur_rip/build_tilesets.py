@@ -8,19 +8,25 @@ detection both work from the same resource.
 
 Run after build_world_atlas.py:
   python tools/saboteur_rip/build_tilesets.py
+
+Writes draft/tilesets. Pass --overwrite to replace assets/tilesets instead.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import sys
 from pathlib import Path
 
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tileset_guard import prepare_draft, writing_live
+
 ROOT = Path(__file__).resolve().parents[2]
-OUT_TILESETS = ROOT / "assets" / "tilesets"
-CELLS = ROOT / "assets" / "world" / "s2_world_cells.json"
+LIVE_TILESETS = ROOT / "assets" / "tilesets"
+LIVE_CELLS = ROOT / "assets" / "world" / "s2_world_cells.json"
 
 CELL = 8
 
@@ -42,15 +48,15 @@ def _atlas_grid(png: Path) -> tuple[int, int]:
     return img.width // CELL, img.height // CELL
 
 
-def write_visual_tileset(layer: dict) -> Path:
+def write_visual_tileset(layer: dict, tileset_dir: Path, texture_prefix: str) -> Path:
     name = layer["name"]
-    png = OUT_TILESETS / f"s2_{name}_tileset.png"
+    png = tileset_dir / f"s2_{name}_tileset.png"
     cols, rows = _atlas_grid(png)
     n_tiles = cols * rows
     lines = [
         '[gd_resource type="TileSet" load_steps=2 format=3]',
         "",
-        f'[ext_resource type="Texture2D" path="res://assets/tilesets/s2_{name}_tileset.png" id="1"]',
+        f'[ext_resource type="Texture2D" path="{texture_prefix}/s2_{name}_tileset.png" id="1"]',
         "",
         '[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]',
         'texture = ExtResource("1")',
@@ -70,19 +76,19 @@ def write_visual_tileset(layer: dict) -> Path:
             "",
         ]
     )
-    out = OUT_TILESETS / f"s2_{name}_tileset.tres"
+    out = tileset_dir / f"s2_{name}_tileset.tres"
     out.write_text("\n".join(lines), encoding="utf-8")
     return out
 
 
-def write_collision_tileset() -> Path:
-    png = OUT_TILESETS / "s2_collision_tileset.png"
+def write_collision_tileset(tileset_dir: Path, texture_prefix: str) -> Path:
+    png = tileset_dir / "s2_collision_tileset.png"
     if not png.exists():
         _write_collision_png(png)
     lines = [
         '[gd_resource type="TileSet" load_steps=2 format=3]',
         "",
-        '[ext_resource type="Texture2D" path="res://assets/tilesets/s2_collision_tileset.png" id="1"]',
+        f'[ext_resource type="Texture2D" path="{texture_prefix}/s2_collision_tileset.png" id="1"]',
         "",
         '[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]',
         'texture = ExtResource("1")',
@@ -109,7 +115,7 @@ def write_collision_tileset() -> Path:
             "",
         ]
     )
-    out = OUT_TILESETS / "s2_collision_tileset.tres"
+    out = tileset_dir / "s2_collision_tileset.tres"
     out.write_text("\n".join(lines), encoding="utf-8")
     return out
 
@@ -135,11 +141,23 @@ def _write_collision_png(png: Path) -> None:
 
 
 def main() -> None:
-    cells = json.loads(CELLS.read_text(encoding="utf-8"))
+    if writing_live():
+        tileset_dir = LIVE_TILESETS
+        cells_path = LIVE_CELLS
+        texture_prefix = "res://assets/tilesets"
+    else:
+        scratch = prepare_draft(ROOT)
+        tileset_dir = scratch / "tilesets"
+        cells_path = scratch / "s2_world_cells.json"
+        texture_prefix = "res://draft/tilesets"
+    if not cells_path.exists():
+        raise SystemExit(f"missing {cells_path} — run build_world_atlas.py first")
+    tileset_dir.mkdir(parents=True, exist_ok=True)
+    cells = json.loads(cells_path.read_text(encoding="utf-8"))
     written = []
     for layer in cells["layers"]:
-        written.append(write_visual_tileset(layer))
-    written.append(write_collision_tileset())
+        written.append(write_visual_tileset(layer, tileset_dir, texture_prefix))
+    written.append(write_collision_tileset(tileset_dir, texture_prefix))
     print("build_tilesets:")
     for path in written:
         print("  wrote", path)

@@ -9,7 +9,11 @@ World tilesets are built from the cleaned mosaic, not from MAC dumps:
 
 | Script | Needs | Writes |
 |---|---|---|
-| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `s2_*_tileset.*`, `s2_world_tiles.json`, `s2_collision_tiles.json`, `docs/audit_views/slice_*.png` |
+| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `draft/tilesets/s2_*_tileset.*`, `draft/s2_world_tiles.json`, `draft/s2_collision_tiles.json`, `draft/audit/slice_*.png` |
+
+`build_world_atlas.py`, `build_tilesets.py` and `slice_world_tiles.py` write
+`draft/` and leave `assets/tilesets` alone. Pass `--overwrite` to replace
+the hand-edited tilesets from the fan map.
 
 Game runtime does **not** need this folder.
 
@@ -59,7 +63,7 @@ That is Pillow only. The rest of the toolchain is the Python standard library.
 
 | Script | Needs | Writes |
 |---|---|---|
-| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `s2_*_tileset.*`, `s2_world_tiles.json`, `s2_collision_tiles.json`, `docs/audit_views/slice_*` |
+| `slice_world_tiles.py` | `assets/world/saboteur2_world2.png` | `draft/tilesets/s2_*`, `draft/s2_world_tiles.json`, `draft/s2_collision_tiles.json`, `draft/audit/slice_*` |
 | `extract_from_tap.py` | `SABOTEU1.TAP`, `sabot1core.asm` | `ripped/` |
 | `extract_from_disasm.py` | `sabot1core.asm` | `ripped/` |
 | `extract_from_z80.py` | `snap/SABOTEUR.Z80` | `extracted/` |

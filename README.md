@@ -26,9 +26,10 @@ World tilesets are rebuilt from `assets/world/saboteur2_world2.png`:
 python tools/saboteur_rip/slice_world_tiles.py
 ```
 
-That writes `assets/tilesets/s2_*_tileset.*`, `assets/world/s2_world_tiles.json`,
-and `assets/world/s2_collision_tiles.json`. Mission entities stay in
-`assets/world/s2_entities.json`.
+That writes `draft/tilesets/s2_*_tileset.*`, `draft/s2_world_tiles.json`,
+and `draft/s2_collision_tiles.json`. The checked-in tilesets in
+`assets/tilesets` stay untouched. Pass `--overwrite` to replace them.
+Mission entities stay in `assets/world/s2_entities.json`.
 
 ## Art assets (Saboteur 1985 style)
 

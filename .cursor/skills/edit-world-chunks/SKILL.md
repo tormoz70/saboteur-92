@@ -226,8 +226,9 @@ Done once, across every chunk that has this desk (124 desks, 14 chunks:
 `06_02`). Leg slots are the four tiles above. Two desks in `chunk_01_03`
 (`(105,65)`, `(116,65)`) keep `(17,0)` where the chair post was.
 
-Re-running `build_world_atlas.py` / `build_tilesets.py` regenerates the PNG
-and wipes the appended tiles. Treat them like any other hand edit.
+`build_world_atlas.py`, `build_tilesets.py` and `slice_world_tiles.py` write
+`draft/` and leave `assets/tilesets` alone. `--overwrite` is what replaces
+the appended tiles.
 
 ## Erase a figure
 
