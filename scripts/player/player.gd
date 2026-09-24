@@ -50,6 +50,8 @@ const COMBO_WINDOW := 0.25
 @export var somersault_jump_scale: float = 1.4
 @export var max_energy: int = 100
 @export var iframe_time: float = 0.55
+## Duration of the secret-room invincibility bonus, in seconds.
+@export var invuln_bonus_time: float = 20.0
 @export var regen_delay: float = 1.25
 @export var regen_per_second: float = 20.0
 @export var spawn_point: Vector2 = Vector2(48, 184)
@@ -73,6 +75,7 @@ var _strike_age: float = 0.0
 var _up_hold: float = INF
 var _fire_hold: float = INF
 var _iframe: float = 0.0
+var _invuln: float = 0.0
 var _time_since_hit: float = 10.0
 var _regen_accum: float = 0.0
 var _world_mask: int = CollisionLayers.LAYER_WORLD
@@ -104,7 +107,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_iframe = maxf(_iframe - delta, 0.0)
-	if _iframe <= 0.0:
+	if _invuln > 0.0:
+		_invuln = maxf(_invuln - delta, 0.0)
+		# Gold flash while the bonus lasts; fall back to white when it ends.
+		anim.modulate = Color(1.6, 1.4, 0.3) if int(_invuln * 8.0) % 2 == 0 else Color.WHITE
+	elif _iframe <= 0.0:
 		anim.modulate = Color.WHITE
 	_time_since_hit += delta
 	_air_time = 0.0 if is_on_floor() else _air_time + delta
@@ -553,7 +560,7 @@ func _tick_regen(delta: float) -> void:
 
 
 func take_damage(amount: int = 12) -> void:
-	if is_dead or GameManager.demo_mode or _iframe > 0.0:
+	if is_dead or GameManager.demo_mode or _iframe > 0.0 or _invuln > 0.0:
 		return
 	energy = maxi(energy - amount, 0)
 	_iframe = iframe_time
@@ -566,6 +573,15 @@ func take_damage(amount: int = 12) -> void:
 	is_dead = true
 	current_state = State.DEAD
 	GameManager.lose_mission()
+
+
+## Secret-room bonus: ignore all damage for a while. Refreshes the timer.
+func grant_invincibility(duration: float = -1.0) -> void:
+	_invuln = maxf(_invuln, invuln_bonus_time if duration < 0.0 else duration)
+
+
+func is_invulnerable() -> bool:
+	return _invuln > 0.0
 
 
 func respawn(to_position: Vector2) -> void:
@@ -584,6 +600,7 @@ func respawn(to_position: Vector2) -> void:
 	_up_hold = INF
 	_fire_hold = INF
 	_iframe = 0.0
+	_invuln = 0.0
 	_time_since_hit = 10.0
 	_regen_accum = 0.0
 	energy = max_energy

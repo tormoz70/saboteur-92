@@ -5,6 +5,10 @@ const ITEM_REGIONS := {
 	"document": Rect2(32, 0, 32, 16),
 	"bomb": Rect2(64, 0, 32, 16),
 }
+# Bonus pickups drawn from their own texture instead of the item atlas.
+const ITEM_TEXTURES := {
+	"invuln": "res://assets/sprites/bonus_chest.png",
+}
 
 @export var item_type: String = "key"
 @export var required_item: String = ""
@@ -13,11 +17,14 @@ const ITEM_REGIONS := {
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	if has_node("Sprite"):
-		var tex: Texture2D = load("res://assets/sprites/saboteur85_items.png")
-		if tex and ITEM_REGIONS.has(item_type):
-			$Sprite.texture = AtlasTexture.new()
-			$Sprite.texture.atlas = tex
-			$Sprite.texture.region = ITEM_REGIONS[item_type]
+		if ITEM_TEXTURES.has(item_type):
+			$Sprite.texture = load(ITEM_TEXTURES[item_type])
+		else:
+			var tex: Texture2D = load("res://assets/sprites/saboteur85_items.png")
+			if tex and ITEM_REGIONS.has(item_type):
+				$Sprite.texture = AtlasTexture.new()
+				$Sprite.texture.atlas = tex
+				$Sprite.texture.region = ITEM_REGIONS[item_type]
 
 
 func _on_body_entered(body: Node2D) -> void:
@@ -27,6 +34,8 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if required_item != "" and not _player_has(required_item):
 		return
+	if item_type == "invuln" and body.has_method("grant_invincibility"):
+		body.grant_invincibility()
 	EventBus.item_collected.emit(item_type)
 	queue_free()
 

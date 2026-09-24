@@ -25,6 +25,13 @@
       "x": 2100,
       "y": 3968,
       "required": "document"
+    },
+    {
+      "id": "bonus",
+      "type": "invuln",
+      "x": 936,
+      "y": 1980,
+      "required": ""
     }
   ],
   "sabotage": { "x": 1700, "y": 3968 },
@@ -34,16 +41,7 @@
     { "id": "m06", "label": "06", "x": 1920, "y": 296 },
     { "id": "m11", "label": "11", "x": 4312, "y": 864 }
   ],
-  "passages": [
-    {
-      "id": "shelf_east",
-      "x": 2780,
-      "y": 616,
-      "to_x": 2976,
-      "to_y": 664,
-      "need_crouch": true
-    }
-  ],
+  "passages": [],
   "interlock": { "x": 2600, "y": 3968 },
   "alarm_guard": { "x": 900, "y": 3952, "patrol": 48 },
   "guards": [

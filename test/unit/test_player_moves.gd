@@ -26,6 +26,17 @@ func after_each() -> void:
 	GameManager.reset_run_state()
 
 
+func test_invincibility_bonus_blocks_damage_until_it_expires() -> void:
+	_player.grant_invincibility(0.5)
+	assert_true(_player.is_invulnerable(), "the bonus starts active")
+	_player.take_damage(40)
+	assert_eq(_player.energy, _player.max_energy, "no damage lands while invulnerable")
+	await _step(40)
+	assert_false(_player.is_invulnerable(), "the bonus wears off")
+	_player.take_damage(40)
+	assert_lt(_player.energy, _player.max_energy, "damage lands again after it ends")
+
+
 func test_punch_reaches_in_front_of_the_body_on_both_facings() -> void:
 	# The hitbox used to be pinned to a sprite-width offset that only pointed
 	# right, so punching left swung at the player's own chest.

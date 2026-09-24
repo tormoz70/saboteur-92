@@ -95,12 +95,36 @@ python tools/explore/nav_reach.py
 Verified after the fixes: GUT 111/111, `--demo` (mission complete),
 `--demo-fuse` (fuse loss OK), and gdlint clean.
 
+## Map collision fixes
+
+Rule from the user: blue brick (Wallpaper) is open tunnel, black (Earth) is
+solid. Judge it on the chunk layers, not on `saboteur2_world2.png` — that old
+render still shows the baked guards and panthers that the chunks no longer
+have.
+
+- Removed 136 solid cells of baked figures (guards, panthers, the exit pose,
+  the motorcycle) that blocked corridors, the bottom tunnel included.
+- Removed 29 more solid cells over blue brick and made 61 pure-black free
+  cells solid. One black notch at (824, 1992) stays free, because filling it
+  would block the corridor under it.
+- Graph reachability after the fixes: 4374 of 4562 nodes (95.9%).
+- About 70 tunnel ladders end at the rock ceiling. The original data does the
+  same, so they stay dead ends on purpose.
+- Removed the `shelf_east` passage from `s2_entities.json`. It was a
+  hand-authored crouch-teleport (2780,616 → 2976,664) that dropped Nina into
+  a spot with no floor; shelves/crates carry no collision, so they are pure
+  decoration. The original's "bookcase passage" is the concealed ladder into
+  the red INVINCIBILITY room near (900, 1960); that room is already reachable
+  by its ladder.
+- Replaced the decorative chest in that red room with a real pickup: item
+  type `invuln` at (936, 1980) in `s2_entities.json`. Its icon is
+  `assets/sprites/bonus_chest.png` (built from the old chest tiles), and
+  collecting it calls `Player.grant_invincibility()` for
+  `invuln_bonus_time` seconds (default 20). The 9 chest Interior1 cells were
+  erased and the wall behind them filled with red-brick veneer `(3,0)`.
+
 ## Map problems found (not fixed)
 
-- **Bottom tunnel blocked**: stray solid blobs, likely baked-guard remnants,
-  sit around x ≈ 2368 (y 3960–3984), x 1648–1704, and x 432–456. Only 16 px
-  of clearance remains, so it cannot be walked.
-- **Bookcase passage** coordinates are stale: they point inside a wall.
 - **Unreachable areas**, shown red on the map:
   - the lower-right floors, about x 6000–7500 at y 2840–3120 and 3520;
   - the left antenna;
