@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "chunk_id": "chunk_00_00",
+  "grid_size": [128, 72],
+  "cell_size": 8,
+  "empty_id": -1,
+  "tile_id_map": "res://assets/tilesets/tile_id_map.json",
+  "layers": {},
+  "entities": [],
+  "meta": {
+    "source": "res://scenes/world/chunks/chunk_00_00.tscn"
+  }
+}
