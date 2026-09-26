@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tormoz70/saboteur-92/docs/world_chunk_schema.json",
+  "title": "Saboteur-92 World Chunk",
+  "description": "Intermediate, LLM-friendly representation of a single world chunk. Terrain/decoration geometry is separated from entities. Tile values are simple integer PALETTE ids (0..N) resolved against tile_id_map.json; -1 (empty_id) means no tile. Grid coordinates are chunk-local cells (origin top-left). See docs/world_chunk_bridge.md for the setup guide.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "chunk_id", "grid_size", "cell_size", "tile_id_map", "layers"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version; bump on breaking changes."
+    },
+    "chunk_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "description": "Stable id, e.g. 'chunk_03_03' or 'sector_1_corridor'. Also used as the root Node2D name."
+    },
+    "grid_size": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "[width, height] of the chunk in cells. Saboteur-92 chunks are [128, 72]."
+    },
+    "cell_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Pixels per cell (native, pre-scale). Saboteur-92 uses 8."
+    },
+    "empty_id": {
+      "type": "integer",
+      "default": -1,
+      "description": "Palette id that marks an empty cell. Default -1."
+    },
+    "tile_id_map": {
+      "type": "string",
+      "description": "res:// path to the palette/lookup config that maps palette ids back to Godot TileSet atlas tiles and layers to TileSets.",
+      "examples": ["res://assets/tilesets/tile_id_map.json"]
+    },
+    "layers": {
+      "type": "object",
+      "description": "One entry per authored TileMapLayer, keyed by layer key (snake_case). Layers absent here are created empty by the loader. Terrain vs. decoration is expressed by each layer's 'role' in tile_id_map.json; collision semantics live in the dedicated 'collision' layer.",
+      "additionalProperties": { "$ref": "#/definitions/layer" }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Gameplay objects, enemies and triggers. Kept fully separate from terrain geometry.",
+      "items": { "$ref": "#/definitions/entity" },
+      "default": []
+    },
+    "meta": {
+      "type": "object",
+      "description": "Free-form provenance/authoring notes (source file, generator, seed, etc.).",
+      "additionalProperties": true
+    }
+  },
+  "definitions": {
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "data"],
+      "properties": {
+        "encoding": {
+          "type": "string",
+          "enum": ["grid", "rle"],
+          "description": "'grid' = dense 2D array [height][width] of palette ids (-1 = empty). 'rle' = row-major run-length pairs [value,count,value,count,...] over width*height cells."
+        },
+        "data": {
+          "description": "Tile payload. For 'grid': array of rows, each row an array of palette ids. For 'rle': a flat integer array of [value,count,...] pairs.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": -1 }
+              }
+            },
+            {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          ]
+        },
+        "cells": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional: number of non-empty cells (informational / validation aid)."
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "position"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Logical entity type resolved to a prefab via tile_id_map.json/entity_prefabs, e.g. 'guard', 'key_item', 'sabotage_target', 'exit', 'spawn'."
+        },
+        "id": {
+          "type": "string",
+          "description": "Optional stable id, used for the spawned node name and cross-references."
+        },
+        "position": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Chunk-local position in CELLS (grid units). The loader multiplies by cell_size to get native pixels."
+        },
+        "params": {
+          "type": "object",
+          "description": "Type-specific fields (patrol distance, required item, label, destination, etc.).",
+          "additionalProperties": true,
+          "default": {}
+        }
+      }
+    }
+  }
+}
