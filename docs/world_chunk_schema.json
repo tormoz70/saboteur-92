@@ -41,7 +41,10 @@
     },
     "layers": {
       "type": "object",
-      "description": "One entry per authored TileMapLayer, keyed by layer key (snake_case). Layers absent here are created empty by the loader. Terrain vs. decoration is expressed by each layer's 'role' in tile_id_map.json; collision semantics live in the dedicated 'collision' layer.",
+      "description": "One entry per authored TileMapLayer, keyed by layer key (snake_case, see tile_id_map.json layer_order). Layers absent here are created empty by the loader. Terrain vs. decoration is expressed by each layer's 'role' in tile_id_map.json; collision semantics live in the dedicated 'collision' layer.",
+      "propertyNames": {
+        "enum": ["earth", "structure", "wallpaper", "mosaic", "interior1", "interior2", "structure_front", "foreground", "collision"]
+      },
       "additionalProperties": { "$ref": "#/definitions/layer" }
     },
     "entities": {
@@ -68,25 +71,33 @@
           "description": "'grid' = dense 2D array [height][width] of palette ids (-1 = empty). 'rle' = row-major run-length pairs [value,count,value,count,...] over width*height cells."
         },
         "data": {
-          "description": "Tile payload. For 'grid': array of rows, each row an array of palette ids. For 'rle': a flat integer array of [value,count,...] pairs.",
-          "oneOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "items": { "type": "integer", "minimum": -1 }
-              }
-            },
-            {
-              "type": "array",
-              "items": { "type": "integer" }
-            }
-          ]
+          "type": "array",
+          "description": "Tile payload, shape chosen by 'encoding'. Palette ids are indexes into tile_id_map.json palettes[layers[key].palette].tiles."
         },
         "cells": {
           "type": "integer",
           "minimum": 0,
           "description": "Optional: number of non-empty cells (informational / validation aid)."
+        }
+      },
+      "if": { "properties": { "encoding": { "const": "rle" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "description": "Flat [value,count,...] pairs: even length, every count >= 1, counts summing to width*height. JSON Schema cannot express the pairing; ChunkValidator.decode_layer enforces it.",
+            "items": { "type": "integer", "minimum": -1 }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {
+            "description": "Exactly grid_size[1] rows of grid_size[0] ids each (checked by ChunkValidator).",
+            "items": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": -1 }
+            }
+          }
         }
       }
     },
@@ -97,7 +108,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Logical entity type resolved to a prefab via tile_id_map.json/entity_prefabs, e.g. 'guard', 'key_item', 'sabotage_target', 'exit', 'spawn'."
+          "description": "Logical entity type resolved to a prefab via tile_id_map.json/entity_prefabs: spawn, guard, alarm_guard, key, document, bomb, invuln, sabotage_target, exit, marker, interlock, locked_lift, passage."
         },
         "id": {
           "type": "string",
@@ -112,7 +123,7 @@
         },
         "params": {
           "type": "object",
-          "description": "Type-specific fields (patrol distance, required item, label, destination, etc.).",
+          "description": "Type-specific fields named after the prefab's properties (item_type, required_item, patrol_distance in native px, label, ...), set verbatim by WorldBuilder. origin='top_left' + size_px mark actors positioned by their sprite's top-left corner.",
           "additionalProperties": true,
           "default": {}
         }

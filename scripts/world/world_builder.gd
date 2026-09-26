@@ -11,16 +11,24 @@ extends RefCounted
 ## palette-id -> atlas mappings all come from tile_id_map.json, so an AI (or a
 ## human) can author new chunks purely as integer grids.
 ##
-## Typical use:
+## Typical use (level_01 adds chunks under a WorldMap scaled x2):
 ##     var root := WorldBuilder.build_from_file(
-##         "res://assets/world/chunks_json/chunk_03_03.json")
-##     add_child(root)
+##         "res://assets/world/chunks_json/chunk_03_03.json", {}, 2.0)
+##     world_map.add_child(root)
 ##
 ## or, when you already hold a parsed dictionary (e.g. straight from an LLM):
-##     var root := WorldBuilder.new().build(chunk_dict)
+##     var builder := WorldBuilder.new()
+##     builder.world_scale = 2.0
+##     var root := builder.build(chunk_dict)
 
 const DEFAULT_ID_MAP := "res://assets/tilesets/tile_id_map.json"
 const TEXTURE_FILTER_NEAREST := 1  # CanvasItem.TEXTURE_FILTER_NEAREST
+
+## Scale of the node the chunk will be added under. Entity params listed in
+## the id map's `entity_scaled_params` are native px but compared against
+## global coordinates by the game (e.g. Guard.patrol_distance), so they are
+## multiplied by this.
+var world_scale := 1.0
 
 ## Cache so repeated builds don't reload the same .tres / id map from disk.
 var _id_map: Dictionary = {}
@@ -29,7 +37,8 @@ var _scene_cache: Dictionary = {}
 
 
 ## Build a chunk from a file path (chunk JSON). Convenience wrapper.
-static func build_from_file(json_path: String, id_map_override: Dictionary = {}) -> Node2D:
+static func build_from_file(json_path: String, id_map_override: Dictionary = {},
+		p_world_scale: float = 1.0) -> Node2D:
 	if not FileAccess.file_exists(json_path):
 		push_error("WorldBuilder: chunk file not found: %s" % json_path)
 		return null
@@ -37,7 +46,9 @@ static func build_from_file(json_path: String, id_map_override: Dictionary = {})
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("WorldBuilder: could not parse chunk JSON: %s" % json_path)
 		return null
-	return WorldBuilder.new().build(parsed, id_map_override)
+	var builder := WorldBuilder.new()
+	builder.world_scale = p_world_scale
+	return builder.build(parsed, id_map_override)
 
 
 ## Build and return the chunk root Node2D, ready to add to the SceneTree.
@@ -89,23 +100,34 @@ func _build_layers(root: Node2D, chunk_data: Dictionary, width: int, height: int
 		if not chunk_layers.has(key):
 			continue
 		var palette: Array = palettes.get(str(cfg.get("palette", "")), {}).get("tiles", [])
-		_fill_layer(layer, chunk_layers[key], palette, width, height, empty_id)
+		_fill_layer(layer, str(key), chunk_layers[key], palette, width, height, empty_id)
+	for key in chunk_layers:
+		if not layers_cfg.has(key):
+			push_error("WorldBuilder: chunk layer '%s' is not in the id map; skipped" % key)
 
 
 ## Populate one TileMapLayer from a schema layer entry using set_cell().
+## A malformed payload or out-of-palette id rejects the whole layer: a
+## half-built layer would look plausible and hide the error.
 ## For bulk rebuilds you could instead assemble a PackedByteArray and assign
 ## layer.tile_map_data directly (see scripts/world/tilemap_utils.gd) — that is
 ## faster but less legible; set_cell keeps the mapping explicit and robust.
-func _fill_layer(layer: TileMapLayer, layer_data: Dictionary, palette: Array,
+func _fill_layer(layer: TileMapLayer, key: String, layer_data: Dictionary, palette: Array,
 		width: int, height: int, empty_id: int) -> void:
-	var flat := _decode_layer(layer_data, width, height, empty_id)
-	if flat.is_empty():
+	var errors := PackedStringArray()
+	var flat := ChunkValidator.decode_layer(layer_data, width, height, empty_id, errors)
+	for i in flat.size():
+		if flat[i] != empty_id and (flat[i] < 0 or flat[i] >= palette.size()):
+			errors.append("palette id %d outside 0..%d" % [flat[i], palette.size() - 1])
+			break
+	if not errors.is_empty():
+		push_error("WorldBuilder: layer '%s' skipped: %s" % [key, "; ".join(errors)])
 		return
 	for y in height:
 		var row_base := y * width
 		for x in width:
 			var pid := flat[row_base + x]
-			if pid == empty_id or pid < 0 or pid >= palette.size():
+			if pid == empty_id:
 				continue
 			var tile: Array = palette[pid]
 			# tile = [source_id, atlas_x, atlas_y, alternative_tile]
@@ -117,38 +139,6 @@ func _fill_layer(layer: TileMapLayer, layer_data: Dictionary, palette: Array,
 			)
 
 
-## Return a flat PackedInt32Array of palette ids (row-major, length w*h),
-## decoding either the dense "grid" or compact "rle" encoding.
-func _decode_layer(layer_data: Dictionary, width: int, height: int,
-		empty_id: int) -> PackedInt32Array:
-	var encoding := str(layer_data.get("encoding", "grid"))
-	var data: Array = layer_data.get("data", [])
-	var out := PackedInt32Array()
-	if encoding == "rle":
-		out.resize(width * height)
-		out.fill(empty_id)
-		var i := 0
-		var pos := 0
-		while i + 1 < data.size():
-			var value := int(data[i])
-			var count := int(data[i + 1])
-			for _n in count:
-				if pos >= out.size():
-					break
-				out[pos] = value
-				pos += 1
-			i += 2
-		return out
-	# dense grid: array of rows
-	out.resize(width * height)
-	out.fill(empty_id)
-	for y in mini(height, data.size()):
-		var row: Array = data[y]
-		for x in mini(width, row.size()):
-			out[y * width + x] = int(row[x])
-	return out
-
-
 # --- Entities ---------------------------------------------------------------
 
 func _spawn_entities(root: Node2D, chunk_data: Dictionary, cell_size: int) -> void:
@@ -156,6 +146,7 @@ func _spawn_entities(root: Node2D, chunk_data: Dictionary, cell_size: int) -> vo
 	if entities.is_empty():
 		return
 	var prefabs: Dictionary = _id_map.get("entity_prefabs", {})
+	var scaled: Array = _id_map.get("entity_scaled_params", [])
 	var holder := Node2D.new()
 	holder.name = "Entities"
 	root.add_child(holder)
@@ -164,34 +155,62 @@ func _spawn_entities(root: Node2D, chunk_data: Dictionary, cell_size: int) -> vo
 		if typeof(spec) != TYPE_DICTIONARY:
 			continue
 		var etype := str(spec.get("type", ""))
-		var scene_path := str(prefabs.get(etype, ""))
+		var params: Dictionary = spec.get("params", {})
 		var pos_cells: Array = spec.get("position", [0, 0])
 		var pos_px := Vector2(float(pos_cells[0]), float(pos_cells[1])) * float(cell_size)
 
-		var node: Node2D
-		if scene_path != "" and ResourceLoader.exists(scene_path):
-			node = _get_scene(scene_path).instantiate() as Node2D
-		else:
-			# Unknown/marker type: drop a Marker2D so the position survives and
-			# nothing crashes. Lets AI reference types the game doesn't yet have.
-			if scene_path != "":
-				push_warning("WorldBuilder: no prefab for entity '%s'" % etype)
-			node = Marker2D.new()
-		if node == null:
-			continue
-		node.name = str(spec.get("id", etype)).capitalize()
+		var node := _instantiate_entity(etype, prefabs)
+		node.name = str(spec.get("id", etype)).validate_node_name()
 		node.position = pos_px
-		_apply_params(node, spec.get("params", {}))
-		holder.add_child(node)
+		# Level code wires prefab-less types (markers, interlock, passages) and
+		# world-level fields (bomb_fuse_time) from these.
+		node.set_meta("entity_type", etype)
+		node.set_meta("entity_params", params)
+		_apply_params(node, _scale_params(params, scaled))
+		holder.add_child(node, true)
+
+
+## Prefab instance for `etype`, or a Marker2D placeholder so the position
+## survives and nothing crashes. "" in entity_prefabs means "no prefab on
+## purpose"; a missing key or a broken prefab is reported.
+func _instantiate_entity(etype: String, prefabs: Dictionary) -> Node2D:
+	if not prefabs.has(etype):
+		push_warning("WorldBuilder: entity type '%s' is not in entity_prefabs" % etype)
+		return Marker2D.new()
+	var scene_path := str(prefabs[etype])
+	if scene_path == "":
+		return Marker2D.new()
+	if not ResourceLoader.exists(scene_path):
+		push_warning("WorldBuilder: prefab for '%s' not found: %s" % [etype, scene_path])
+		return Marker2D.new()
+	var scene := _get_scene(scene_path)
+	var inst: Node = scene.instantiate() if scene else null
+	if inst is Node2D:
+		return inst
+	push_warning("WorldBuilder: prefab %s root is not a Node2D" % scene_path)
+	if inst:
+		inst.free()
+	return Marker2D.new()
+
+
+func _scale_params(params: Dictionary, scaled: Array) -> Dictionary:
+	if is_equal_approx(world_scale, 1.0):
+		return params
+	var out := params.duplicate()
+	for k in scaled:
+		if out.has(k) and typeof(out[k]) in [TYPE_INT, TYPE_FLOAT]:
+			out[k] = float(out[k]) * world_scale
+	return out
 
 
 ## Best-effort parameter application: call a `setup(params)` method if the
-## prefab defines one, otherwise set any matching exported/script properties.
+## prefab defines a one-argument one, otherwise set any matching
+## exported/script properties.
 func _apply_params(node: Node, params: Dictionary) -> void:
 	if params.is_empty():
 		return
-	if node.has_method("setup"):
-		node.callv("setup", [params])
+	if node.has_method("setup") and node.get_method_argument_count("setup") == 1:
+		node.call("setup", params)
 		return
 	var prop_names := {}
 	for p in node.get_property_list():

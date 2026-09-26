@@ -11,39 +11,31 @@ text `.tscn` / `.tres` formats directly.
         StructureFront, Foreground, CollisionLayer
     Each layer references its own TileSet via `tile_set = ExtResource("<id>")`.
   * Tiles are stored in the Godot 4.3+ TileMapLayer binary property
-        tile_map_data = PackedByteArray("<base64>")
-    Layout (little-endian):
-        bytes[0:2]   uint16 format header (currently 0)
+        tile_map_data = PackedByteArray("<base64>")      (long arrays)
+        tile_map_data = PackedByteArray(0, 0, 3, 0, ...) (short arrays)
+    Godot picks the form by size, so both must be read. Layout (little-endian):
+        bytes[0:2]   uint16 format header (must be 0)
         then repeated 12-byte cells:
             int16  x            (chunk-local cell x)
             int16  y            (chunk-local cell y)
             uint16 source_id    (always 0 in this project)
             uint16 atlas_x
             uint16 atlas_y
-            uint16 alternative_tile
-    Older/empty chunks simply omit the property.
-  * Because that binary is trivial to decode in pure Python, NO GDScript helper
-    is required. (If a future Godot format changes this, dump cells from the
-    editor with a tool script:
-        for c in layer.get_used_cells():
-            print(c, layer.get_cell_source_id(c),
-                  layer.get_cell_atlas_coords(c),
-                  layer.get_cell_alternative_tile(c))
-    and feed that instead.)
+            uint16 alternative_tile  (includes TRANSFORM_FLIP_H/V/TRANSPOSE bits)
+    Older/empty chunks simply omit the property. Anything else is an error:
+    the exporter refuses to guess rather than silently drop cells.
 
 Tile identity is (source_id, atlas_x, atlas_y, alternative). This exporter
 assigns each *distinct* tile a small sequential PALETTE id (0..N) per TileSet,
 writing the lookup table to tile_id_map.json so WorldBuilder.gd can map ids
-back to atlas coordinates. The mapping is data-driven, never hardcoded.
+back to atlas coordinates. Palettes are APPEND-ONLY: an existing
+tile_id_map.json is loaded first, known tiles keep their ids and new tiles are
+appended, so chunk JSON authored against an older map stays valid.
 
 Usage:
-    python tools/export_chunks_to_json.py \
-        --chunks-dir scenes/world/chunks \
-        --tilesets-dir assets/tilesets \
-        --out-dir assets/world/chunks_json \
-        --map-out assets/tilesets/tile_id_map.json \
-        [--encoding grid|rle] \
-        [--entities assets/world/s2_entities.json]
+    python tools/export_chunks_to_json.py            # write chunks + id map
+    python tools/export_chunks_to_json.py --check    # exit 1 if files are stale
+    options: [--encoding rle|grid] [--entities assets/world/s2_entities.json]
 """
 from __future__ import annotations
 
@@ -63,8 +55,11 @@ CELL_SIZE = 8
 GRID_W = 128
 GRID_H = 72
 EMPTY_ID = -1
+TILE_MAP_DATA_FORMAT = 0
+SCHEMA_VERSION = 1
 
-# Godot node name -> layer key (snake_case) used in the JSON schema.
+# Godot node name -> layer key (snake_case) used in the JSON schema. The order
+# is the node order inside the chunk scenes and becomes `layer_order`.
 NODE_TO_KEY = {
     "Earth": "earth",
     "Structure": "structure",
@@ -91,17 +86,35 @@ LAYER_ROLE = {
     "collision": "collision",
 }
 
+PICKUP_SCENE = "res://scenes/items/pickup.tscn"
+GUARD_SCENE = "res://scenes/enemies/guard.tscn"
+
 # Default logical-type -> prefab map seeded into tile_id_map.json. Edit freely;
 # the exporter only *seeds* missing keys, it never overwrites your edits.
+# "" = no prefab on purpose: WorldBuilder drops a Marker2D carrying the params
+# as metadata, and the level wires it up (markers, interlock, passages, ...).
 DEFAULT_ENTITY_PREFABS = {
     "spawn": "",
-    "guard": "res://scenes/enemies/guard.tscn",
-    "key_item": "res://scenes/items/pickup.tscn",
-    "document": "res://scenes/items/pickup.tscn",
-    "bomb": "res://scenes/items/pickup.tscn",
+    "guard": GUARD_SCENE,
+    "alarm_guard": GUARD_SCENE,
+    "key": PICKUP_SCENE,
+    "document": PICKUP_SCENE,
+    "bomb": PICKUP_SCENE,
+    "invuln": PICKUP_SCENE,
     "sabotage_target": "res://scenes/items/sabotage_target.tscn",
     "exit": "res://scenes/items/exit_zone.tscn",
+    "marker": "",
+    "interlock": "",
+    "locked_lift": "",
+    "passage": "",
 }
+
+# Entity params stored in native (PNG) pixels that the game compares against
+# global coordinates; WorldBuilder multiplies them by its world_scale.
+ENTITY_SCALED_PARAMS = ["patrol_distance"]
+
+# Player and guard origins in s2_entities.json are the sprite's top-left.
+ACTOR_SPRITE_PX = [48, 56]
 
 
 # --- .tscn / .tres parsing ---------------------------------------------------
@@ -112,6 +125,10 @@ class TscnNode:
     type: str
     parent: Optional[str]
     body: str
+
+
+class ExportError(Exception):
+    pass
 
 
 def _split_sections(text: str) -> list[str]:
@@ -154,25 +171,48 @@ def parse_nodes(text: str) -> list[TscnNode]:
     return nodes
 
 
-def decode_tile_map_data(b64: str) -> list[tuple[int, int, int, int, int, int]]:
-    """Decode a PackedByteArray tile_map_data blob into (x,y,src,ax,ay,alt)."""
-    raw = base64.b64decode(b64)
+def parse_packed_byte_array(literal: str) -> bytes:
+    """Contents of `PackedByteArray(...)`: a quoted base64 string or a
+    comma-separated list of decimal bytes (Godot writes short arrays so)."""
+    s = literal.strip()
+    if not s:
+        return b""
+    if s.startswith('"') and s.endswith('"'):
+        return base64.b64decode(s[1:-1])
+    try:
+        return bytes(int(v) for v in s.split(","))
+    except ValueError as exc:
+        raise ExportError(f"unrecognised PackedByteArray literal: {s[:40]}...") from exc
+
+
+def decode_tile_map_data(raw: bytes) -> list[tuple[int, int, int, int, int, int]]:
+    """Decode a TileMapLayer tile_map_data blob into (x,y,src,ax,ay,alt)."""
     cells: list[tuple[int, int, int, int, int, int]] = []
-    if len(raw) < 2:
+    if not raw:
         return cells
-    # raw[0:2] is the format header; we don't need its value to read v0 data.
-    off = 2
-    while off + 12 <= len(raw):
-        x, y, src, ax, ay, alt = struct.unpack_from("<hhHHHH", raw, off)
-        cells.append((x, y, src, ax, ay, alt))
-        off += 12
+    if len(raw) < 2:
+        raise ExportError("tile_map_data shorter than its header")
+    (fmt,) = struct.unpack_from("<H", raw, 0)
+    if fmt != TILE_MAP_DATA_FORMAT:
+        raise ExportError(f"unsupported tile_map_data format {fmt}")
+    if (len(raw) - 2) % 12:
+        raise ExportError(f"tile_map_data size {len(raw)} is not 2 + 12*n")
+    for off in range(2, len(raw), 12):
+        cells.append(struct.unpack_from("<hhHHHH", raw, off))
     return cells
 
 
 def extract_layer(node: TscnNode) -> dict:
     """Pull tile cells + presentation props from a TileMapLayer node body."""
-    dm = re.search(r'tile_map_data\s*=\s*PackedByteArray\("([^"]*)"\)', node.body)
-    cells = decode_tile_map_data(dm.group(1)) if dm else []
+    cells = []
+    if re.search(r'^\s*tile_map_data\s*=', node.body, re.M):
+        dm = re.search(r'tile_map_data\s*=\s*PackedByteArray\(([^)]*)\)', node.body)
+        if not dm:
+            raise ExportError(f"layer {node.name}: tile_map_data is not a PackedByteArray")
+        try:
+            cells = decode_tile_map_data(parse_packed_byte_array(dm.group(1)))
+        except ExportError as exc:
+            raise ExportError(f"layer {node.name}: {exc}") from exc
     ts = re.search(r'tile_set\s*=\s*ExtResource\("([^"]+)"\)', node.body)
     z = re.search(r'z_index\s*=\s*(-?\d+)', node.body)
     vis = re.search(r'visible\s*=\s*(true|false)', node.body)
@@ -207,7 +247,8 @@ def parse_tileset_custom_data(tres_path: str) -> dict[tuple[int, int, int], str]
 def parse_tileset_tile_size(tres_path: str) -> list[int]:
     if not os.path.isfile(tres_path):
         return [CELL_SIZE, CELL_SIZE]
-    txt = open(tres_path, encoding="utf-8").read()
+    with open(tres_path, encoding="utf-8") as fh:
+        txt = fh.read()
     m = re.search(r'tile_size\s*=\s*Vector2i\((\d+),\s*(\d+)\)', txt)
     if m:
         return [int(m.group(1)), int(m.group(2))]
@@ -225,7 +266,6 @@ class Palette:
     tile_size: list[int]
     tiles: list[tuple[int, int, int, int]] = field(default_factory=list)
     _index: dict[tuple[int, int, int, int], int] = field(default_factory=dict)
-    collision_types: list[str] = field(default_factory=list)
     is_collision: bool = False
     _custom: dict[tuple[int, int, int], str] = field(default_factory=dict)
 
@@ -233,12 +273,12 @@ class Palette:
         if tile not in self._index:
             self._index[tile] = len(self.tiles)
             self.tiles.append(tile)
-            if self.is_collision:
-                src, ax, ay, alt = tile
-                self.collision_types.append(
-                    self._custom.get((ax, ay, alt), "empty")
-                )
         return self._index[tile]
+
+    def seed(self, tiles: list) -> None:
+        """Pre-load ids from a previous tile_id_map.json (append-only ids)."""
+        for t in tiles:
+            self.id_for(tuple(int(v) for v in t))
 
     def to_json(self) -> dict:
         out = {
@@ -247,7 +287,10 @@ class Palette:
             "tiles": [list(t) for t in self.tiles],
         }
         if self.is_collision:
-            out["collision_types"] = self.collision_types
+            out["collision_types"] = [
+                self._custom.get((ax, ay, alt), "empty")
+                for (_src, ax, ay, alt) in self.tiles
+            ]
         return out
 
 
@@ -258,12 +301,16 @@ def palette_key(tileset_path: str) -> str:
 
 # --- Grid encoding -----------------------------------------------------------
 
-def cells_to_grid(cells, palette: Palette, w: int, h: int) -> list[list[int]]:
+def cells_to_grid(cells, palette: Palette, w: int, h: int) -> tuple[list[list[int]], int]:
+    """Returns (grid, out_of_bounds_count)."""
     grid = [[EMPTY_ID] * w for _ in range(h)]
+    oob = 0
     for (x, y, src, ax, ay, alt) in cells:
         if 0 <= x < w and 0 <= y < h:
             grid[y][x] = palette.id_for((src, ax, ay, alt))
-    return grid
+        else:
+            oob += 1
+    return grid, oob
 
 
 def grid_to_rle(grid: list[list[int]]) -> list[int]:
@@ -311,48 +358,111 @@ def extract_entities_from_nodes(nodes: list[TscnNode]) -> list[dict]:
     return entities
 
 
-def bin_world_entities(entities_path: str, chunk_col: int, chunk_row: int) -> list[dict]:
-    """Optional: slice a whole-world s2_entities.json into this chunk.
+def bin_world_entities(data: dict, chunk_col: int, chunk_row: int) -> list[dict]:
+    """Slice a whole-world s2_entities.json into this chunk.
 
-    s2_entities.json stores positions in whole-world *native* pixels. A tile is
-    in chunk (col,row) if its px falls inside [col*W*cell, (col+1)*W*cell). We
-    convert to chunk-local CELL coordinates for the schema.
+    s2_entities.json stores positions in whole-world *native* pixels ("png"
+    coord space). An entity is in chunk (col,row) if its px falls inside the
+    chunk rectangle; it is written in chunk-local CELL coordinates. Param names
+    match the game's node properties (see LevelBase._spawn_entities) so
+    WorldBuilder can apply them verbatim; px-valued ones stay native px.
     """
-    if not entities_path or not os.path.isfile(entities_path):
-        return []
-    data = json.load(open(entities_path, encoding="utf-8"))
     chunk_px_w = GRID_W * CELL_SIZE
     chunk_px_h = GRID_H * CELL_SIZE
     x0 = chunk_col * chunk_px_w
     y0 = chunk_row * chunk_px_h
     out: list[dict] = []
 
-    def emit(etype: str, x: float, y: float, params: dict, eid: str = "") -> None:
+    def to_cells(x: float, y: float) -> list[float]:
+        return [round((x - x0) / CELL_SIZE, 3), round((y - y0) / CELL_SIZE, 3)]
+
+    def emit(etype: str, spec, params: dict, eid: str = "") -> None:
+        if isinstance(spec, list):
+            x, y = float(spec[0]), float(spec[1])
+        else:
+            x, y = float(spec["x"]), float(spec["y"])
         if not (x0 <= x < x0 + chunk_px_w and y0 <= y < y0 + chunk_px_h):
             return
-        rec = {
-            "type": etype,
-            "position": [round((x - x0) / CELL_SIZE, 3), round((y - y0) / CELL_SIZE, 3)],
-            "params": params,
-        }
+        rec = {"type": etype, "position": to_cells(x, y), "params": params}
         if eid:
             rec["id"] = eid
         out.append(rec)
 
+    def actor(params: dict) -> dict:
+        return {**params, "origin": "top_left", "size_px": list(ACTOR_SPRITE_PX)}
+
     sp = data.get("spawn")
     if isinstance(sp, list) and len(sp) >= 2:
-        emit("spawn", float(sp[0]), float(sp[1]), {})
+        emit("spawn", sp, actor({}))
     for it in data.get("items", []):
-        emit(it.get("type", "key_item"), float(it["x"]), float(it["y"]),
-             {"required": it.get("required", "")}, it.get("id", ""))
+        itype = it.get("type", "key")
+        emit(itype, it, {"item_type": itype, "required_item": it.get("required", "")},
+             it.get("id", ""))
     for g in data.get("guards", []):
-        emit("guard", float(g["x"]), float(g["y"]),
-             {"patrol": g.get("patrol", 40)}, g.get("id", ""))
-    for key, etype in (("sabotage", "sabotage_target"), ("exit", "exit")):
-        obj = data.get(key)
-        if isinstance(obj, dict) and "x" in obj:
-            emit(etype, float(obj["x"]), float(obj["y"]), {})
+        emit("guard", g, actor({"patrol_distance": g.get("patrol", 40)}), g.get("id", ""))
+    ag = data.get("alarm_guard")
+    if isinstance(ag, dict) and "x" in ag:
+        emit("alarm_guard", ag,
+             actor({"patrol_distance": ag.get("patrol", 40), "spawn_on": "alarm"}))
+    sab = data.get("sabotage")
+    if isinstance(sab, dict) and "x" in sab:
+        params = {"bomb_fuse_time": data["fuse"]} if "fuse" in data else {}
+        emit("sabotage_target", sab, params)
+    ex = data.get("exit")
+    if isinstance(ex, dict) and "x" in ex:
+        emit("exit", ex, {})
+    for m in data.get("markers", []):
+        emit("marker", m, {"label": m.get("label", "")}, m.get("id", ""))
+    for p in data.get("passages", []):
+        emit("passage", p, {
+            "to": to_cells(float(p.get("to_x", p["x"])), float(p.get("to_y", p["y"]))),
+            "need_crouch": bool(p.get("need_crouch", True)),
+        }, p.get("id", ""))
+    il = data.get("interlock")
+    if isinstance(il, dict) and "x" in il:
+        emit("interlock", il, {})
+    ll = data.get("locked_lift")
+    if isinstance(ll, dict) and "x" in ll:
+        emit("locked_lift", ll, {})
     return out
+
+
+# --- Output formatting -------------------------------------------------------
+
+def dump_chunk(chunk: dict) -> str:
+    """Pretty JSON with each layer's payload kept compact: one line per RLE
+    layer / grid row, so git diffs point at the layer that changed."""
+    placeholders: dict[str, str] = {}
+    shallow = dict(chunk)
+    shallow["layers"] = {}
+    for key, layer in chunk["layers"].items():
+        token = f"@@DATA_{key}@@"
+        if layer["encoding"] == "grid":
+            rows = ",\n        ".join(json.dumps(r, separators=(",", ":")) for r in layer["data"])
+            placeholders[token] = "[\n        " + rows + "\n      ]"
+        else:
+            placeholders[token] = json.dumps(layer["data"], separators=(",", ":"))
+        shallow["layers"][key] = {**layer, "data": token}
+    text = _inline_pairs(json.dumps(shallow, indent=2))
+    for token, payload in placeholders.items():
+        text = text.replace(f'"{token}"', payload)
+    return text + "\n"
+
+
+def dump_id_map(id_map: dict) -> str:
+    """Indented JSON, but palette tiles stay one `[src,ax,ay,alt]` per line."""
+    text = json.dumps(id_map, indent=2)
+    text = re.sub(
+        r"\[\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\s*\]",
+        r"[\1, \2, \3, \4]",
+        text,
+    )
+    return _inline_pairs(text) + "\n"
+
+
+def _inline_pairs(text: str) -> str:
+    """`[\\n  128,\\n  72\\n]` -> `[128, 72]` for sizes and positions."""
+    return re.sub(r"\[\s*(-?[\d.]+),\s*(-?[\d.]+)\s*\]", r"[\1, \2]", text)
 
 
 # --- Main export -------------------------------------------------------------
@@ -360,6 +470,13 @@ def bin_world_entities(entities_path: str, chunk_col: int, chunk_row: int) -> li
 def chunk_col_row(chunk_id: str) -> tuple[int, int]:
     m = re.search(r'(\d+)_(\d+)$', chunk_id)
     return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+def _load_json(path: str) -> dict:
+    if not os.path.isfile(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 def export(args: argparse.Namespace) -> int:
@@ -370,15 +487,19 @@ def export(args: argparse.Namespace) -> int:
         print(f"No .tscn files in {args.chunks_dir}", file=sys.stderr)
         return 1
 
-    os.makedirs(args.out_dir, exist_ok=True)
+    prev_map = _load_json(args.map_fs_path)
+    prev_palettes = prev_map.get("palettes", {})
+    world_entities = _load_json(args.entities) if args.entities else {}
+
     palettes: dict[str, Palette] = {}
     layers_config: dict[str, dict] = {}
-    layer_order: list[str] = []
-    exported: list[dict] = []
+    outputs: dict[str, str] = {}
+    errors: list[str] = []
 
     for fname in chunk_files:
         path = os.path.join(args.chunks_dir, fname)
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
         ext = parse_ext_resources(text)
         nodes = parse_nodes(text)
         chunk_id = os.path.splitext(fname)[0]
@@ -390,61 +511,62 @@ def export(args: argparse.Namespace) -> int:
                 continue
             key = NODE_TO_KEY.get(n.name)
             if key is None:
+                errors.append(f"{fname}: unknown TileMapLayer '{n.name}'")
                 continue
-            info = extract_layer(n)
+            try:
+                info = extract_layer(n)
+            except ExportError as exc:
+                errors.append(f"{fname}: {exc}")
+                continue
             ts_path = ext.get(info["tileset_ext_id"], "")
             pkey = palette_key(ts_path) if ts_path else key
             if pkey not in palettes:
                 is_col = key == "collision"
+                fs_ts = _res_to_fs(ts_path, args.project_root)
                 pal = Palette(
                     tileset_path=ts_path,
-                    tile_size=parse_tileset_tile_size(
-                        _res_to_fs(ts_path, args.project_root)
-                    ),
+                    tile_size=parse_tileset_tile_size(fs_ts),
                     is_collision=is_col,
                 )
                 if is_col:
-                    pal._custom = parse_tileset_custom_data(
-                        _res_to_fs(ts_path, args.project_root)
-                    )
-                    pal.id_for((0, 0, 0, 0))  # reserve id 0 = empty tile
+                    pal._custom = parse_tileset_custom_data(fs_ts)
+                    pal.id_for((0, 0, 0, 0))  # id 0 = the tileset's "empty" tile
+                pal.seed(prev_palettes.get(pkey, {}).get("tiles", []))
                 palettes[pkey] = pal
             pal = palettes[pkey]
 
-            # Register the layer in the global config (union across chunks).
+            cfg = {
+                "node_name": n.name,
+                "tileset": ts_path,
+                "z_index": info["z_index"],
+                "visible": info["visible"],
+                "role": LAYER_ROLE.get(key, "background"),
+                "palette": pkey,
+            }
             if key not in layers_config:
-                layers_config[key] = {
-                    "node_name": n.name,
-                    "tileset": ts_path,
-                    "z_index": info["z_index"],
-                    "visible": info["visible"],
-                    "role": LAYER_ROLE.get(key, "background"),
-                    "palette": pkey,
-                }
-                layer_order.append(key)
+                layers_config[key] = cfg
+            elif layers_config[key] != cfg:
+                errors.append(f"{fname}: layer '{n.name}' differs from other chunks "
+                              f"({cfg} vs {layers_config[key]})")
 
             if not info["cells"]:
                 continue  # empty layer: loader will create it empty
-            grid = cells_to_grid(info["cells"], pal, GRID_W, GRID_H)
-            if args.encoding == "rle":
-                chunk_layers[key] = {
-                    "encoding": "rle",
-                    "data": grid_to_rle(grid),
-                    "cells": len(info["cells"]),
-                }
-            else:
-                chunk_layers[key] = {
-                    "encoding": "grid",
-                    "data": grid,
-                    "cells": len(info["cells"]),
-                }
+            grid, oob = cells_to_grid(info["cells"], pal, GRID_W, GRID_H)
+            if oob:
+                errors.append(f"{fname}: layer '{n.name}' has {oob} cell(s) outside "
+                              f"{GRID_W}x{GRID_H}")
+            chunk_layers[key] = {
+                "encoding": args.encoding,
+                "data": grid_to_rle(grid) if args.encoding == "rle" else grid,
+                "cells": len(info["cells"]) - oob,
+            }
 
         entities = extract_entities_from_nodes(nodes)
-        if not entities and args.entities:
-            entities = bin_world_entities(args.entities, col, row)
+        if not entities and world_entities:
+            entities = bin_world_entities(world_entities, col, row)
 
         chunk_json = {
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "chunk_id": chunk_id,
             "grid_size": [GRID_W, GRID_H],
             "cell_size": CELL_SIZE,
@@ -454,44 +576,81 @@ def export(args: argparse.Namespace) -> int:
             "entities": entities,
             "meta": {"source": f"res://{_rel(path, args.project_root)}"},
         }
-        out_path = os.path.join(args.out_dir, chunk_id + ".json")
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(chunk_json, fh, separators=(",", ":"))
-        exported.append({"chunk_id": chunk_id, "cells": sum(
-            l["cells"] for l in chunk_layers.values())})
+        outputs[os.path.join(args.out_dir, chunk_id + ".json")] = dump_chunk(chunk_json)
 
-    # --- write the shared id map -------------------------------------------
+    if errors:
+        for e in errors:
+            print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+
+    # Palettes from the previous map that no chunk uses any more are kept, so
+    # their ids stay reserved for chunks authored outside the .tscn set.
+    for pkey, prev in prev_palettes.items():
+        if pkey not in palettes:
+            pal = Palette(tileset_path=prev.get("tileset", ""),
+                          tile_size=prev.get("tile_size", [CELL_SIZE, CELL_SIZE]))
+            pal.seed(prev.get("tiles", []))
+            palettes[pkey] = pal
+
+    layer_order = [k for k in NODE_TO_KEY.values() if k in layers_config]
     id_map = {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "cell_size": CELL_SIZE,
         "grid_size": [GRID_W, GRID_H],
         "empty_id": EMPTY_ID,
         "layer_order": layer_order,
-        "layers": layers_config,
+        "layers": {k: layers_config[k] for k in layer_order},
         "palettes": {k: p.to_json() for k, p in palettes.items()},
-        "entity_prefabs": _merge_entity_prefabs(args.map_fs_path),
+        "entity_prefabs": _merge_entity_prefabs(prev_map),
+        "entity_scaled_params": list(ENTITY_SCALED_PARAMS),
     }
-    os.makedirs(os.path.dirname(args.map_fs_path), exist_ok=True)
-    with open(args.map_fs_path, "w", encoding="utf-8") as fh:
-        json.dump(id_map, fh, indent=2)
+    outputs[args.map_fs_path] = dump_id_map(id_map)
 
-    print(f"Exported {len(exported)} chunks -> {args.out_dir}")
+    if args.check:
+        return _check(outputs, args.out_dir)
+
+    os.makedirs(args.out_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(args.map_fs_path), exist_ok=True)
+    for out_path, content in outputs.items():
+        with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(content)
+
+    print(f"Exported {len(chunk_files)} chunks -> {args.out_dir}")
     for pkey, pal in palettes.items():
         print(f"  palette {pkey}: {len(pal.tiles)} distinct tiles")
     print(f"Wrote id map -> {args.map_fs_path}")
     return 0
 
 
-def _merge_entity_prefabs(map_fs_path: str) -> dict:
+def _check(outputs: dict[str, str], out_dir: str) -> int:
+    stale: list[str] = []
+    for out_path, content in outputs.items():
+        current = None
+        if os.path.isfile(out_path):
+            with open(out_path, encoding="utf-8") as fh:
+                current = fh.read()
+        if current != content:
+            stale.append(out_path)
+    expected = {os.path.normcase(p) for p in outputs}
+    if os.path.isdir(out_dir):
+        for f in os.listdir(out_dir):
+            p = os.path.join(out_dir, f)
+            if f.endswith(".json") and os.path.normcase(p) not in expected:
+                stale.append(p + " (no source .tscn)")
+    if stale:
+        print("Chunk JSON is out of date; re-run tools/export_chunks_to_json.py:",
+              file=sys.stderr)
+        for p in stale:
+            print(f"  {p}", file=sys.stderr)
+        return 1
+    print(f"OK: {len(outputs)} files up to date")
+    return 0
+
+
+def _merge_entity_prefabs(prev_map: dict) -> dict:
     """Preserve user-edited entity_prefabs across re-exports; seed defaults."""
     merged = dict(DEFAULT_ENTITY_PREFABS)
-    if os.path.isfile(map_fs_path):
-        try:
-            prev = json.load(open(map_fs_path, encoding="utf-8"))
-            for k, v in prev.get("entity_prefabs", {}).items():
-                merged[k] = v
-        except (json.JSONDecodeError, OSError):
-            pass
+    merged.update(prev_map.get("entity_prefabs", {}))
     return merged
 
 
@@ -509,23 +668,21 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--chunks-dir", default="scenes/world/chunks")
-    ap.add_argument("--tilesets-dir", default="assets/tilesets")
     ap.add_argument("--out-dir", default="assets/world/chunks_json")
     ap.add_argument("--map-out", default="assets/tilesets/tile_id_map.json",
                     help="Filesystem path for the generated id map.")
-    ap.add_argument("--encoding", choices=["grid", "rle"], default="grid",
-                    help="'grid' = dense 2D arrays (matches schema example, "
-                         "larger); 'rle' = compact run-length (recommended for "
-                         "the real 128x72 chunks).")
-    ap.add_argument("--entities", default="",
-                    help="Optional whole-world entities json to bin into chunks "
-                         "(e.g. assets/world/s2_entities.json).")
+    ap.add_argument("--encoding", choices=["grid", "rle"], default="rle",
+                    help="'rle' = compact run-length (default, used for the "
+                         "committed chunks); 'grid' = dense 2D arrays.")
+    ap.add_argument("--entities", default="assets/world/s2_entities.json",
+                    help="Whole-world entities json to bin into chunks; '' to skip.")
+    ap.add_argument("--check", action="store_true",
+                    help="Do not write; exit 1 if any generated file is stale.")
     ap.add_argument("--project-root", default=".")
     args = ap.parse_args(argv)
 
     args.project_root = os.path.abspath(args.project_root)
     args.chunks_dir = os.path.join(args.project_root, args.chunks_dir)
-    args.tilesets_dir = os.path.join(args.project_root, args.tilesets_dir)
     args.out_dir = os.path.join(args.project_root, args.out_dir)
     args.map_fs_path = os.path.join(args.project_root, args.map_out)
     # res:// path the chunk JSON should record for the loader.

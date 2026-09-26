@@ -1,0 +1,30 @@
+name: World chunk JSON
+
+on:
+  push:
+    paths:
+      - "scenes/world/chunks/**"
+      - "assets/tilesets/**"
+      - "assets/world/chunks_json/**"
+      - "assets/world/s2_entities.json"
+      - "tools/export_chunks_to_json.py"
+      - ".github/workflows/world_chunks.yml"
+  pull_request:
+    paths:
+      - "scenes/world/chunks/**"
+      - "assets/tilesets/**"
+      - "assets/world/chunks_json/**"
+      - "assets/world/s2_entities.json"
+      - "tools/export_chunks_to_json.py"
+      - ".github/workflows/world_chunks.yml"
+
+jobs:
+  up-to-date:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Chunk JSON matches the .tscn chunks
+        run: python tools/export_chunks_to_json.py --check
