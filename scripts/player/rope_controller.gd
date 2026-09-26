@@ -117,6 +117,7 @@ func _enter() -> void:
 	_snap_y()
 	_p.velocity = Vector2(_dir * _p.rope_speed, 0.0)
 	_p.current_state = Player.State.RUN
+	AudioManager.play_sfx("rope_mount")
 
 
 func _fall() -> void:
@@ -127,6 +128,7 @@ func _fall() -> void:
 	_p.current_state = Player.State.JUMP
 	_dir = 0.0
 	_stop_timer = 0.0
+	AudioManager.play_sfx("rope_fall")
 
 
 func _leave_to_floor() -> void:

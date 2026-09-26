@@ -15,11 +15,16 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 EventBus="*res://scripts/systems/event_bus.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
 TiltSteer="*res://scripts/systems/tilt_steer.gd"
+AudioManager="*res://scripts/systems/audio_manager.gd"
 
 [debug]
 

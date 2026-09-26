@@ -86,6 +86,7 @@ var _world_mask: int = CollisionLayers.LAYER_WORLD
 var _ladder := LadderController.new()
 var _lifts := LiftRider.new()
 var _rope := RopeController.new()
+var _step_dist: float = 0.0
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -123,6 +124,8 @@ func _physics_process(delta: float) -> void:
 	_air_time = 0.0 if is_on_floor() else _air_time + delta
 	var just_landed := is_on_floor() and not _was_on_floor
 	_was_on_floor = is_on_floor()
+	if just_landed:
+		AudioManager.play_sfx("land")
 	_tick_chord(delta)
 	_tick_regen(delta)
 
@@ -348,9 +351,14 @@ func _process_platformer(delta: float) -> void:
 		apply_facing(int(sign(direction)))
 		if current_state != State.PUNCH and current_state != State.KICK:
 			current_state = State.RUN
+		_step_dist += absf(velocity.x) * delta
+		if _step_dist >= 28.0:
+			_step_dist = 0.0
+			AudioManager.play_sfx("step")
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed)
 		current_state = State.IDLE
+		_step_dist = 0.0
 
 
 func is_riding_lift() -> bool:
@@ -378,18 +386,21 @@ func _start_punch() -> void:
 	current_state = State.PUNCH
 	punch_timer = punch_duration
 	_aim_strike(PUNCH_HIT)
+	AudioManager.play_sfx("punch")
 
 
 func _start_stand_kick() -> void:
 	current_state = State.KICK
 	punch_timer = kick_duration
 	_aim_strike(KICK_HIT)
+	AudioManager.play_sfx("punch")
 
 
 func _start_crouch_punch() -> void:
 	current_state = State.CROUCH_PUNCH
 	punch_timer = punch_duration
 	_aim_strike(CROUCH_PUNCH_HIT)
+	AudioManager.play_sfx("punch")
 
 
 func _start_jump_kick() -> void:
@@ -399,6 +410,7 @@ func _start_jump_kick() -> void:
 	velocity.x = float(facing) * speed
 	punch_timer = kick_duration
 	_aim_strike(JUMP_KICK_HIT)
+	AudioManager.play_sfx("punch")
 
 
 func _start_somersault() -> void:
@@ -409,6 +421,7 @@ func _start_somersault() -> void:
 		float(facing) * speed * somersault_speed_scale,
 		jump_velocity * somersault_jump_scale
 	)
+	AudioManager.play_sfx("somersault")
 
 
 func _aim_strike(hit: Vector2) -> void:
@@ -577,6 +590,7 @@ func take_damage(amount: int = 12) -> void:
 	_time_since_hit = 0.0
 	_regen_accum = 0.0
 	anim.modulate = Color(1.4, 0.45, 0.45)
+	AudioManager.play_sfx("hit")
 	EventBus.energy_changed.emit(energy, max_energy)
 	if energy > 0:
 		return

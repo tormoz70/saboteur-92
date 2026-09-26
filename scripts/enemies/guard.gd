@@ -110,6 +110,7 @@ func _attack(_delta: float) -> void:
 func take_damage(amount: int = 1) -> void:
 	if ai_state == AiState.DEAD:
 		return
+	AudioManager.play_sfx("hit")
 	health -= amount
 	if health <= 0:
 		_die()

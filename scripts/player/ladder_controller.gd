@@ -244,6 +244,7 @@ func _take_step(axis: float) -> bool:
 			return false
 	_p.move_and_collide(step)
 	sync_pose()
+	AudioManager.play_sfx("ladder")
 	return true
 
 

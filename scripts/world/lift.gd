@@ -75,10 +75,13 @@ func start_ride(player: CharacterBody2D, want_dir: int) -> bool:
 	dir = want_dir
 	rider = player
 	_step_acc = 0.0
+	AudioManager.play_sfx("lift_start")
 	return true
 
 
 func stop_ride() -> void:
+	if dir != 0:
+		AudioManager.play_sfx("lift_stop")
 	dir = 0
 	rider = null
 	_step_acc = 0.0
@@ -118,3 +121,4 @@ func _take_step() -> void:
 		dir = 0
 		rider = null
 		_step_acc = 0.0
+		AudioManager.play_sfx("lift_stop")

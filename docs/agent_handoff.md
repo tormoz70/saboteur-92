@@ -95,9 +95,23 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 - A lift cabin uses `sync_to_physics`: `global_position` is stale after a move
   within the same frame. Use `Lift.cabin_y()` while it is moving.
 
+## Sound
+
+- Autoload `AudioManager` (`scripts/systems/audio_manager.gd`): buses
+  Master / SFX / Music (`default_bus_layout.tres`), an 8-player SFX pool,
+  `play_sfx(name)`, looping theme + `theme_fast` while the dump fuse runs.
+  Volume helpers (`set_sfx_volume` / `set_music_volume`) are ready for the
+  Stage 4 settings shell. Safe under the Dummy audio driver (headless).
+- Mission events wire through `EventBus` (pickup, alarm, death, win, bomb
+  planted → urgent music + fuse tick). Movement SFX are direct calls from
+  `player.gd`, `ladder_controller.gd`, `lift.gd`, `rope_controller.gd`.
+- Regenerate WAV (22050 Hz, 16-bit mono, deterministic):
+  `python tools/generate_sfx.py`
+  Then import once so `.import` files appear:
+  `& $g --headless --path . --import`
+
 ## Next steps
 
-Follow [roadmap_v0.2.md](roadmap_v0.2.md). After Stage 1–2 (reachability CI +
-tightrope), the next open stages are sound, shell, enemies, then a real-device
-pass. Do not invent a path to the left antenna — ask the user if the original
-has one.
+Follow [roadmap_v0.2.md](roadmap_v0.2.md). Stages 1–3 (reachability, rope,
+sound) are done; next open stages are the shell, enemies, then a real-device
+pass.
