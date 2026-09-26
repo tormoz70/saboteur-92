@@ -194,6 +194,7 @@ func _setup_world() -> void:
 		child.free()
 
 	_build_ladder_areas()
+	_build_rope_areas()
 
 	_add_lifts(data)
 
@@ -253,6 +254,27 @@ func _build_ladder_areas() -> void:
 		col.position = Vector2(float(rect[0]), float(rect[1])) * _scale + size * 0.5
 		area.add_child(col)
 		ladders.add_child(area)
+
+
+func _build_rope_areas() -> void:
+	var ropes := Node2D.new()
+	ropes.name = "Ropes"
+	world.add_child(ropes)
+	for rect in TileMapUtils.find_ropes_across(_collision_sources()):
+		var area := Area2D.new()
+		area.set_meta("rope", true)
+		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
+		area.collision_mask = 0
+		area.monitorable = true
+		area.monitoring = false
+		var col := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		var size := Vector2(float(rect[2]), float(rect[3])) * _scale
+		shape.size = size
+		col.shape = shape
+		col.position = Vector2(float(rect[0]), float(rect[1])) * _scale + size * 0.5
+		area.add_child(col)
+		ropes.add_child(area)
 
 
 func _add_lifts(data: Dictionary) -> void:

@@ -19,13 +19,16 @@ extends RefCounted
 ## agent is the player's body box, `agent_width` x `agent_height` cells
 ## (`crouch_height` while crawling), anchored at its bottom-left "feet" cell:
 ##   * solid blocks the body; oneway only supports from above (the body passes
-##     through it upwards and sideways); ladder/rope never block;
+##     through it upwards and sideways); ladder never blocks; rope never
+##     blocks and is a horizontal run (not a vertical climb);
 ##   * it stands where the crouched body fits and something supports it
-##     (solid, oneway or a ladder top below), or while holding a ladder/rope —
-##     on ladders the body ignores collisions, as LadderController does;
-##   * it walks/crawls one cell sideways, falls straight down until it lands,
-##     climbs ladders/ropes, and jumps: rises up to `jump_up` cells, then moves
-##     up to `jump_across` cells sideways at that height and falls;
+##     (solid, oneway, rope underfoot, or a ladder top below), or while
+##     holding a ladder — on ladders the body ignores collisions, as
+##     LadderController does;
+##   * it walks/crawls one cell sideways (including along a rope), falls
+##     straight down until it lands, climbs ladders, and jumps: rises up to
+##     `jump_up` cells, then moves up to `jump_across` cells sideways at that
+##     height and falls;
 ##   * a solid slab at most `hatch_thickness` cells thick right above/below a
 ##     ladder is a hatch: the agent climbs through it (LadderController lets
 ##     Nina pass lids up to RUNG_PAD_NATIVE = 20 px);
@@ -304,9 +307,15 @@ class Walker:
 			return TileMapUtils.TILE_EMPTY
 		return codes[y * w + x]
 
+	func is_ladder(x: int, y: int) -> bool:
+		return code(x, y) == TileMapUtils.TILE_LADDER
+
+	func is_rope(x: int, y: int) -> bool:
+		return code(x, y) == TileMapUtils.TILE_ROPE
+
 	func is_climb(x: int, y: int) -> bool:
-		var c := code(x, y)
-		return c == TileMapUtils.TILE_LADDER or c == TileMapUtils.TILE_ROPE
+		# Vertical climb is ladders only. Rope is a horizontal tightrope.
+		return is_ladder(x, y)
 
 	func body_free(x: int, y: int, height: int) -> bool:
 		if y >= h or x < 0 or x + aw > w:
@@ -324,15 +333,19 @@ class Walker:
 		return stand[y * w + x] == 1
 
 	func _compute_standable(x: int, y: int) -> bool:
-		if is_climb(x, y):
+		if is_ladder(x, y):
 			return true
 		if not body_free(x, y, crouch):
 			return false
 		for c in range(x, x + aw):
 			var below := code(c, y + 1)
-			if below == TileMapUtils.TILE_SOLID or below == TileMapUtils.TILE_ONEWAY:
+			if (
+				below == TileMapUtils.TILE_SOLID
+				or below == TileMapUtils.TILE_ONEWAY
+				or below == TileMapUtils.TILE_ROPE
+			):
 				return true
-			if below == TileMapUtils.TILE_LADDER and not is_climb(c, y):
+			if below == TileMapUtils.TILE_LADDER and not is_ladder(c, y):
 				return true
 		return false
 

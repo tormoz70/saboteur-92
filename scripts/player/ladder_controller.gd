@@ -33,7 +33,20 @@ func overlaps() -> bool:
 	var col := _detector_shape()
 	if col == null:
 		return false
-	return _query(col.shape, col.global_transform)
+	# Rope trigger areas share LAYER_TRIGGERS; skip them so a tightrope
+	# never counts as a ladder shaft.
+	var space := _p.get_world_2d().direct_space_state
+	_probe_query.shape = col.shape
+	_probe_query.transform = col.global_transform
+	_probe_query.collision_mask = _p.ladder_detector.collision_mask
+	_probe_query.collide_with_areas = true
+	_probe_query.collide_with_bodies = false
+	_probe_query.exclude = [_p.get_rid()]
+	for hit in space.intersect_shape(_probe_query, 8):
+		var area: Area2D = hit.get("collider") as Area2D
+		if area != null and not area.get_meta("rope", false):
+			return true
+	return false
 
 
 func update_state(climb_axis: float) -> void:

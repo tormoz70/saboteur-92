@@ -48,6 +48,9 @@ const COMBO_WINDOW := 0.25
 ## Long jump with a somersault: MOVE + UP (NW/NE on the pad).
 @export var somersault_speed_scale: float = 1.7
 @export var somersault_jump_scale: float = 1.4
+## Tightrope run speed (world px/s). Stopping longer than rope_stop_grace falls.
+@export var rope_speed: float = 110.0
+@export var rope_stop_grace: float = 0.12
 @export var max_energy: int = 100
 @export var iframe_time: float = 0.55
 ## Duration of the secret-room invincibility bonus, in seconds.
@@ -62,6 +65,7 @@ var facing: int = 1
 var punch_timer: float = 0.0
 var on_ladder: bool = false
 var on_lift: bool = false
+var on_rope: bool = false
 var can_climb: bool = false
 var is_dead: bool = false
 var energy: int = 100
@@ -81,6 +85,7 @@ var _regen_accum: float = 0.0
 var _world_mask: int = CollisionLayers.LAYER_WORLD
 var _ladder := LadderController.new()
 var _lifts := LiftRider.new()
+var _rope := RopeController.new()
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -96,6 +101,7 @@ func _ready() -> void:
 	_world_mask = collision_mask
 	_ladder.setup(self)
 	_lifts.setup(self)
+	_rope.setup(self)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.emit(energy, max_energy)
 
@@ -124,8 +130,9 @@ func _physics_process(delta: float) -> void:
 	var climb_axis := get_climb_axis()
 	_ladder.update_state(climb_axis)
 	_lifts.update_state()
-	floor_snap_length = 0.0 if on_ladder else 16.0
-	if on_ladder:
+	_rope.update_state()
+	floor_snap_length = 0.0 if on_ladder or on_rope else 16.0
+	if on_ladder or on_rope:
 		collision_mask = 0
 	elif _lifts.is_riding():
 		# The cabin carries Nina through the rock around its shaft.
@@ -134,14 +141,16 @@ func _physics_process(delta: float) -> void:
 		collision_mask = _world_mask
 
 	_tick_attack(delta)
-	if not _lifts.is_riding():
+	if not _lifts.is_riding() and not on_rope:
 		_handle_attack_input(just_landed)
 
 	var lift_holds := false
 	if on_lift:
 		lift_holds = _lifts.process()
 
-	if on_ladder:
+	if on_rope:
+		_rope.process_rope(delta)
+	elif on_ladder:
 		_ladder.process_climb(delta, climb_axis)
 	elif lift_holds:
 		# Cabin is moving or just started; process() already zeroed velocity.
@@ -163,7 +172,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_process_platformer(delta)
 
-	if not on_ladder:
+	if not on_ladder and not on_rope:
 		velocity.y = minf(velocity.y, max_fall_speed)
 	_update_animation()
 	if on_lift and _lifts.is_riding():
@@ -181,6 +190,7 @@ func _try_step_up() -> void:
 		or _is_striking()
 		or current_state == State.SOMERSAULT
 		or on_ladder
+		or on_rope
 		or on_lift
 	):
 		return
@@ -226,7 +236,7 @@ func _tick_attack(delta: float) -> void:
 
 
 func _handle_attack_input(just_landed: bool = false) -> void:
-	if on_ladder:
+	if on_ladder or on_rope:
 		return
 	if _is_striking() or current_state == State.SOMERSAULT:
 		# FIRE went in first; UP finishing the chord still means the flip.
@@ -541,7 +551,7 @@ func _set_body_crouch(crouching: bool) -> void:
 
 
 func _tick_regen(delta: float) -> void:
-	if on_ladder:
+	if on_ladder or on_rope:
 		_regen_accum = 0.0
 		return
 	if energy >= max_energy:
@@ -589,8 +599,10 @@ func respawn(to_position: Vector2) -> void:
 	current_state = State.IDLE
 	on_ladder = false
 	on_lift = false
+	on_rope = false
 	_ladder.reset()
 	_lifts.reset()
+	_rope.reset()
 	can_climb = false
 	apply_world_mask()
 	_kick_left_ground = false

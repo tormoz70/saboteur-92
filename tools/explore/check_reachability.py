@@ -199,6 +199,36 @@ def check_mission(data: dict) -> list[str]:
 	return errors
 
 
+ROPE_EDGE = 6
+# A rope end can also be reachable some other way (the radio tower has its
+# own ladder from the roof), so require the rope edge itself.
+ROPE_CROSSINGS = [
+	("central complex -> radio tower", (4440.0, 672.0), (5990.0, 672.0)),
+	("central complex -> left antenna", (1720.0, 960.0), (1230.0, 960.0)),
+]
+
+
+def check_rope_crossings(data: dict) -> list[str]:
+	nodes = data["nodes"]
+	got = reach(data)
+	errors: list[str] = []
+	for name, (ax, ay), (bx, by) in ROPE_CROSSINGS:
+		found = False
+		for a, b, t, _x in data["edges"]:
+			if t != ROPE_EDGE or a not in got:
+				continue
+			na, nb = nodes[a], nodes[b]
+			if (
+				abs(na[0] - ax) + abs(na[1] - ay) <= 64
+				and abs(nb[0] - bx) + abs(nb[1] - by) <= 64
+			):
+				found = True
+				break
+		if not found:
+			errors.append(f"{name}: no reachable rope edge between ({ax}, {ay}) and ({bx}, {by})")
+	return errors
+
+
 def check_blue_tunnels(data: dict, grid) -> list[str]:
 	import numpy as np
 
@@ -277,6 +307,15 @@ def main() -> int:
 			print(f"  {e}")
 	else:
 		print("MISSION OK: spawn -> key -> orders -> card -> console -> exit")
+
+	rope_errors = check_rope_crossings(data)
+	if rope_errors:
+		print("ROPES FAIL")
+		for e in rope_errors:
+			print(f"  {e}")
+	else:
+		print("ROPES OK")
+	errors.extend(rope_errors)
 
 	grid = load_grid()
 	blue_errors = check_blue_tunnels(data, grid)

@@ -308,3 +308,25 @@ static func find_ladders_across(sources: Array, cell: int = CELL) -> Array:
 			if get_collision_type(layer, c) == "ladder":
 				cells[c + base] = true
 	return _pad_ladder_rects(greedy_merge_cells(cells, cell))
+
+
+## Horizontal tightropes over several [TileMapLayer, offset] pairs.
+## Short runs (< 8 cells) are ignored — those are props, not spans.
+static func find_ropes_across(sources: Array, cell: int = CELL) -> Array:
+	var cells: Dictionary = {}
+	for source in sources:
+		var layer: TileMapLayer = source[0]
+		var base := Vector2i((source[1] as Vector2) / float(cell))
+		for c in layer.get_used_cells():
+			if get_collision_type(layer, c) == "rope":
+				cells[c + base] = true
+	var merged := greedy_merge_cells(cells, cell)
+	var rects: Array = []
+	for rect in merged:
+		if int(rect[2]) < 8 * cell:
+			continue
+		# Tall pad so a scaled LadderDetector still overlaps after snaps.
+		rects.append(
+			[int(rect[0]) - 8, int(rect[1]) - 24, int(rect[2]) + 16, int(rect[3]) + 48]
+		)
+	return rects

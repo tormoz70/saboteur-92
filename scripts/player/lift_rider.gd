@@ -35,7 +35,7 @@ func can_ride_down() -> bool:
 
 
 func update_state() -> void:
-	if _p.on_ladder:
+	if _p.on_ladder or _p.on_rope:
 		_leave()
 		return
 	var found: LiftPlatform = null

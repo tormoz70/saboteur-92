@@ -51,7 +51,7 @@ WP_STEP = 4
 MAX_AIR_STEPS = 300
 MAX_WALKOFF_STEPS = 40
 
-WALK_EDGE, CLIMB_EDGE, JUMP_EDGE, DROP_EDGE, LIFT_EDGE, PASSAGE_EDGE = range(6)
+WALK_EDGE, CLIMB_EDGE, JUMP_EDGE, DROP_EDGE, LIFT_EDGE, PASSAGE_EDGE, ROPE_EDGE = range(7)
 
 
 def load_grid() -> np.ndarray:
@@ -83,8 +83,12 @@ class Maze:
         self.g = g
         self.h, self.w = g.shape
         self.block = (g == SOLID) | (g == SHAFT)
-        self.support = self.block | (g == ONEWAY)
+        # Rope is a floor you run along (no physics polygon); treat as support
+        # so the graph can cross building gaps. Shaft tiles stay support so
+        # lift end-stops still snap.
+        self.support = self.block | (g == ONEWAY) | (g == ROPE)
         self.oneway = g == ONEWAY
+        self.rope = g == ROPE
         # Node (j, r): body centre X = (j + 1) * 8 over columns j, j + 1; feet on row r.
         bp = self.block[:, :-1] | self.block[:, 1:]
         sp = self.support[:, :-1] | self.support[:, 1:]
@@ -119,7 +123,10 @@ class Maze:
         if r < 0 or r >= self.h:
             return False
         for c in self._cols(x):
-            if 0 <= c < self.w and (self.block[r, c] or (from_above and self.oneway[r, c])):
+            if 0 <= c < self.w and (
+                self.block[r, c]
+                or (from_above and (self.oneway[r, c] or self.rope[r, c]))
+            ):
                 return True
         return False
 
@@ -264,6 +271,48 @@ def build(out: Path) -> dict:
             edges.append((a, b, CLIMB_EDGE, int(cx)))
             edges.append((b, a, CLIMB_EDGE, int(cx)))
 
+    # Tightropes: horizontal rope runs connect the standable cells at each end.
+    rope_seen: set[tuple[int, int]] = set()
+    for y in range(maze.h):
+        x = 0
+        while x < maze.w:
+            if g[y, x] != ROPE:
+                x += 1
+                continue
+            x0 = x
+            while x < maze.w and g[y, x] == ROPE:
+                x += 1
+            if x - x0 < 8:
+                continue
+            ends: list[tuple[int, int]] = []
+            for col in range(x0, x):
+                key = snap((col + 0.5) * CELL, float(y * CELL))
+                if key:
+                    ends.append(key)
+                    break
+            for col in range(x - 1, x0 - 1, -1):
+                key = snap((col + 0.5) * CELL, float(y * CELL))
+                if key and key not in ends:
+                    ends.append(key)
+                    break
+            # Prefer a solid/oneway landing just outside the span when present.
+            for land_col in (x0 - 1, x):
+                if not (0 <= land_col < maze.w):
+                    continue
+                key = snap((land_col + 0.5) * CELL, float(y * CELL))
+                if key and key not in ends:
+                    ends.append(key)
+            if len(ends) < 2:
+                continue
+            a, b = ends[0], ends[1]
+            if (a, b) in rope_seen or (b, a) in rope_seen:
+                continue
+            rope_seen.add((a, b))
+            special.update((a, b))
+            mid = (x0 + x) * CELL // 2
+            edges.append((a, b, ROPE_EDGE, mid))
+            edges.append((b, a, ROPE_EDGE, mid))
+
     # Walking off ledges.
     for s, keys in segs.items():
         for key, d in ((keys[0], -1), (keys[-1], 1)):
@@ -389,13 +438,13 @@ def build(out: Path) -> dict:
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
-    kinds = [0] * 6
+    kinds = [0] * 7
     for e in out_edges:
         kinds[e[2]] += 1
     print(
         f"wrote {out}: nodes={len(nodes)} edges={len(out_edges)} "
         f"walk={kinds[0]} climb={kinds[1]} jump={kinds[2]} drop={kinds[3]} "
-        f"lift={kinds[4]} passage={kinds[5]} start={start_node}"
+        f"lift={kinds[4]} passage={kinds[5]} rope={kinds[6]} start={start_node}"
     )
     return data
 

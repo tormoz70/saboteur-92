@@ -1,7 +1,8 @@
 # Agent handoff: restart context
 
 Read this first when you continue the work in a new agent chat. The maze
-exploration details are in [maze_exploration.md](maze_exploration.md).
+exploration details are in [maze_exploration.md](maze_exploration.md). The
+playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 
 ## User and rules
 
@@ -16,6 +17,8 @@ exploration details are in [maze_exploration.md](maze_exploration.md).
   `git add -A`.
 - CI is GitHub Actions `.github/workflows/android-export.yml`. It runs:
   - gdlint;
+  - maze reachability (`tools/explore/check_reachability.py`);
+  - chunk JSON `--check`;
   - GUT;
   - `--demo`, which must print `Mission complete`;
   - `--demo-fuse`, which must print `[Demo] Fuse loss OK`;
@@ -28,8 +31,10 @@ exploration details are in [maze_exploration.md](maze_exploration.md).
 - Godot 4.6: `.\tools\godot\Godot_v4.6-stable_win64.exe`.
 - Lint:
   `python -m gdtoolkit.linter <files>`
-- Tests, which print `Passing Tests 111`:
+- Tests:
   `& $g --headless -s addons/gut/gut_cmdln.gd -gexit`
+- Reachability (no Godot; writes the nav graph to a temp dir):
+  `python tools/explore/check_reachability.py`
 - Demos:
   - `& $g --headless -- --demo`
   - `& $g --headless -- --demo-fuse`
@@ -69,80 +74,30 @@ exploration details are in [maze_exploration.md](maze_exploration.md).
   - 1 with alt 1 = lift shaft (physics layer 32, ignored while riding);
   - 2 = ladder;
   - 3 = one-way;
-  - 4 = rope (no physics, and no real ropes exist).
+  - 4 = rope (no physics polygon; `RopeController` runs along the top —
+    stopping or reversing mid-span falls).
+- User's map rules (judge on the chunk layers, not on the old
+  `saboteur2_world2.png`, which still has baked guards):
+  - blue brick (Wallpaper) is an open tunnel, black (Earth) is solid rock;
+    every blue tunnel must be passable;
+  - white metal beams are solid only when horizontal (heroes walk on them);
+    vertical and diagonal beams are background and heroes pass through;
+  - tightropes (red dotted lines on `saboteur2_world.png`) lead from the
+    central complex to the radio tower (y 672) and to the left antenna
+    (y 960).
 - Player body: 14×42 at (24, 35). Feet = origin + 56 native. Body x = origin
   + 24 native.
 - Speeds: walk 110, gravity 820. Step-up is 20 world px. Collision is off
-  while on a ladder.
+  while on a ladder or rope.
 - Somersault: moving plus a fresh up tap. A standing up tap is a kick.
 - Lifts stop only at the shaft ends. Nina rides by standing centred on the
   cabin (±24 world px) and pressing up or down.
 - A lift cabin uses `sync_to_physics`: `global_position` is stale after a move
   within the same frame. Use `Lift.cabin_y()` while it is moving.
 
-## Uncommitted work (current state)
+## Next steps
 
-Modified:
-
-- `scripts/world/lift.gd`: `_y` and `cabin_y()` (end-stop departure fix) and
-  `carries()`.
-- `scripts/player/lift_rider.gd`: fallback floor-flush detection of the cabin.
-- `assets/world/s2_collision.json`: lift cabin y snapped to the shaft floor
-  rows.
-- `assets/world/s2_entities.json`: `locked_lift` y changed from 2264 to 2280.
-- `scripts/levels/level_base.gd`: the `--demo-explore` flag.
-
-New:
-
-- `scripts/demo/explore_demo.gd` (and `.uid`): the in-game explorer.
-- `tools/explore/build_nav.py`: builds the nav graph into
-  `.mcp/explore/nav_graph.json`.
-- `tools/explore/nav_reach.py`: computes reachability and renders the
-  coverage PNG.
-- `docs/maze_exploration.md` and `docs/maze_coverage.png`: the progress
-  report.
-- `coverage.png`: a root copy of the map. It can be deleted.
-
-Note: `explore_demo.gd` reads `res://.mcp/explore/nav_graph.json`. That path
-is untracked, so the graph must be rebuilt with `build_nav.py` before a run.
-
-All checks passed after these changes: GUT 111/111, `--demo`,
-`--demo-fuse`, and gdlint.
-
-Helper scripts, untracked, live in `.mcp/screenshots/`:
-
-- `colgrid.py`: builds the grid and saves `colgrid.npy`. Codes: 0 empty,
-  1 solid, 5 shaft, 2 ladder, 3 one-way, 4 rope.
-- `_lifts.py` and `_lifts_fix.py`.
-- `_ascii.py` and `_nav_dbg.py`.
-
-## Last result
-
-- Visited 3674 of 4666 nodes (78.7%). The graph can reach 4162 (89.2%).
-- Rescues: 426.
-- Lift rides: 4 ok and 2 failed, after the fix.
-
-## Next steps (in priority order)
-
-1. **Explorer climb landing** (`_run_climb` SETTLE in `explore_demo.gd`):
-   - Problem: it accepts arrival while Nina is still `on_ladder` under the
-     floor. She then walks off and falls down the hatch.
-   - Fix: require `not _player.on_ladder` and `is_on_floor()`, and nudge
-     up or sideways to dismount.
-2. **Jumps:** 32 of 103 missed. Tune the takeoff in `_run_jump`, or align
-   the arc simulation in `build_nav.py`.
-3. **Walk edges:** those that need a step-up above 20 world px fail with
-   "wrong floor". Tighten the walk adjacency in `build_nav.py`.
-4. **Re-run and compare coverage:**
-   - `build_nav.py`;
-   - run through MCP and wait for `done`;
-   - `nav_reach.py`;
-   - copy the PNG to `docs/maze_coverage.png` and update the report.
-5. **Map fixes, only if the user wants them:**
-   - the solid blobs in the bottom tunnel (x ≈ 2368, 1648–1704, 432–456 at
-     y ≈ 3960–3984);
-   - the stale bookcase passage coordinates.
-
-   Use the `edit-world-chunks` skill for chunk edits.
-6. **Commit only when the user asks.** Exclude `.mcp/`, `.godot/`, and the
-   `McpBridge` line. Decide with the user whether `coverage.png` goes in.
+Follow [roadmap_v0.2.md](roadmap_v0.2.md). After Stage 1–2 (reachability CI +
+tightrope), the next open stages are sound, shell, enemies, then a real-device
+pass. Do not invent a path to the left antenna — ask the user if the original
+has one.
