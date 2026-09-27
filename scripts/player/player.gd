@@ -96,6 +96,7 @@ var _step_dist: float = 0.0
 
 func _ready() -> void:
 	punch_area.monitoring = false
+	punch_area.area_entered.connect(_on_punch_area_entered)
 	energy = max_energy
 	floor_snap_length = 16.0
 	safe_margin = 0.25
@@ -138,7 +139,7 @@ func _physics_process(delta: float) -> void:
 	if on_ladder or on_rope:
 		collision_mask = 0
 	elif _lifts.is_riding():
-		# The cabin carries Nina through the rock around its shaft.
+		# The cabin carries Nina through lift-shaft rock.
 		collision_mask = _world_mask & ~CollisionLayers.LAYER_LIFT_SHAFT
 	else:
 		collision_mask = _world_mask
@@ -422,6 +423,11 @@ func _start_somersault() -> void:
 		jump_velocity * somersault_jump_scale
 	)
 	AudioManager.play_sfx("somersault")
+
+
+func _on_punch_area_entered(area: Area2D) -> void:
+	if area.has_method("on_punched"):
+		area.on_punched()
 
 
 func _aim_strike(hit: Vector2) -> void:

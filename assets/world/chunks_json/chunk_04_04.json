@@ -37,7 +37,16 @@
       "cells": 6219
     }
   },
-  "entities": [],
+  "entities": [
+    {
+      "type": "lift_panel",
+      "position": [5.5, 13.5],
+      "params": {
+        "lift_x": 3624,
+        "to": "top"
+      }
+    }
+  ],
   "meta": {
     "source": "res://scenes/world/chunks/chunk_04_04.tscn"
   }

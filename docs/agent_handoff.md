@@ -94,10 +94,29 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 - Speeds: walk 110, gravity 820. Step-up is 20 world px. Collision is off
   while on a ladder or rope.
 - Somersault: moving plus a fresh up tap. A standing up tap is a kick.
-- Lifts stop only at the shaft ends. Nina rides by standing centred on the
-  cabin (±24 world px) and pressing up or down.
+- The game has exactly three lifts, the cyan-railed tubes on the fan map:
+  x 2600 (y 960–2272, locked by the crate code), x 3624 (2400–3712) and
+  x 5416 (1968–3280). One cabin each, stops only at the two stations.
+  Nina rides by standing centred on the cabin (±24 world px) and pressing up
+  or down.
+- Each station has a call console (`lift_panels` in `s2_entities.json`,
+  `LiftPanel`): any punch or kick on it sends the idle cabin to that station
+  (`Lift.summon`; the locked lift needs the code). The cabin going down has
+  no collision; going up it is solid and carries Nina if she drops onto it.
+  The console at (6784, 1408) is the fence terminal, not a lift panel.
+- Tube walls are rock and the top station is an open tube: the parked cabin
+  is the floor, and with the cabin away Nina falls down the shaft (no fall
+  damage). No alt 1 cells remain. `python tools/explore/patch_lift_collision.py`
+  rebuilds that from `lifts` in `s2_collision.json`; `build_nav.py` treats
+  the top station row as floor.
 - A lift cabin uses `sync_to_physics`: `global_position` is stale after a move
   within the same frame. Use `Lift.cabin_y()` while it is moving.
+- `lifts` and `bookcases` in `s2_collision.json` came from the bytecode
+  layout (x +256 from the fan map) and were fixed by hand.
+  `check_reachability.py` fails if a cabin or a shaft end is not flush on a
+  floor, a top station tube is not open, a lift panel names no lift or floats,
+  a bookcase shelf (Structure `(6,0)`) has collision, or an ink rect misses
+  its bookcase.
 
 ## Sound
 

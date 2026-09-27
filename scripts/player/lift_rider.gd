@@ -57,6 +57,9 @@ func update_state() -> void:
 		return
 	_p.on_lift = true
 	_lift = found
+	# Landing on a called cabin on its way up: it carries her like a ride.
+	if found.dir != 0 and found.rider == null:
+		found.rider = _p
 
 
 func process() -> bool:

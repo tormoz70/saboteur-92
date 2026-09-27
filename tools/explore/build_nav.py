@@ -207,9 +207,15 @@ def ladder_rects(g: np.ndarray) -> list[list[int]]:
 
 def build(out: Path) -> dict:
     g = load_grid()
-    maze = Maze(g)
     coll = json.loads((WORLD / "s2_collision.json").read_text(encoding="utf-8"))
     ents = json.loads((WORLD / "s2_entities.json").read_text(encoding="utf-8"))
+    # Top stations are open tubes; a cabin called up from a panel is the floor.
+    for spec in coll.get("lifts", []):
+        x0 = int(spec["x"]) // CELL
+        x1 = (int(spec["x"]) + int(spec["w"])) // CELL
+        row = g[int(spec["top"]) // CELL, x0:x1]
+        row[row == EMPTY] = SOLID
+    maze = Maze(g)
 
     rs, js = np.nonzero(maze.crouch_ok)
     raw = {(int(j), int(r)): i for i, (r, j) in enumerate(zip(rs, js))}

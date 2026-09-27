@@ -179,7 +179,7 @@ func _item_png(entities: Dictionary, item_id: String) -> Vector2:
 	return Vector2.INF
 
 
-## Shafts carry more than one cabin, so the lock names a cabin by x and y.
+## The lock names its lift by the cabin's start x and y.
 func _lift_spec_at(png_x: float, png_y: float, lifts: Array) -> Dictionary:
 	for spec in lifts:
 		var dx := absf(float(spec.get("x", -1.0)) - png_x)
@@ -387,7 +387,7 @@ func _arm_quiet_route() -> void:
 	if lift == null:
 		_fail("locked lift not found in the level")
 		return
-	# Straight onto the cabin: the shaft rock is solid until Nina rides it.
+	# Straight onto the cabin: the shaft walls keep Nina out of the tube.
 	var cabin_top := lift.global_position.y - 56.0 * _scale - 4.0
 	_player.global_position = Vector2(_service_lift_x - 24.0 * _scale, cabin_top)
 	_player.velocity = Vector2.ZERO

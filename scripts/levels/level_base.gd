@@ -426,6 +426,7 @@ func _add_entities() -> void:
 	_add_passages(data)
 	_add_interlock(data)
 	_configure_locked_lift(data)
+	_add_lift_panels(data)
 
 
 func _add_panthers(data: Dictionary) -> void:
@@ -527,6 +528,37 @@ func _configure_locked_lift(data: Dictionary) -> void:
 		if absf(pos.x - lx) <= 4.0 and absf(pos.y - ly) <= 4.0:
 			child.requires_lift_code = true
 			return
+
+
+func _add_lift_panels(data: Dictionary) -> void:
+	var specs: Array = data.get("lift_panels", [])
+	var lifts := world.get_node_or_null("Lifts")
+	if specs.is_empty() or lifts == null:
+		return
+	var root := Node2D.new()
+	root.name = "LiftPanels"
+	add_child(root)
+	for spec in specs:
+		var lx := float(spec.get("lift_x", -1.0)) * _scale
+		var lift: Lift = null
+		for child in lifts.get_children():
+			if child is Lift and absf(child.global_position.x - lx) <= 4.0:
+				lift = child
+				break
+		if lift == null:
+			push_error("Lift panel: no lift at x=%s" % spec.get("lift_x"))
+			continue
+		var panel := LiftPanel.new()
+		panel.name = "LiftPanel_%d_%s" % [int(spec["lift_x"]), str(spec.get("to", "top"))]
+		panel.lift = lift
+		panel.to_top = str(spec.get("to", "top")) == "top"
+		panel.position = _xy_world(spec, "lift panel")
+		var col := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(40.0, 40.0) * _scale
+		col.shape = shape
+		panel.add_child(col)
+		root.add_child(panel)
 
 
 func _on_alarm_raised() -> void:

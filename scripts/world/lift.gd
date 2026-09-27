@@ -79,12 +79,36 @@ func start_ride(player: CharacterBody2D, want_dir: int) -> bool:
 	return true
 
 
+## Call panel: sends the idle cabin to the top or the bottom station.
+func summon(to_top: bool) -> bool:
+	if requires_lift_code and not GameManager.has_lift_code:
+		return false
+	if dir != 0:
+		return false
+	if at_top() if to_top else at_bottom():
+		return false
+	_y = global_position.y
+	dir = -1 if to_top else 1
+	rider = null
+	_step_acc = 0.0
+	# Going down, an empty cabin must not pin Nina to the tube floor under it.
+	# Going up it stays solid and catches her if she drops into the shaft.
+	collision_layer = 0 if dir > 0 else CollisionLayers.LAYER_WORLD
+	AudioManager.play_sfx("lift_start")
+	return true
+
+
 func stop_ride() -> void:
 	if dir != 0:
 		AudioManager.play_sfx("lift_stop")
+	_halt()
+
+
+func _halt() -> void:
 	dir = 0
 	rider = null
 	_step_acc = 0.0
+	collision_layer = CollisionLayers.LAYER_WORLD
 
 
 func _physics_process(delta: float) -> void:
@@ -118,7 +142,5 @@ func _take_step() -> void:
 		rider.global_position.y += moved
 		rider.velocity = Vector2.ZERO
 	if absf(moved) < 0.5 or at_top() or at_bottom():
-		dir = 0
-		rider = null
-		_step_acc = 0.0
+		_halt()
 		AudioManager.play_sfx("lift_stop")

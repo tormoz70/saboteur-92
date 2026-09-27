@@ -241,6 +241,63 @@ func test_dead_end_lift_down_ducks() -> void:
 	assert_eq(player.current_state, Player.State.CROUCH)
 
 
+func test_standing_at_empty_station_does_not_call_the_cabin() -> void:
+	await _spawn_on_floor()
+	var lift := _add_lift(Vector2(80, 136), 72.0, 136.0)
+	await wait_physics_frames(30)
+	assert_eq(lift.dir, 0, "only the call panel sends the cabin")
+	assert_almost_eq(lift.cabin_y(), 136.0, 0.5)
+
+
+func test_punching_call_panel_brings_the_cabin_up() -> void:
+	var player := await _spawn_on_floor()
+	var lift := _add_lift(Vector2(320, 136), 72.0, 136.0)
+	var panel := _add_panel(player.global_position + Vector2(64, 20), lift, true)
+	await wait_physics_frames(4)
+	assert_eq(lift.dir, 0, "the panel waits for a blow")
+	Input.action_press("punch")
+	await wait_physics_frames(6)
+	Input.action_release("punch")
+	assert_eq(lift.dir, -1, "a punch on the panel calls the cabin")
+	await wait_physics_frames(90)
+	assert_almost_eq(lift.cabin_y(), 72.0, 0.5)
+	assert_false(panel.on_punched(), "the cabin is already at the top")
+
+
+func test_locked_lift_panel_needs_the_code() -> void:
+	var player := await _spawn_on_floor()
+	var lift := _add_lift(Vector2(320, 136), 72.0, 136.0)
+	lift.requires_lift_code = true
+	_add_panel(player.global_position + Vector2(64, 20), lift, true)
+	await wait_physics_frames(4)
+	Input.action_press("punch")
+	await wait_physics_frames(6)
+	assert_eq(lift.dir, 0)
+
+
+func test_cabin_on_its_way_up_catches_a_falling_nina() -> void:
+	GameManager.reset_run_state()
+	GameManager.state = GameManager.GameState.PLAYING
+	var lift := _add_lift(Vector2(200, 300), 100.0, 300.0)
+	await wait_physics_frames(2)
+	assert_true(lift.summon(true))
+	var player: Player = PLAYER_SCENE.instantiate()
+	add_child_autofree(player)
+	# is_centered uses origin.x + 48, like the lift's own centre.
+	player.global_position = Vector2(200, 120)
+	var rode := false
+	for _i in 240:
+		await wait_physics_frames(1)
+		rode = rode or player.is_riding_lift()
+		if lift.dir == 0:
+			break
+	assert_true(rode, "landing on the rising cabin makes Nina its rider")
+	assert_almost_eq(lift.cabin_y(), 100.0, 0.5)
+	await wait_physics_frames(4)
+	assert_true(player.on_lift)
+	assert_almost_eq(player.global_position.y + 56.0, 100.0, 3.0)
+
+
 func test_airborne_fire_does_not_start_a_kick() -> void:
 	var player := await _spawn_on_floor()
 	Input.action_press("move_right")
@@ -526,16 +583,7 @@ func _overlaps_ceiling(player: Player) -> bool:
 func _spawn_on_dead_end_lift() -> Player:
 	GameManager.reset_run_state()
 	GameManager.state = GameManager.GameState.PLAYING
-	var lift := Lift.new()
-	var col := CollisionShape2D.new()
-	var rect := RectangleShape2D.new()
-	rect.size = Vector2(96, 8)
-	col.shape = rect
-	col.position = Vector2(48, 4)
-	lift.add_child(col)
-	add_child_autofree(lift)
-	lift.global_position = Vector2(80, 80)
-	lift.setup(80.0, 80.0, 96.0)
+	_add_lift(Vector2(80, 80), 80.0, 80.0)
 
 	var player: Player = PLAYER_SCENE.instantiate()
 	add_child_autofree(player)
@@ -545,6 +593,34 @@ func _spawn_on_dead_end_lift() -> Player:
 	assert_true(player.is_on_floor(), "player should stand on the cabin")
 	assert_true(player.on_lift)
 	return player
+
+
+func _add_lift(pos: Vector2, top: float, bottom: float) -> Lift:
+	var lift := Lift.new()
+	var col := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(96, 8)
+	col.shape = rect
+	col.position = Vector2(48, 4)
+	lift.add_child(col)
+	add_child_autofree(lift)
+	lift.global_position = pos
+	lift.setup(top, bottom, 96.0)
+	return lift
+
+
+func _add_panel(center: Vector2, lift: Lift, to_top: bool) -> LiftPanel:
+	var panel := LiftPanel.new()
+	panel.lift = lift
+	panel.to_top = to_top
+	var col := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(80, 80)
+	col.shape = rect
+	panel.add_child(col)
+	add_child_autofree(panel)
+	panel.global_position = center
+	return panel
 
 
 func _add_step(left_x: float, height: float) -> void:

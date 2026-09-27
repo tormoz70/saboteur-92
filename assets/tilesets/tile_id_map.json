@@ -590,6 +590,7 @@
     "marker": "",
     "interlock": "",
     "locked_lift": "",
+    "lift_panel": "",
     "passage": ""
   },
   "entity_scaled_params": [

@@ -9,6 +9,12 @@ Builds the nav graph into a temporary directory (not .mcp/) and verifies:
      has walkable floors (solid/oneway support) contains at least one nav
      node reachable from spawn. Shaft-only wallpaper pockets are ignored —
      lifts stop at shaft ends only, so mid-shaft stands are not real floors.
+  3. Bookcases are scenery: no collision on their shelves, and every ink
+     rect in s2_collision.json covers a real bookcase.
+  4. Every lift cabin starts and stops flush with a floor, so Nina can step
+     on, ride, and step off. Top stations are open tubes: with the cabin away
+     Nina falls down the shaft.
+  5. Every lift call panel names a real lift and stands on a floor.
 
     python tools/explore/check_reachability.py
 """
@@ -46,6 +52,33 @@ UG_ROW = 144
 MIN_REGION = 40
 # Feet-to-wallpaper body overlap: Nina is ~6 cells tall above the feet.
 BODY_ROWS = range(-8, 1)
+# (x0, y0) of blue wallpaper regions that the fan map itself walls in.
+# Under the red floor at y 3072, closed by the rock pillar at x 3992.
+SEALED_POCKETS = {(3864, 3080)}
+# Structure atlas tile that only appears on bookcase shelves.
+BOOKCASE_SHELF = (6, 0)
+
+
+def _layer_atlas(layer: str) -> dict[tuple[int, int], tuple[int, int]]:
+	"""World cell (x, y) -> atlas coords of one tile layer across all chunks."""
+	man = json.loads((CHUNKS / "chunks.json").read_text(encoding="utf-8"))
+	nx = int(man.get("chunks_x", 8))
+	cells: dict[tuple[int, int], tuple[int, int]] = {}
+	for i, rp in enumerate(man["paths"]):
+		text = (CHUNKS / Path(rp).name).read_text(encoding="utf-8")
+		cx, cy = (i % nx) * CHUNK_W, (i // nx) * CHUNK_H
+		for part in re.split(r"\[node name=", text)[1:]:
+			if part.split('"', 2)[1] != layer:
+				continue
+			m = re.search(r'tile_map_data = PackedByteArray\("([^"]+)"\)', part)
+			if not m:
+				continue
+			raw = base64.b64decode(m.group(1))[2:]
+			for k in range(len(raw) // 12):
+				x, y, _src, ax, ay, _alt = struct.unpack_from("<hhHhhH", raw, k * 12)
+				if 0 <= x < CHUNK_W and 0 <= y < CHUNK_H:
+					cells[(cx + x, cy + y)] = (ax, ay)
+	return cells
 
 
 def _load_wallpaper() -> "object":
@@ -241,6 +274,8 @@ def check_blue_tunnels(data: dict, grid) -> list[str]:
 	errors: list[str] = []
 
 	for reg in regs:
+		if (reg["x0"], reg["y0"]) in SEALED_POCKETS:
+			continue
 		walk_nodes: list[int] = []
 		for i, (x, f, *_rest) in enumerate(nodes):
 			j = int(x) // CELL - 1
@@ -291,6 +326,64 @@ def _shaft_pocket(reg: dict, grid, walk_nodes: list[int], nodes: list) -> bool:
 	return False
 
 
+def check_bookcases(grid) -> list[str]:
+	shelves = {c for c, a in _layer_atlas("Structure").items() if a == BOOKCASE_SHELF}
+	errors: list[str] = []
+	for x, y in sorted(shelves):
+		if grid[y, x] != 0:
+			errors.append(f"bookcase shelf at ({x * CELL}, {y * CELL}) has collision {grid[y, x]}")
+	coll = json.loads((WORLD / "s2_collision.json").read_text(encoding="utf-8"))
+	for bx, by, bw, bh in coll.get("bookcases", []):
+		inside = any(
+			bx <= x * CELL < bx + bw and by <= y * CELL < by + bh for x, y in shelves
+		)
+		if not inside:
+			errors.append(f"bookcase rect ({bx}, {by}, {bw}, {bh}) covers no bookcase")
+	return errors
+
+
+def check_lift_cabins(grid) -> list[str]:
+	coll = json.loads((WORLD / "s2_collision.json").read_text(encoding="utf-8"))
+	errors: list[str] = []
+	for spec in coll.get("lifts", []):
+		x, w = int(spec["x"]), int(spec["w"])
+		x0, x1 = x // CELL, (x + w) // CELL
+		cols = slice(x0, x1)
+		for key in ("y", "top", "bottom"):
+			y = int(spec[key])
+			r = y // CELL
+			floor = grid[r, cols]
+			above = grid[r - 1, cols]
+			solid = (floor == SOLID) | (floor == SHAFT)
+			clear = not ((above == SOLID) | (above == SHAFT)).any()
+			if y == int(spec["top"]):
+				# Open tube between the rails, which are flush with the station floor.
+				on_floor = not solid.any() and grid[r, x0 - 1] == SOLID and grid[r, x1] == SOLID
+			else:
+				on_floor = int(solid.sum()) * 2 > floor.size
+			if y % CELL or not on_floor or not clear:
+				errors.append(f"lift ({x}, {spec['y']}) {key}={y} is not flush on a floor")
+	return errors
+
+
+def check_lift_panels(grid) -> list[str]:
+	coll = json.loads((WORLD / "s2_collision.json").read_text(encoding="utf-8"))
+	ents = json.loads((WORLD / "s2_entities.json").read_text(encoding="utf-8"))
+	lift_xs = {int(spec["x"]) for spec in coll.get("lifts", [])}
+	errors: list[str] = []
+	for p in ents.get("lift_panels", []):
+		x, y = int(p["x"]), int(p["y"])
+		if int(p["lift_x"]) not in lift_xs:
+			errors.append(f"lift panel ({x}, {y}) names no lift at x={p['lift_x']}")
+		if p.get("to") not in ("top", "bottom"):
+			errors.append(f"lift panel ({x}, {y}) calls to {p.get('to')!r}")
+		# Panel areas are 40x40 native around (x, y); the console base sits on the floor.
+		floor = grid[(y + 20) // CELL, (x - 20) // CELL : (x + 20) // CELL]
+		if not ((floor == SOLID) | (floor == ONEWAY)).all():
+			errors.append(f"lift panel ({x}, {y}) does not stand on a floor")
+	return errors
+
+
 def main() -> int:
 	tmpdir = Path(tempfile.mkdtemp(prefix="s2_nav_"))
 	graph_path = tmpdir / "nav_graph.json"
@@ -327,6 +420,20 @@ def main() -> int:
 		print("BLUE TUNNELS OK")
 
 	errors.extend(blue_errors)
+
+	for label, errs in (
+		("BOOKCASES", check_bookcases(grid)),
+		("LIFT CABINS", check_lift_cabins(grid)),
+		("LIFT PANELS", check_lift_panels(grid)),
+	):
+		if errs:
+			print(f"{label} FAIL")
+			for e in errs:
+				print(f"  {e}")
+		else:
+			print(f"{label} OK")
+		errors.extend(errs)
+
 	if errors:
 		print(f"check_reachability: {len(errors)} error(s)")
 		return 1

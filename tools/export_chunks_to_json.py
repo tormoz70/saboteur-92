@@ -108,6 +108,7 @@ DEFAULT_ENTITY_PREFABS = {
     "marker": "",
     "interlock": "",
     "locked_lift": "",
+    "lift_panel": "",
     "passage": "",
 }
 
@@ -430,6 +431,8 @@ def bin_world_entities(data: dict, chunk_col: int, chunk_row: int) -> list[dict]
     ll = data.get("locked_lift")
     if isinstance(ll, dict) and "x" in ll:
         emit("locked_lift", ll, {})
+    for lp in data.get("lift_panels", []):
+        emit("lift_panel", lp, {"lift_x": lp["lift_x"], "to": lp.get("to", "top")})
     return out
 
 
