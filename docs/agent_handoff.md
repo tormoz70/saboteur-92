@@ -44,8 +44,12 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 
 - `run_project {projectPath: "C:/data/prjs/saboteur-92"}`. The first try
   often reports that the bridge did not respond; just retry.
-- The game starts in `Main`. The level is `/root/Main/Level01`, and the
-  player is `Level01/Player`.
+- The game starts on the title screen (`/root/Main`). Click `PlayButton`
+  (`simulate_input` `click_element`) or pass `scene: "scenes/game.tscn"` to
+  `run_project` to go straight in. The level is then `/root/Game/Level01`,
+  and the player is `Level01/Player`.
+- A windowed run autopauses when the game window loses focus. Resume with
+  `scene_tree.current_scene.get_node("PauseMenu").resume_game()`.
 - `run_script` needs a script that does `extends RefCounted` and defines
   `func execute(scene_tree: SceneTree) -> Variant`. `await
   scene_tree.physics_frame` works inside it, which is useful for frame traces.
@@ -110,8 +114,46 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
   Then import once so `.import` files appear:
   `& $g --headless --path . --import`
 
+## Shell (title, pause, settings, results)
+
+- `scenes/main.tscn` is the title screen (`scripts/ui/title_screen.gd`).
+  "Play" resets `GameManager` and changes to `scenes/game.tscn`.
+- `scenes/game.tscn` (`scripts/ui/game.gd`) holds `Level01`, `HUD`,
+  `TouchControls`, `ResultScreen`, `PauseMenu`, `SettingsMenu`, and a
+  `Loading` curtain that lifts on `LevelBase.world_ready`. That is also when
+  `GameManager.start_clock()` starts `mission_time`. "Play again" is
+  `GameManager.restart_mission()`, which reloads this scene, so it skips the
+  title.
+- Demo flags (`TitleScreen.DEMO_ARGS`: `--demo`, `--demo-fuse`,
+  `--demo-tilt`, `--demo-maze`, `--demo-explore`) make the title jump straight
+  to `game.tscn`. `tools/capture_map_view.gd` and `tools/verify_entities.gd`
+  load `game.tscn` directly.
+- Pause (`scripts/ui/pause_menu.gd`, `process_mode` ALWAYS) is
+  `get_tree().paused` plus `AudioManager.set_paused`. It is triggered by the
+  HUD "II" button, `ui_cancel`, Android back, and autopause on
+  `NOTIFICATION_APPLICATION_PAUSED` / `FOCUS_OUT`. Autopause is off under the
+  headless display server, with demo flags, and in `GameManager.demo_mode`.
+  A `SceneTreeTimer` that must stop with the pause needs
+  `create_timer(t, false)`.
+- Settings: autoload `GameSettings` (`scripts/systems/game_settings.gd`).
+  - Stored in `user://settings.cfg`: `[audio] sfx_volume, music_volume` and
+    `[controls] tilt_sensitivity, pad_scale, pad_opacity`.
+  - `TiltSteer` still owns `[controls] tilt_steer`. Both sides reload the
+    file before saving.
+  - Values apply the moment they change. Tests point both at a temp file
+    with `GameSettings.use_config_path()`.
+- Records: `MissionRecords` (`scripts/systems/mission_records.gd`) keeps
+  `user://records.cfg` `[lab_mission] best_time, best_time_alarmed,
+  best_score, wins`. A worse run never overwrites a better one, and demo wins
+  are not recorded.
+- UI look: `assets/ui/zx_theme.tres` (Spectrum palette, `HudButton`
+  variation for in-game buttons). Its font is `assets/ui/zx_font.fnt`,
+  generated from the Saboteur II charset by `python tools/generate_zx_font.py`.
+  The font is ASCII only, so menu text is English. Its import uses integer
+  scaling, so keep font sizes at multiples of 8.
+
 ## Next steps
 
-Follow [roadmap_v0.2.md](roadmap_v0.2.md). Stages 1–3 (reachability, rope,
-sound) are done; next open stages are the shell, enemies, then a real-device
+Follow [roadmap_v0.2.md](roadmap_v0.2.md). Stages 1–4 (reachability, rope,
+sound, shell) are done; next open stages are enemies, then a real-device
 pass.

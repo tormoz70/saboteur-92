@@ -26,7 +26,7 @@ func _initialize() -> void:
 	if args.size() > 0 and not args[0].is_empty():
 		_out_dir = args[0]
 	DirAccess.make_dir_recursive_absolute(_out_dir)
-	change_scene_to_file("res://scenes/main.tscn")
+	change_scene_to_file("res://scenes/game.tscn")
 
 
 func _process(_dt: float) -> bool:

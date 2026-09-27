@@ -25,6 +25,14 @@ const SMOOTHING := 12.0
 ## Report a missing sensor only after a full second of silence: readings arrive
 ## on the sensor's own clock, not once per frame.
 const SENSOR_GRACE := 1.0
+const MIN_SENSITIVITY := 0.5
+const MAX_SENSITIVITY := 2.0
+
+var config_path: String = CONFIG_PATH
+## Divides the engage/hold angles: 2.0 walks at half the lean.
+var sensitivity: float = 1.0:
+	set(value):
+		sensitivity = clampf(value, MIN_SENSITIVITY, MAX_SENSITIVITY)
 
 var enabled: bool = false:
 	set(value):
@@ -63,7 +71,7 @@ func _physics_process(delta: float) -> void:
 	_silence = 0.0
 	_set_sensor_missing(false)
 	_tilt = lerpf(_tilt, screen_tilt(sensor) - _neutral, minf(SMOOTHING * delta, 1.0))
-	_axis = axis_from_tilt(_tilt, _axis)
+	_axis = axis_from_tilt(_tilt, _axis, sensitivity)
 
 
 func move_axis() -> float:
@@ -106,11 +114,12 @@ static func screen_tilt(sensor: Vector3) -> float:
 	return sensor.x
 
 
-static func axis_from_tilt(tilt: float, current_axis: float) -> float:
+static func axis_from_tilt(tilt: float, current_axis: float, gain: float = 1.0) -> float:
 	var direction := signf(tilt)
-	if direction == current_axis and absf(tilt) >= HOLD_TILT:
+	var scaled := absf(tilt) * gain
+	if direction == current_axis and scaled >= HOLD_TILT:
 		return current_axis
-	if absf(tilt) >= ENGAGE_TILT:
+	if scaled >= ENGAGE_TILT:
 		return direction
 	return 0.0
 
@@ -131,13 +140,13 @@ func _clear_tilt() -> void:
 
 func _load() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(CONFIG_PATH) != OK:
+	if cfg.load(config_path) != OK:
 		return
 	enabled = bool(cfg.get_value(CONFIG_SECTION, CONFIG_KEY, false))
 
 
 func _save() -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(CONFIG_PATH)
+	cfg.load(config_path)
 	cfg.set_value(CONFIG_SECTION, CONFIG_KEY, enabled)
-	cfg.save(CONFIG_PATH)
+	cfg.save(config_path)

@@ -24,6 +24,9 @@ var seen_codes: Array[String] = []
 var has_lift_code: bool = false
 var interlock_cut: bool = false
 var alarmed: bool = false
+## Seconds of play since the level finished loading; stops with the tree pause.
+var mission_time: float = 0.0
+var clock_running: bool = false
 
 
 func _ready() -> void:
@@ -36,6 +39,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if clock_running and state == GameState.PLAYING:
+		mission_time += delta
 	if bomb_planted and state == GameState.PLAYING:
 		bomb_timer -= delta
 		if bomb_timer <= 0.0:
@@ -116,7 +121,14 @@ func reset_run_state() -> void:
 	score = 0
 	demo_mode = false
 	fail_reason = ""
+	mission_time = 0.0
+	clock_running = false
 	reset_inventory()
+
+
+func start_clock() -> void:
+	mission_time = 0.0
+	clock_running = true
 
 
 func fail_mission(reason: String = "Game Over") -> void:

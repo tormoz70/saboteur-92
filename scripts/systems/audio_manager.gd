@@ -36,6 +36,7 @@ var _theme_fast: AudioStream
 var _fuse_acc: float = 0.0
 var _urgent: bool = false
 var _pool_size: int = POOL_SIZE
+var _paused: bool = false
 
 
 func _ready() -> void:
@@ -78,7 +79,7 @@ func _process(delta: float) -> void:
 
 
 func play_sfx(sfx_name: String) -> void:
-	if not _streams.has(sfx_name):
+	if _paused or not _streams.has(sfx_name):
 		return
 	var player := _acquire()
 	if player == null:
@@ -102,6 +103,19 @@ func play_music(urgent: bool = false) -> void:
 func stop_music() -> void:
 	_music.stop()
 	_urgent = false
+
+
+## Game pause: holds the theme where it is and drops new effects. Kept as a
+## flag because stream_paused does not stick on a player with no playback.
+func set_paused(paused: bool) -> void:
+	_paused = paused
+	_music.stream_paused = paused
+	for p in _pool:
+		p.stream_paused = paused
+
+
+func is_paused() -> bool:
+	return _paused
 
 
 func set_music_urgent(urgent: bool) -> void:

@@ -8,7 +8,7 @@ var _frames := 0
 
 
 func _initialize() -> void:
-	change_scene_to_file("res://scenes/main.tscn")
+	change_scene_to_file("res://scenes/game.tscn")
 
 
 func _process(_dt: float) -> bool:

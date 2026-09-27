@@ -1,6 +1,8 @@
 extends CanvasLayer
 
 @onready var tilt_toggle: Button = $Root/TiltToggle
+@onready var left_pad: OctantTouchPad = $Root/LeftPad
+@onready var right_pad: Control = $Root/RightPad
 
 
 func _ready() -> void:
@@ -9,6 +11,27 @@ func _ready() -> void:
 	tilt_toggle.toggled.connect(_on_tilt_toggled)
 	TiltSteer.enabled_changed.connect(_on_tilt_enabled_changed)
 	TiltSteer.sensor_missing_changed.connect(_on_tilt_sensor_missing_changed)
+	GameSettings.changed.connect(apply_settings)
+	apply_settings()
+
+
+func apply_settings() -> void:
+	# Scale around the screen corner each pad is anchored to, so a bigger pad
+	# grows inward instead of off the edge.
+	left_pad.pivot_offset = Vector2(0.0, left_pad.size.y)
+	right_pad.pivot_offset = right_pad.size
+	var s := Vector2.ONE * GameSettings.pad_scale
+	left_pad.scale = s
+	right_pad.scale = s
+	left_pad.modulate.a = GameSettings.pad_opacity
+	right_pad.modulate.a = GameSettings.pad_opacity
+
+
+## Drops every finger and held action, e.g. when a pause hides the pad
+## mid-touch and the release would never arrive.
+func release_all() -> void:
+	left_pad.release_finger()
+	ChordTouchButton.reset_holds()
 
 
 func _on_tilt_toggled(is_on: bool) -> void:

@@ -640,5 +640,5 @@ func respawn(to_position: Vector2) -> void:
 func _on_player_died() -> void:
 	if GameManager.state == GameManager.GameState.LOST:
 		return
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.5, false).timeout
 	respawn(spawn_point)

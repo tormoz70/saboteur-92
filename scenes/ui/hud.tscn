@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://hud01scene"]
+[gd_scene load_steps=4 format=3 uid="uid://hud01scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/energy_dial.gd" id="2"]
+[ext_resource type="Theme" path="res://assets/ui/zx_theme.tres" id="3"]
 
 [node name="HUD" type="CanvasLayer"]
 layer = 5
@@ -59,52 +60,16 @@ theme_override_colors/font_color = Color(0.4, 1, 0.6, 1)
 theme_override_font_sizes/font_size = 22
 text = ""
 
-[node name="ResultOverlay" type="Control" parent="."]
-visible = false
-layout_mode = 3
-anchors_preset = 15
+[node name="PauseButton" type="Button" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 0
-
-[node name="Dim" type="ColorRect" parent="ResultOverlay"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 0
-color = Color(0, 0, 0, 0.72)
-
-[node name="Panel" type="VBoxContainer" parent="ResultOverlay"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -180.0
-offset_top = -80.0
-offset_right = 180.0
-offset_bottom = 80.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 20
-alignment = 1
-
-[node name="Title" type="Label" parent="ResultOverlay/Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 36
-text = "Game Over"
-horizontal_alignment = 1
-
-[node name="RestartButton" type="Button" parent="ResultOverlay/Panel"]
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-focus_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "Restart"
+offset_left = -100.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 84.0
+grow_horizontal = 0
+focus_mode = 0
+theme = ExtResource("3")
+theme_type_variation = &"HudButton"
+text = "II"

@@ -116,7 +116,7 @@ func take_damage(amount: int = 1) -> void:
 		_die()
 	else:
 		modulate = Color(1.5, 0.5, 0.5)
-		await get_tree().create_timer(0.1).timeout
+		await get_tree().create_timer(0.1, false).timeout
 		modulate = Color.WHITE
 
 
@@ -127,7 +127,7 @@ func _die() -> void:
 	collision_mask = 0
 	EventBus.enemy_killed.emit(self)
 	anim.modulate = Color(0.4, 0.4, 0.4)
-	await get_tree().create_timer(0.4).timeout
+	await get_tree().create_timer(0.4, false).timeout
 	queue_free()
 
 
