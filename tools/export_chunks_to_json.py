@@ -88,6 +88,7 @@ LAYER_ROLE = {
 
 PICKUP_SCENE = "res://scenes/items/pickup.tscn"
 GUARD_SCENE = "res://scenes/enemies/guard.tscn"
+PANTHER_SCENE = "res://scenes/enemies/panther.tscn"
 
 # Default logical-type -> prefab map seeded into tile_id_map.json. Edit freely;
 # the exporter only *seeds* missing keys, it never overwrites your edits.
@@ -97,6 +98,7 @@ DEFAULT_ENTITY_PREFABS = {
     "spawn": "",
     "guard": GUARD_SCENE,
     "alarm_guard": GUARD_SCENE,
+    "panther": PANTHER_SCENE,
     "key": PICKUP_SCENE,
     "document": PICKUP_SCENE,
     "bomb": PICKUP_SCENE,
@@ -115,6 +117,7 @@ ENTITY_SCALED_PARAMS = ["patrol_distance"]
 
 # Player and guard origins in s2_entities.json are the sprite's top-left.
 ACTOR_SPRITE_PX = [48, 56]
+PANTHER_SPRITE_PX = [64, 32]
 
 
 # --- .tscn / .tres parsing ---------------------------------------------------
@@ -404,6 +407,9 @@ def bin_world_entities(data: dict, chunk_col: int, chunk_row: int) -> list[dict]
     if isinstance(ag, dict) and "x" in ag:
         emit("alarm_guard", ag,
              actor({"patrol_distance": ag.get("patrol", 40), "spawn_on": "alarm"}))
+    for p in data.get("panthers", []):
+        emit("panther", p, {"patrol_distance": p.get("patrol", 0), "origin": "top_left",
+                            "size_px": list(PANTHER_SPRITE_PX)}, p.get("id", ""))
     sab = data.get("sabotage")
     if isinstance(sab, dict) and "x" in sab:
         params = {"bomb_fuse_time": data["fuse"]} if "fuse" in data else {}

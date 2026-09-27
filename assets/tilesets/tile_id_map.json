@@ -580,6 +580,7 @@
     "spawn": "",
     "guard": "res://scenes/enemies/guard.tscn",
     "alarm_guard": "res://scenes/enemies/guard.tscn",
+    "panther": "res://scenes/enemies/panther.tscn",
     "key": "res://scenes/items/pickup.tscn",
     "document": "res://scenes/items/pickup.tscn",
     "bomb": "res://scenes/items/pickup.tscn",

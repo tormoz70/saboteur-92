@@ -47,7 +47,18 @@
       "cells": 1084
     }
   },
-  "entities": [],
+  "entities": [
+    {
+      "type": "panther",
+      "position": [114.75, 27.0],
+      "params": {
+        "patrol_distance": 120,
+        "origin": "top_left",
+        "size_px": [64, 32]
+      },
+      "id": "east_roof"
+    }
+  ],
   "meta": {
     "source": "res://scenes/world/chunks/chunk_05_02.tscn"
   }

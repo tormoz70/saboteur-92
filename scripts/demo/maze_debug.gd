@@ -41,7 +41,7 @@ func _ready() -> void:
 	GameManager.demo_mode = true
 	get_tree().debug_collisions_hint = true
 	# Don't fill CollisionLayer (100k+ cells) — debug shapes on Solids/Ladders are enough.
-	for name in ["Guards"]:
+	for name in ["Guards", "Panthers"]:
 		var node: Node = level.get_node_or_null(name)
 		if node:
 			node.process_mode = Node.PROCESS_MODE_DISABLED

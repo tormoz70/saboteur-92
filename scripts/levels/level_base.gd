@@ -14,6 +14,7 @@ const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
+const PANTHER_SCENE := preload("res://scenes/enemies/panther.tscn")
 const SABOTAGE_SCENE := preload("res://scenes/items/sabotage_target.tscn")
 const EXIT_SCENE := preload("res://scenes/items/exit_zone.tscn")
 const MARKER_SCRIPT := preload("res://scripts/world/mission_marker.gd")
@@ -419,11 +420,34 @@ func _add_entities() -> void:
 		guard.z_index = WorldLayers.Z_ACTORS
 		guards_root.add_child(guard)
 		gi += 1
+	_add_panthers(data)
 
 	_add_markers(data)
 	_add_passages(data)
 	_add_interlock(data)
 	_configure_locked_lift(data)
+
+
+func _add_panthers(data: Dictionary) -> void:
+	var specs: Array = data.get("panthers", [])
+	if specs.is_empty():
+		return
+	var root := Node2D.new()
+	root.name = "Panthers"
+	root.z_index = WorldLayers.Z_ACTORS
+	add_child(root)
+	var n := 1
+	for spec in specs:
+		var panther: CharacterBody2D = PANTHER_SCENE.instantiate()
+		var pid := str(spec.get("id", str(n)))
+		panther.name = "Panther%s" % pid.to_pascal_case()
+		panther.scale = Vector2(_scale, _scale)
+		panther.patrol_distance = float(spec.get("patrol", 0)) * _scale
+		# Position before add_child: _ready() snapshots patrol_origin.
+		panther.position = _xy_world(spec, "panther %s" % pid)
+		panther.z_index = WorldLayers.Z_ACTORS
+		root.add_child(panther)
+		n += 1
 
 
 func _add_markers(data: Dictionary) -> void:
@@ -550,6 +574,7 @@ func _reset_mission_entities() -> void:
 	for node_name in [
 		"Items",
 		"Guards",
+		"Panthers",
 		"SabotageTarget",
 		"ExitZone",
 		"MissionMarkers",

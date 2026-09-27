@@ -69,5 +69,17 @@
       "y": 1804,
       "patrol": 40
     }
+  ],
+  "panthers_note": "Where the 1987 screens had a panther baked in (erased from the chunks in 68ddcf7 and from the fan-map lawns by fan_map_cleanup.py). Origin is the top-left of the 64x32 sprite, feet on the floor at y + 32. patrol is PNG px either side of the spawn; 0 roams the whole floor.",
+  "panthers": [
+    { "id": "lawn_west", "x": 1430, "y": 1672, "patrol": 120 },
+    { "id": "hq_desk", "x": 2926, "y": 2248, "patrol": 120 },
+    { "id": "hq_hall", "x": 3934, "y": 1672, "patrol": 0 },
+    { "id": "lawn_east", "x": 4502, "y": 1672, "patrol": 120 },
+    { "id": "east_roof", "x": 6038, "y": 1368, "patrol": 120 },
+    { "id": "east_hall", "x": 6254, "y": 1664, "patrol": 160 },
+    { "id": "cave_upper", "x": 7214, "y": 1960, "patrol": 0 },
+    { "id": "cave_middle", "x": 6982, "y": 2680, "patrol": 160 },
+    { "id": "cave_lower", "x": 6150, "y": 3544, "patrol": 160 }
   ]
 }

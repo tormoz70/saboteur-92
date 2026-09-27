@@ -64,6 +64,17 @@ func test_entities_get_game_properties() -> void:
 	root.free()
 
 
+func test_panther_entity_spawns_the_panther_prefab() -> void:
+	var builder := WorldBuilder.new()
+	builder.world_scale = 2.0
+	var root := builder.build(_json("res://assets/world/chunks_json/chunk_02_03.json"))
+	var panther := root.get_node("Entities/hq_desk")
+	assert_eq(panther.scene_file_path, "res://scenes/enemies/panther.tscn")
+	assert_eq(panther.patrol_distance, 240.0, "native px patrol times world_scale")
+	assert_eq(panther.get_meta("entity_params").size_px, [64.0, 32.0])
+	root.free()
+
+
 func test_invuln_bonus_is_a_pickup() -> void:
 	var root := WorldBuilder.new().build(_json("res://assets/world/chunks_json/chunk_00_03.json"))
 	var bonus := root.get_node("Entities/bonus")

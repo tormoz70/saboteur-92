@@ -44,6 +44,16 @@
   },
   "entities": [
     {
+      "type": "panther",
+      "position": [109.75, 65.0],
+      "params": {
+        "patrol_distance": 120,
+        "origin": "top_left",
+        "size_px": [64, 32]
+      },
+      "id": "hq_desk"
+    },
+    {
       "type": "locked_lift",
       "position": [101.0, 69.0],
       "params": {}

@@ -3,8 +3,12 @@ extends SceneTree
 ## Counts and spawn come from s2_entities.json so a layout change does not rot this.
 
 const ENTITIES_PATH := "res://assets/world/s2_entities.json"
+const SETTLE_FRAMES := 30
 
 var _frames := 0
+var _loaded_at := -1
+var _data: Dictionary = {}
+var _scale := 2.0
 
 
 func _initialize() -> void:
@@ -25,6 +29,16 @@ func _process(_dt: float) -> bool:
 		if _frames > 1200:
 			push_error("verify_entities: world never finished loading")
 			quit(1)
+		return false
+	if _loaded_at >= 0:
+		# Panthers get a few physics ticks to land on their floors.
+		if _frames - _loaded_at < SETTLE_FRAMES:
+			return false
+		if not _check_panthers(level, _data.get("panthers", []), _scale):
+			quit(1)
+			return false
+		print("verify_entities: OK")
+		quit(0)
 		return false
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(ENTITIES_PATH))
 	if typeof(parsed) != TYPE_DICTIONARY:
@@ -49,8 +63,11 @@ func _process(_dt: float) -> bool:
 		return false
 	var sp: Array = data["spawn"]
 	var expect_spawn := Vector2(float(sp[0]), float(sp[1])) * scale
-	print("verify_entities: spawn=(%.0f, %.0f)" % [player.global_position.x, player.global_position.y])
-	if player.global_position.distance_to(expect_spawn) > 2.0:
+	# spawn_point, not the live position: Nina may already have dropped onto
+	# the floor below the spawn by the first frame this script sees.
+	var spawn: Vector2 = player.spawn_point
+	print("verify_entities: spawn=(%.0f, %.0f)" % [spawn.x, spawn.y])
+	if spawn.distance_to(expect_spawn) > 2.0 or absf(player.global_position.x - spawn.x) > 2.0:
 		push_error("verify_entities: spawn mismatch")
 		quit(1)
 		return false
@@ -100,6 +117,39 @@ func _process(_dt: float) -> bool:
 		push_error("verify_entities: unexpected entity counts")
 		quit(1)
 		return false
-	print("verify_entities: OK")
-	quit(0)
+	_data = data
+	_scale = scale
+	_loaded_at = _frames
 	return false
+
+
+## Every panther from the data is spawned at its spot and standing on a floor.
+func _check_panthers(level: Node, specs: Array, scale: float) -> bool:
+	var panthers := level.get_node_or_null("Panthers")
+	var count := panthers.get_child_count() if panthers else 0
+	print("verify_entities: panthers=%d" % count)
+	if count != specs.size():
+		push_error("verify_entities: want %d panthers, got %d" % [specs.size(), count])
+		return false
+	for i in count:
+		var panther: CharacterBody2D = panthers.get_child(i)
+		var spec: Dictionary = specs[i]
+		var want := Vector2(float(spec["x"]), float(spec["y"])) * scale
+		print(
+			"verify_entities: panther %s pos=(%.0f, %.0f) origin=%.0f patrol=%.0f floor=%s"
+			% [
+				panther.name,
+				panther.global_position.x,
+				panther.global_position.y,
+				panther.get("patrol_origin"),
+				panther.get("patrol_distance"),
+				panther.is_on_floor(),
+			]
+		)
+		if absf(float(panther.get("patrol_origin")) - want.x) > 2.0:
+			push_error("verify_entities: patrol_origin not at spawn for %s" % panther.name)
+			return false
+		if not panther.is_on_floor() or absf(panther.global_position.y - want.y) > 4.0:
+			push_error("verify_entities: %s is not standing on its floor" % panther.name)
+			return false
+	return true

@@ -204,6 +204,15 @@ def sfx_alarm() -> list[int]:
     return concat(beep, gap, low, gap, beep, gap, low)
 
 
+def sfx_spotted() -> list[int]:
+    # A guard notices Nina: short rising "hey!" chirp, quieter than the alarm.
+    return concat(
+        tone(587, 45, amp=0.55, duty=0.5, attack=0.02, release=0.2),
+        silence(20),
+        sweep(700, 1180, 70, amp=0.55, duty=0.5, attack=0.02, release=0.35),
+    )
+
+
 def sfx_fuse_tick() -> list[int]:
     return tone(1000, 28, amp=0.4, duty=0.25, attack=0.05, release=0.55)
 
@@ -303,6 +312,7 @@ SFX: dict[str, callable] = {
     "lift_stop": sfx_lift_stop,
     "pickup": sfx_pickup,
     "alarm": sfx_alarm,
+    "spotted": sfx_spotted,
     "fuse_tick": sfx_fuse_tick,
     "death": sfx_death,
     "win": sfx_win,

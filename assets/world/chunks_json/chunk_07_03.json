@@ -32,7 +32,18 @@
       "cells": 1597
     }
   },
-  "entities": [],
+  "entities": [
+    {
+      "type": "panther",
+      "position": [5.75, 29.0],
+      "params": {
+        "patrol_distance": 0,
+        "origin": "top_left",
+        "size_px": [64, 32]
+      },
+      "id": "cave_upper"
+    }
+  ],
   "meta": {
     "source": "res://scenes/world/chunks/chunk_07_03.tscn"
   }

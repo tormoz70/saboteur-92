@@ -39,6 +39,16 @@
   },
   "entities": [
     {
+      "type": "panther",
+      "position": [107.75, 65.0],
+      "params": {
+        "patrol_distance": 0,
+        "origin": "top_left",
+        "size_px": [64, 32]
+      },
+      "id": "hq_hall"
+    },
+    {
       "type": "marker",
       "position": [66.0, 3.0],
       "params": {

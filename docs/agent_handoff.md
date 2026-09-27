@@ -152,8 +152,47 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
   The font is ASCII only, so menu text is English. Its import uses integer
   scaling, so keep font sizes at multiples of 8.
 
+## Enemies
+
+- Shared senses: `EnemySenses` (`scripts/enemies/enemy_senses.gd`).
+  - Sight is `SightArea` overlap, then rays on WORLD | LIFT_SHAFT to Nina's
+    chest and head. The rays hop past one-way cells; ladders and ropes
+    have no physics, so only solid tiles block the view.
+  - `ledge_ahead` / `wall_ahead` are `test_move` probes one body width
+    ahead. A lift cabin under the probe counts as a ledge.
+- Guard (`scripts/enemies/guard.gd`, exports and consts at the top):
+  - States: PATROL → NOTICE (stands still, shows the "!" `AlertMark`, plays
+    SFX `spotted`, `notice_time` 0.4 s) → CHASE → WINDUP (leans back and
+    flushes red, `attack_windup` 0.4 s) → RECOVER (0.45 s).
+  - The wind-up starts with Nina within `attack_range` 45 world px. The
+    blow lands at its end only if she is still up to `attack_reach` 52 px
+    ahead and within 45 px vertically. Damage is 15.
+  - Speeds (world px/s): patrol 60, chase 100; Nina walks at 110. Health 2.
+    A hit staggers it for 0.35 s.
+  - It turns at walls, ledges and `patrol_distance`. In a chase it stops at
+    the edge instead of falling.
+  - The alarm goes off after `ALARM_CHASE_SEC` 1.0 s engaged (CHASE, WINDUP
+    or RECOVER). Fuse is 50 s, capped at 35 s by the alarm
+    (`GameManager.ALARM_FUSE_CAP`).
+- Panther (`scripts/enemies/panther.gd`, `scenes/enemies/panther.tscn`):
+  - States: PROWL (140) → CHARGE (175) on sight. It turns back to Nina only
+    after she has been behind it for `turn_delay` 0.5 s, so a somersault
+    over it buys time.
+  - Touch (`HurtBox` 40×18 native, 18 px high) deals 15, with a 0.6 s
+    cooldown. It turns at walls and ledges and never leaves its floor.
+  - Health 2: the first hit stuns it for 0.6 s, the second kills it (+100).
+    Only the crouch punch reaches it; the standing punch goes over its back.
+  - Spawns come from `panthers` in `assets/world/s2_entities.json` (native
+    px, top-left of the 64×32 frame, `patrol` 0 = the whole floor). They
+    reach chunk JSON as the `panther` prefab through
+    `tools/export_chunks_to_json.py`.
+  - Sprite: `python tools/generate_panther_sprite.py` →
+    `assets/sprites/saboteur92_panther.png` (4 run frames + crouch).
+- Tests: `test/unit/test_guard.gd` and `test_panther.gd` build small
+  collision arenas with `test/enemy_arena.gd`. `tools/verify_entities.gd`
+  checks that every panther lands on its floor.
+
 ## Next steps
 
-Follow [roadmap_v0.2.md](roadmap_v0.2.md). Stages 1–4 (reachability, rope,
-sound, shell) are done; next open stages are enemies, then a real-device
-pass.
+Follow [roadmap_v0.2.md](roadmap_v0.2.md). Stages 1–5 (reachability, rope,
+sound, shell, enemies) are done; next is the real-device pass.

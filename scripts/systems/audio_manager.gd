@@ -18,6 +18,7 @@ const SFX_NAMES := [
 	"lift_stop",
 	"pickup",
 	"alarm",
+	"spotted",
 	"fuse_tick",
 	"death",
 	"win",

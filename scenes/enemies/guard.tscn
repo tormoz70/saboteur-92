@@ -78,3 +78,30 @@ collision_mask = 1
 [node name="CollisionShape2D" type="CollisionShape2D" parent="SightArea"]
 position = Vector2(24, 28)
 shape = SubResource("RectangleShape2D_sight")
+
+[node name="AlertMark" type="Node2D" parent="."]
+visible = false
+position = Vector2(24, -16)
+
+[node name="Outline" type="ColorRect" parent="AlertMark"]
+offset_left = -2.0
+offset_top = -1.0
+offset_right = 2.0
+offset_bottom = 10.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Bar" type="ColorRect" parent="AlertMark"]
+offset_left = -1.0
+offset_right = 1.0
+offset_bottom = 6.0
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
+
+[node name="Dot" type="ColorRect" parent="AlertMark"]
+offset_left = -1.0
+offset_top = 7.0
+offset_right = 1.0
+offset_bottom = 9.0
+mouse_filter = 2
+color = Color(1, 1, 1, 1)

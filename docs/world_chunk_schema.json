@@ -108,7 +108,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Logical entity type resolved to a prefab via tile_id_map.json/entity_prefabs: spawn, guard, alarm_guard, key, document, bomb, invuln, sabotage_target, exit, marker, interlock, locked_lift, passage."
+          "description": "Logical entity type resolved to a prefab via tile_id_map.json/entity_prefabs: spawn, guard, alarm_guard, panther, key, document, bomb, invuln, sabotage_target, exit, marker, interlock, locked_lift, passage."
         },
         "id": {
           "type": "string",

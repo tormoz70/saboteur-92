@@ -42,7 +42,18 @@
       "cells": 985
     }
   },
-  "entities": [],
+  "entities": [
+    {
+      "type": "panther",
+      "position": [50.75, 65.0],
+      "params": {
+        "patrol_distance": 120,
+        "origin": "top_left",
+        "size_px": [64, 32]
+      },
+      "id": "lawn_east"
+    }
+  ],
   "meta": {
     "source": "res://scenes/world/chunks/chunk_04_02.tscn"
   }

@@ -7,7 +7,7 @@ extends Node
 ## unvisited is reachable and writes a report for tools/explore/nav_reach.py.
 ##
 ## Start: `--demo-explore`, or add this script to Level01 at runtime (MCP
-## run_script). Guards, the bomb console and the alarm are switched off.
+## run_script). Guards, panthers, the bomb console and the alarm are switched off.
 
 enum Edge { WALK, CLIMB, JUMP, DROP, LIFT, PASSAGE }
 enum Phase { PLAN, APPROACH, ACT, AIR, SETTLE }
@@ -144,7 +144,7 @@ func _quiet_world(level: Node) -> void:
 		GameManager.note_code(label)
 	# raise_alarm() returns early once alarmed, so no alarm guard spawns.
 	GameManager.alarmed = true
-	for node_name in ["Guards", "SabotageTarget", "ExitZone"]:
+	for node_name in ["Guards", "Panthers", "SabotageTarget", "ExitZone"]:
 		var node := level.get_node_or_null(node_name)
 		if node == null:
 			continue
