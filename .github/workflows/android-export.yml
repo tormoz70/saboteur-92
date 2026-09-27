@@ -23,7 +23,7 @@ jobs:
       - name: Maze reachability
         run: |
           set -euo pipefail
-          pip3 install --user numpy
+          pip3 install --user numpy pillow
           # Mission chain + every blue underground tunnel. Graph goes to a
           # temp dir (not .mcp/) so the step works in CI.
           python3 tools/explore/check_reachability.py
