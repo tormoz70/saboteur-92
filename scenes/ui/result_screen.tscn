@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://resultscreen01"]
 
 [ext_resource type="Script" path="res://scripts/ui/result_screen.gd" id="1"]
-[ext_resource type="Theme" path="res://assets/ui/zx_theme.tres" id="2"]
+[ext_resource type="Theme" path="res://assets/ui/modern_theme.tres" id="2"]
 
 [node name="ResultScreen" type="CanvasLayer"]
 layer = 15
@@ -24,7 +24,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.8)
+color = Color(0.02, 0.03, 0.05, 0.78)
 
 [node name="Panel" type="PanelContainer" parent="Root"]
 layout_mode = 1
@@ -43,8 +43,8 @@ theme_override_constants/separation = 16
 [node name="TitleLabel" type="Label" parent="Root/Panel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 1, 0, 1)
-theme_override_font_sizes/font_size = 40
+theme_override_colors/font_color = Color(0.55, 0.92, 0.72, 1)
+theme_override_font_sizes/font_size = 32
 text = "MISSION COMPLETE"
 horizontal_alignment = 1
 
@@ -57,7 +57,7 @@ columns = 2
 
 [node name="TimeName" type="Label" parent="Root/Panel/VBox/Stats"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 1, 1, 1)
+theme_override_colors/font_color = Color(0.62, 0.74, 0.82, 1)
 text = "TIME"
 
 [node name="TimeValue" type="Label" parent="Root/Panel/VBox/Stats"]
@@ -68,7 +68,7 @@ horizontal_alignment = 2
 
 [node name="AlarmName" type="Label" parent="Root/Panel/VBox/Stats"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 1, 1, 1)
+theme_override_colors/font_color = Color(0.62, 0.74, 0.82, 1)
 text = "ALARM"
 
 [node name="AlarmValue" type="Label" parent="Root/Panel/VBox/Stats"]
@@ -79,7 +79,7 @@ horizontal_alignment = 2
 
 [node name="ScoreName" type="Label" parent="Root/Panel/VBox/Stats"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 1, 1, 1)
+theme_override_colors/font_color = Color(0.62, 0.74, 0.82, 1)
 text = "SCORE"
 
 [node name="ScoreValue" type="Label" parent="Root/Panel/VBox/Stats"]
@@ -90,7 +90,7 @@ horizontal_alignment = 2
 
 [node name="BestTimeName" type="Label" parent="Root/Panel/VBox/Stats"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0, 1, 1)
+theme_override_colors/font_color = Color(0.78, 0.84, 0.9, 1)
 text = "BEST TIME"
 
 [node name="BestTimeValue" type="Label" parent="Root/Panel/VBox/Stats"]
@@ -101,7 +101,7 @@ horizontal_alignment = 2
 
 [node name="BestScoreName" type="Label" parent="Root/Panel/VBox/Stats"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0, 1, 1)
+theme_override_colors/font_color = Color(0.78, 0.84, 0.9, 1)
 text = "BEST SCORE"
 
 [node name="BestScoreValue" type="Label" parent="Root/Panel/VBox/Stats"]
@@ -113,7 +113,7 @@ horizontal_alignment = 2
 [node name="RecordLabel" type="Label" parent="Root/Panel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_colors/font_color = Color(0.95, 0.86, 0.45, 1)
 horizontal_alignment = 1
 
 [node name="Buttons" type="HBoxContainer" parent="Root/Panel/VBox"]

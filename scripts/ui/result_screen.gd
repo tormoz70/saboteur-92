@@ -6,8 +6,8 @@ signal shown
 signal retry_requested
 signal main_menu_requested
 
-const WIN_COLOR := Color(0.0, 1.0, 0.0)
-const LOSS_COLOR := Color(1.0, 0.0, 0.0)
+const WIN_COLOR := Color(0.55, 0.92, 0.72)
+const LOSS_COLOR := Color(0.96, 0.45, 0.48)
 const BLINK_SEC := 0.4
 
 var records_path: String = MissionRecords.RECORDS_PATH

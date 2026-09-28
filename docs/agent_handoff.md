@@ -7,6 +7,13 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 ## User and rules
 
 - The user writes in Russian. Answer in Russian.
+- Direction: a modern game, not a retro ZX clone. Take only the story,
+  heroes and idea from Saboteur II. Sound, music, fonts, UI and art should
+  look and sound modern; the current ZX beeper SFX, ZX font (`S2FONT.MAC`)
+  and ZX-styled menus are placeholders to be replaced.
+- Third-party assets: CC0 first; otherwise a licence that allows commercial
+  store release without attribution. Record every file's source and licence
+  in `assets/CREDITS.md`.
 - Never use subagents or models with "Fast" in the name, or a slug ending in
   `-fast`, without explicit confirmation from the user.
 - Never commit:
@@ -128,9 +135,14 @@ playable-build plan is [roadmap_v0.2.md](roadmap_v0.2.md).
 - Mission events wire through `EventBus` (pickup, alarm, death, win, bomb
   planted → urgent music + fuse tick). Movement SFX are direct calls from
   `player.gd`, `ladder_controller.gd`, `lift.gd`, `rope_controller.gd`.
-- Regenerate WAV (22050 Hz, 16-bit mono, deterministic):
-  `python tools/generate_sfx.py`
-  Then import once so `.import` files appear:
+- Effects and music are CC0 recordings (Kenney, OpenGameArt), not the old
+  ZX beeper. Provenance is `assets/CREDITS.md`. Rebuild the WAVs from the
+  raw downloads in `assets/audio/_source/` (gitignored):
+  `python tools/process_audio.py`
+  Needs `numpy` and `miniaudio` (`pip install numpy miniaudio`). No ffmpeg.
+  Effects are 22050 Hz, 16-bit mono. Music is 44100 Hz, 16-bit stereo;
+  `theme_fast` is the same track sped up 1.4×. Then import once so `.import`
+  files refresh:
   `& $g --headless --path . --import`
 
 ## Shell (title, pause, settings, results)

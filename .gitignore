@@ -42,6 +42,9 @@ tools/saboteur_rip/_*.py
 # Local Godot editor drop (binaries; .cursor/mcp.json points here)
 tools/godot/
 
+# Raw CC0 downloads for tools/process_audio.py. Shipped audio is the WAVs.
+assets/audio/_source/
+
 # Godot sidecars for ripped world objects and audit shots.
 # Tileset/sprite .import files that matter are already tracked.
 assets/world/objects/**/*.import

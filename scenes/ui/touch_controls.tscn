@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/octant_touch_pad.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ui/action_glyph.gd" id="3"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_btn"]
 size = Vector2(80, 80)
@@ -68,8 +69,11 @@ position = Vector2(40, 48)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 action = "punch"
+script = ExtResource("3")
+kind = "hit"
 
 [node name="Label" type="Label" parent="Root/RightPad/btnPunch"]
+visible = false
 offset_left = -40.0
 offset_top = -40.0
 offset_right = 40.0
@@ -86,8 +90,11 @@ position = Vector2(200, 48)
 shape = SubResource("RectangleShape2D_btn")
 shape_centered = false
 action = "jump"
+script = ExtResource("3")
+kind = "jump"
 
 [node name="Label" type="Label" parent="Root/RightPad/btnJump"]
+visible = false
 offset_left = -40.0
 offset_top = -40.0
 offset_right = 40.0

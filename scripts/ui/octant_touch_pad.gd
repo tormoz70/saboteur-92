@@ -9,9 +9,10 @@ extends Control
 
 const ChordPad := preload("res://scripts/ui/chord_touch_button.gd")
 const DEAD_ZONE := 12.0
-const IDLE := Color(1.0, 1.0, 1.0, 0.88)
-const ACTIVE := Color(1.0, 0.92, 0.28, 0.98)
-const HUB := Color(0.08, 0.07, 0.08, 0.55)
+const DISC := Color(0.06, 0.08, 0.12, 0.55)
+const RING := Color(1.0, 1.0, 1.0, 0.28)
+const GLOW := Color(0.45, 0.82, 1.0, 0.42)
+const MARK := Color(1.0, 1.0, 1.0, 0.72)
 
 var _finger: int = -1
 var _octant: int = -1
@@ -135,14 +136,16 @@ func _draw() -> void:
 	if outer <= 8.0:
 		return
 	var inner := outer * 0.28
-	draw_circle(center, outer + 3.0, Color(0.05, 0.04, 0.05, 0.42))
-	for oct in 8:
-		var fill := ACTIVE if oct == _octant else IDLE
-		if oct % 2 == 1 and oct != _octant:
-			fill = Color(fill.r, fill.g, fill.b, 0.72)
-		draw_colored_polygon(_sector_points(oct, inner, outer), fill)
-	draw_circle(center, inner - 2.0, HUB)
-	_draw_cardinal_arrows(center, outer)
+	draw_circle(center, outer, DISC)
+	draw_arc(center, outer - 1.5, 0.0, TAU, 64, RING, 2.5, true)
+	if _octant >= 0:
+		draw_colored_polygon(_sector_points(_octant, inner, outer * 0.92), GLOW)
+	_draw_marks(center, outer)
+	var knob := center
+	if _octant >= 0:
+		knob += Vector2.from_angle(float(_octant) * PI * 0.25) * outer * 0.46
+	draw_circle(knob, outer * 0.22, Color(1.0, 1.0, 1.0, 0.92))
+	draw_arc(knob, outer * 0.22, 0.0, TAU, 32, Color(0.45, 0.82, 1.0, 0.9), 2.0, true)
 
 
 func _sector_points(oct: int, inner: float, outer: float) -> PackedVector2Array:
@@ -160,21 +163,20 @@ func _sector_points(oct: int, inner: float, outer: float) -> PackedVector2Array:
 	return pts
 
 
-func _draw_cardinal_arrows(center: Vector2, outer: float) -> void:
-	var reach := outer * 0.68
-	_draw_arrow(center, Vector2.RIGHT, reach, 0)
-	_draw_arrow(center, Vector2.DOWN, reach, 2)
-	_draw_arrow(center, Vector2.LEFT, reach, 4)
-	_draw_arrow(center, Vector2.UP, reach, 6)
-
-
-func _draw_arrow(center: Vector2, along: Vector2, reach: float, oct: int) -> void:
-	var tip := center + along * reach
-	var side := Vector2(-along.y, along.x)
-	var pts := PackedVector2Array([
-		tip,
-		tip - along * 22.0 + side * 11.0,
-		tip - along * 22.0 - side * 11.0,
-	])
-	var color := Color(0.12, 0.1, 0.1, 0.95) if oct == _octant else Color(0.12, 0.1, 0.1, 0.8)
-	draw_colored_polygon(pts, color)
+func _draw_marks(center: Vector2, outer: float) -> void:
+	var reach := outer * 0.78
+	for oct in [0, 2, 4, 6]:
+		var along := Vector2.from_angle(float(oct) * PI * 0.25)
+		var tip := center + along * reach
+		var side := Vector2(-along.y, along.x)
+		var color := Color(0.55, 0.9, 1.0, 1.0) if oct == _octant else MARK
+		draw_polyline(
+			PackedVector2Array([
+				tip - along * 12.0 + side * 7.0,
+				tip,
+				tip - along * 12.0 - side * 7.0,
+			]),
+			color,
+			3.0,
+			true
+		)

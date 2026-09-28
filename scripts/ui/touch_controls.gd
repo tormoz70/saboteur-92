@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const ControlChrome := preload("res://scripts/ui/control_chrome.gd")
+
 @onready var tilt_toggle: Button = $Root/TiltToggle
 @onready var left_pad: OctantTouchPad = $Root/LeftPad
 @onready var right_pad: Control = $Root/RightPad
@@ -12,6 +14,7 @@ func _ready() -> void:
 	TiltSteer.enabled_changed.connect(_on_tilt_enabled_changed)
 	TiltSteer.sensor_missing_changed.connect(_on_tilt_sensor_missing_changed)
 	GameSettings.changed.connect(apply_settings)
+	ControlChrome.apply(tilt_toggle)
 	apply_settings()
 
 

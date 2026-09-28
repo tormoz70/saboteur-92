@@ -39,7 +39,7 @@ const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 const COMBO_WINDOW := 0.25
 
 @export var speed: float = 110.0
-@export var crawl_speed: float = 100.0
+@export var crawl_speed: float = 180.0
 @export var jump_velocity: float = -270.0
 @export var gravity: float = 820.0
 @export var climb_speed: float = 56.0
@@ -353,7 +353,7 @@ func _process_platformer(delta: float) -> void:
 		if current_state != State.PUNCH and current_state != State.KICK:
 			current_state = State.RUN
 		_step_dist += absf(velocity.x) * delta
-		if _step_dist >= 28.0:
+		if _step_dist >= 64.0:
 			_step_dist = 0.0
 			AudioManager.play_sfx("step")
 	else:

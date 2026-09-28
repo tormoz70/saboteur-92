@@ -22,18 +22,12 @@ func _ready() -> void:
 
 func _draw() -> void:
 	var center := size * 0.5
-	var r := minf(size.x, size.y) * 0.5 - 2.0
-	draw_circle(center, r, Color(0.07, 0.06, 0.07, 0.82))
-	draw_arc(center, r - 1.0, 0.0, TAU, 40, Color(0.45, 0.16, 0.16, 0.95), 2.0, true)
+	var r := minf(size.x, size.y) * 0.5 - 3.0
+	var width := 4.5
+	draw_arc(center, r, 0.0, TAU, 48, Color(1, 1, 1, 0.16), width, true)
 	if _ratio <= 0.001:
 		return
 	var start := -PI * 0.5
-	var sweep := TAU * _ratio
-	var steps := maxi(4, int(ceili(36.0 * _ratio)))
-	var pts := PackedVector2Array()
-	pts.append(center)
-	for i in range(steps + 1):
-		var t := start + sweep * float(i) / float(steps)
-		pts.append(center + Vector2(cos(t), sin(t)) * (r - 3.5))
-	var fill := Color(0.86, 0.14, 0.14) if _ratio > 0.28 else Color(0.95, 0.42, 0.12)
-	draw_colored_polygon(pts, fill)
+	var color := Color(0.45, 0.82, 1.0, 0.95) if _ratio > 0.28 else Color(0.96, 0.55, 0.42, 0.95)
+	var steps := maxi(8, int(ceili(48.0 * _ratio)))
+	draw_arc(center, r, start, start + TAU * _ratio, steps, color, width, true)

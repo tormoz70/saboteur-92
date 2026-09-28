@@ -1,5 +1,5 @@
 extends Node
-## Autoload: Master / SFX / Music buses, SFX pool, looping beeper theme.
+## Autoload: Master / SFX / Music buses, SFX pool, looping theme.
 ## Safe under the Dummy audio driver (headless GUT / --demo).
 
 const SFX_DIR := "res://assets/audio/sfx/"
