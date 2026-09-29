@@ -179,3 +179,36 @@ side view, 1993 retro platformer
 - [ ] Palette matches table above
 - [ ] `player.tscn` regions align with frame map
 - [ ] Idle / run / climb loop cleanly in Godot
+
+## saboteur26 sheets (2026)
+
+The game uses `saboteur26_player.png`, `saboteur26_player_moves.png`,
+`saboteur26_guard.png` and `saboteur26_panther.png`. Nina is the
+Spectrum Nina redrawn in the guard's style by
+`tools/sprites/remaster_zx_nina.py`, which also patches `player.tscn` and
+the title crop in `main.tscn`:
+
+- Poses come from `saboteur93_player.png` and
+  `saboteur93_player_moves.png`, lifted by Scale2x into 96×112 cells and
+  drawn at scale 0.5, the same pixel density as the guard.
+- Shading comes from the silhouette: flat cel tones from a front-top
+  light, cast shadows under the head and sash, a dark outline, no
+  gradients or rim light. The far leg of each run stride is a tone darker
+  so the legs stay apart. The contour is rounded, and the 1 px gaps the
+  Spectrum used as inner lines close into thin creases.
+- The 7×6 Spectrum head is replaced by a hand-drawn masked head at the
+  guard's head size (`HEADS` in the script: front, side and back views,
+  eye slit, red headband with knot). Per-frame hints place it and mark
+  the headband tails, the sash and the bare fists.
+- Missing frames are built from the real poses: distance-field blends
+  (idle breath, death buckle), a clipped arm (punch wind-up), the jump
+  tuck as the kick chamber. Run and climb use only the drawn Spectrum
+  frames (blends melt the limbs); each climb grip holds for three frames.
+  The somersault and roll turn the first Spectrum tuck in 45° steps so
+  the head turns with it.
+
+Frame counts: idle 4, run 4, punch 3, kick 4, jump 2, jump kick 4,
+climb 6, crouch 2, death 3, crouch punch 3, somersault 8, roll 8.
+`python tools/sprites/remaster_zx_nina.py --preview` writes only
+`_source/nina_zx_remaster_preview.png`. Guard and panther sheets are
+unchanged.

@@ -1,8 +1,8 @@
-[gd_scene load_steps=29 format=3 uid="uid://player01scene"]
+[gd_scene load_steps=58 format=3 uid="uid://player01scene"]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player.png" id="2"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player_moves.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur26_player.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur26_player_moves.png" id="3"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 42)
@@ -13,167 +13,271 @@ size = Vector2(11, 11)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ladder"]
 size = Vector2(14, 36)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_i0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle0"]
 atlas = ExtResource("2")
-region = Rect2(0, 0, 48, 56)
+region = Rect2(0, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_i1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle1"]
 atlas = ExtResource("2")
-region = Rect2(48, 0, 48, 56)
+region = Rect2(96, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_r0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle2"]
 atlas = ExtResource("2")
-region = Rect2(96, 0, 48, 56)
+region = Rect2(192, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_r1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle3"]
 atlas = ExtResource("2")
-region = Rect2(144, 0, 48, 56)
+region = Rect2(288, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_r2"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump0"]
 atlas = ExtResource("2")
-region = Rect2(192, 0, 48, 56)
+region = Rect2(1440, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_r3"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump1"]
 atlas = ExtResource("2")
-region = Rect2(240, 0, 48, 56)
+region = Rect2(1536, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_j0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump_kick0"]
 atlas = ExtResource("2")
-region = Rect2(384, 0, 48, 56)
+region = Rect2(1632, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_j1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump_kick1"]
 atlas = ExtResource("2")
-region = Rect2(432, 0, 48, 56)
+region = Rect2(1728, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_p0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump_kick2"]
 atlas = ExtResource("2")
-region = Rect2(288, 0, 48, 56)
+region = Rect2(1824, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_p1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_jump_kick3"]
 atlas = ExtResource("2")
-region = Rect2(336, 0, 48, 56)
+region = Rect2(1920, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_c0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_kick0"]
 atlas = ExtResource("2")
-region = Rect2(480, 0, 48, 56)
+region = Rect2(1056, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_c1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_kick1"]
 atlas = ExtResource("2")
-region = Rect2(528, 0, 48, 56)
+region = Rect2(1152, 0, 96, 112)
 
-; death uses the first crouch cell as a stub until a dedicated frame exists
-; (docs/art_saboteur93.md). Same Rect2 as AtlasTexture_u0 is intentional.
-[sub_resource type="AtlasTexture" id="AtlasTexture_d0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_kick2"]
 atlas = ExtResource("2")
-region = Rect2(576, 0, 48, 56)
+region = Rect2(1248, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_u0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_kick3"]
 atlas = ExtResource("2")
-region = Rect2(576, 0, 48, 56)
+region = Rect2(1344, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_u1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_run0"]
 atlas = ExtResource("2")
-region = Rect2(624, 0, 48, 56)
+region = Rect2(384, 0, 96, 112)
 
-; saboteur93_player_moves.png: crouch punch, original SOM1C–SOM4C in the air
-; (cells 1–4), then the same four dropped to the floor for the roll (cells 5–8).
-[sub_resource type="AtlasTexture" id="AtlasTexture_cp0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_run1"]
+atlas = ExtResource("2")
+region = Rect2(480, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run2"]
+atlas = ExtResource("2")
+region = Rect2(576, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run3"]
+atlas = ExtResource("2")
+region = Rect2(672, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_punch0"]
+atlas = ExtResource("2")
+region = Rect2(768, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_punch1"]
+atlas = ExtResource("2")
+region = Rect2(864, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_punch2"]
+atlas = ExtResource("2")
+region = Rect2(960, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb0"]
+atlas = ExtResource("2")
+region = Rect2(2016, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb1"]
+atlas = ExtResource("2")
+region = Rect2(2112, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb2"]
+atlas = ExtResource("2")
+region = Rect2(2208, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb3"]
+atlas = ExtResource("2")
+region = Rect2(2304, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb4"]
+atlas = ExtResource("2")
+region = Rect2(2400, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_climb5"]
+atlas = ExtResource("2")
+region = Rect2(2496, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_crouch0"]
+atlas = ExtResource("2")
+region = Rect2(2592, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_crouch1"]
+atlas = ExtResource("2")
+region = Rect2(2688, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_crouch_punch0"]
 atlas = ExtResource("3")
-region = Rect2(0, 0, 48, 56)
+region = Rect2(0, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s0"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_crouch_punch1"]
 atlas = ExtResource("3")
-region = Rect2(48, 0, 48, 56)
+region = Rect2(96, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s1"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_crouch_punch2"]
 atlas = ExtResource("3")
-region = Rect2(96, 0, 48, 56)
+region = Rect2(192, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s2"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault0"]
 atlas = ExtResource("3")
-region = Rect2(144, 0, 48, 56)
+region = Rect2(288, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s3"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault1"]
 atlas = ExtResource("3")
-region = Rect2(192, 0, 48, 56)
+region = Rect2(384, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s4"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault2"]
 atlas = ExtResource("3")
-region = Rect2(240, 0, 48, 56)
+region = Rect2(480, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s5"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault3"]
 atlas = ExtResource("3")
-region = Rect2(288, 0, 48, 56)
+region = Rect2(576, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s6"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault4"]
 atlas = ExtResource("3")
-region = Rect2(336, 0, 48, 56)
+region = Rect2(672, 0, 96, 112)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_s7"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault5"]
 atlas = ExtResource("3")
-region = Rect2(384, 0, 48, 56)
+region = Rect2(768, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault6"]
+atlas = ExtResource("3")
+region = Rect2(864, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_somersault7"]
+atlas = ExtResource("3")
+region = Rect2(960, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll0"]
+atlas = ExtResource("3")
+region = Rect2(1056, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll1"]
+atlas = ExtResource("3")
+region = Rect2(1152, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll2"]
+atlas = ExtResource("3")
+region = Rect2(1248, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll3"]
+atlas = ExtResource("3")
+region = Rect2(1344, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll4"]
+atlas = ExtResource("3")
+region = Rect2(1440, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll5"]
+atlas = ExtResource("3")
+region = Rect2(1536, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll6"]
+atlas = ExtResource("3")
+region = Rect2(1632, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_roll7"]
+atlas = ExtResource("3")
+region = Rect2(1728, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_death0"]
+atlas = ExtResource("2")
+region = Rect2(2784, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_death1"]
+atlas = ExtResource("2")
+region = Rect2(2880, 0, 96, 112)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_death2"]
+atlas = ExtResource("2")
+region = Rect2(2976, 0, 96, 112)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_player"]
 animations = [{
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_i0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_i1")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_idle0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_idle1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_idle2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_idle3")}],
 "loop": true,
 "name": &"idle",
-"speed": 2.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j0")}],
-"loop": true,
-"name": &"jump",
-"speed": 1.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_j1")}],
-"loop": false,
-"name": &"jump_kick",
-"speed": 1.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p1")}],
-"loop": false,
-"name": &"kick",
-"speed": 1.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_r0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_r3")}],
-"loop": true,
-"name": &"run",
-"speed": 7.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_p0")}],
-"loop": false,
-"name": &"punch",
-"speed": 1.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_c0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_c1")}],
-"loop": true,
-"name": &"climb",
-"speed": 3.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_u0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_u1")}],
-"loop": true,
-"name": &"crouch",
 "speed": 4.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_cp0")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_jump0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_jump1")}],
 "loop": false,
-"name": &"crouch_punch",
-"speed": 1.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s3")}],
-"loop": true,
-"name": &"somersault",
-"speed": 10.0
-}, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_s4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_s7")}],
-"loop": true,
-"name": &"roll",
+"name": &"jump",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_d0")}],
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_jump_kick0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_jump_kick1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_jump_kick2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_jump_kick3")}],
+"loop": false,
+"name": &"jump_kick",
+"speed": 9.52
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_kick0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_kick1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_kick2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_kick3")}],
+"loop": false,
+"name": &"kick",
+"speed": 9.52
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_run0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_run1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_run2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_run3")}],
+"loop": true,
+"name": &"run",
+"speed": 6.67
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_punch0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_punch1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_punch2")}],
+"loop": false,
+"name": &"punch",
+"speed": 9.38
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_climb0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_climb1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_climb2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_climb3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_climb4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_climb5")}],
+"loop": true,
+"name": &"climb",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_crouch0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_crouch1")}],
+"loop": true,
+"name": &"crouch",
+"speed": 3.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_crouch_punch0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_crouch_punch1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_crouch_punch2")}],
+"loop": false,
+"name": &"crouch_punch",
+"speed": 9.38
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_somersault0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_somersault7")}],
+"loop": true,
+"name": &"somersault",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_roll0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll2")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll3")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll4")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll5")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll6")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_roll7")}],
+"loop": true,
+"name": &"roll",
+"speed": 14.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("AtlasTexture_death0")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_death1")}, {"duration": 1.0, "texture": SubResource("AtlasTexture_death2")}],
 "loop": false,
 "name": &"death",
-"speed": 1.0
+"speed": 6.0
 }]
 
 [node name="Player" type="CharacterBody2D" groups=["player"]]
@@ -189,6 +293,7 @@ shape = SubResource("RectangleShape2D_body")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 texture_filter = 0
 position = Vector2(24, 28)
+scale = Vector2(0.5, 0.5)
 sprite_frames = SubResource("SpriteFrames_player")
 animation = &"idle"
 

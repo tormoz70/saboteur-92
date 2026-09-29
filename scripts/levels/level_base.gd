@@ -12,6 +12,7 @@ signal world_ready
 const WorldLayers := preload("res://scripts/world/world_layers.gd")
 const LIFT_TEX_PATH := "res://assets/world/s2_lift.png"
 const INK_SHADER_PATH := "res://assets/shaders/zx_ink_outline.gdshader"
+const WorldLook := preload("res://scripts/world/world_look.gd")
 const PICKUP_SCENE := preload("res://scenes/items/pickup.tscn")
 const GUARD_SCENE := preload("res://scenes/enemies/guard.tscn")
 const PANTHER_SCENE := preload("res://scenes/enemies/panther.tscn")
@@ -88,6 +89,7 @@ func _ready() -> void:
 		# and behind Foreground.
 		player.z_index = WorldLayers.Z_ACTORS
 	_setup_ink_outline()
+	_setup_look()
 	camera.position_smoothing_enabled = false
 	# Moved every render frame from Nina's drawn position (see _update_camera),
 	# so the camera itself must not be interpolated between ticks.
@@ -629,7 +631,15 @@ func _setup_ink_outline() -> void:
 		return
 	_ink_material = ShaderMaterial.new()
 	_ink_material.shader = load(INK_SHADER_PATH)
+	_ink_material.set_shader_parameter("ink_color", Color(0.45, 0.82, 1.0, 1.0))
 	sprite.material = _ink_material
+
+
+func _setup_look() -> void:
+	var look := WorldLook.new()
+	look.name = "WorldLook"
+	add_child(look)
+	look.setup(self)
 
 
 func _update_ink_outline() -> void:

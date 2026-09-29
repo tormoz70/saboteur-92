@@ -40,3 +40,20 @@ rises with the speed) and crossfading the loop join.
 
 The Espionage page lists both OGA-BY 3.0 and CC0. This project uses the CC0
 option. The track is tagged instrumental.
+
+## Art
+
+The guard, panther and skyline were generated on 29 Sep 2026 and are
+original project art. `tools/pixelize_sprites.py` keys the source strips,
+snaps them to a small palette and packs the cells. Sources stay in
+`assets/sprites/_source/`. Nina is not original art: her poses are the
+Spectrum sprites, redrawn.
+
+| File | Source | Notes |
+| --- | --- | --- |
+| `assets/sprites/saboteur26_player.png` | Nina's poses from the Spectrum *Saboteur II* (Durell, 1987), `saboteur93_player.png`, redrawn by `tools/sprites/remaster_zx_nina.py` | Nina, 34 frames at 96×112 |
+| `assets/sprites/saboteur26_player_moves.png` | same; the first Spectrum tuck turned in 45° steps | Crouch punch, somersault, roll |
+| `assets/sprites/saboteur26_guard.png` | Generated, then `tools/pixelize_sprites.py` | Guard, 7 frames, 96×112 |
+| `assets/sprites/saboteur26_panther.png` | Generated, then `tools/pixelize_sprites.py` | Panther, 5 frames, 128×64 |
+| `assets/world/skyline.png` | Generated | Parallax sky, quantized to 16 colours |
+

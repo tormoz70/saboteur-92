@@ -329,9 +329,9 @@ func test_down_plus_move_rolls() -> void:
 	await wait_physics_frames(2)
 	assert_eq(player.current_state, Player.State.CRAWL)
 	assert_eq(player.anim.animation, &"roll")
-	assert_eq(player.anim.sprite_frames.get_frame_count(&"roll"), 4)
-	assert_gt(player.velocity.x, 0.0)
-	assert_lt(player.velocity.x, player.speed)
+	assert_eq(player.anim.sprite_frames.get_frame_count(&"roll"), 8)
+	assert_gt(player.velocity.x, player.speed)
+	assert_eq(player.velocity.x, player.crawl_speed)
 	var shape := player.body_collision.shape as RectangleShape2D
 	assert_eq(shape.size, Player.BODY_CROUCH_SIZE)
 

@@ -37,6 +37,7 @@ const CROUCH_PUNCH_HIT := Vector2(19.0, 36.0)
 # enough apart that a thumb needs a moment to roll between them, so UP and
 # FIRE count as one chord while they are this close together.
 const COMBO_WINDOW := 0.25
+const PARTICLE_TEX := preload("res://assets/sprites/particle_dot.png")
 
 @export var speed: float = 110.0
 @export var crawl_speed: float = 180.0
@@ -87,6 +88,9 @@ var _ladder := LadderController.new()
 var _lifts := LiftRider.new()
 var _rope := RopeController.new()
 var _step_dist: float = 0.0
+var _land_dust: CPUParticles2D
+var _roll_dust: CPUParticles2D
+var _sparks: CPUParticles2D
 
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
@@ -106,6 +110,54 @@ func _ready() -> void:
 	_rope.setup(self)
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.energy_changed.emit(energy, max_energy)
+	_land_dust = _make_dust(true)
+	_roll_dust = _make_dust(false)
+	_sparks = _make_sparks()
+
+
+func _make_dust(one_shot: bool) -> CPUParticles2D:
+	var dust := CPUParticles2D.new()
+	dust.texture = PARTICLE_TEX
+	dust.amount = 10
+	dust.lifetime = 0.4
+	dust.one_shot = one_shot
+	dust.explosiveness = 0.85 if one_shot else 0.15
+	dust.position = Vector2(24, 50)
+	dust.direction = Vector2(0, -1)
+	dust.spread = 55.0
+	dust.gravity = Vector2(0, 280)
+	dust.initial_velocity_min = 16.0
+	dust.initial_velocity_max = 48.0
+	dust.scale_amount_min = 1.0
+	dust.scale_amount_max = 2.2
+	dust.color = Color(0.72, 0.76, 0.82, 0.55)
+	dust.emitting = false
+	dust.z_index = 1
+	add_child(dust)
+	return dust
+
+
+func _make_sparks() -> CPUParticles2D:
+	var sparks := CPUParticles2D.new()
+	sparks.texture = PARTICLE_TEX
+	sparks.amount = 8
+	sparks.lifetime = 0.22
+	sparks.one_shot = true
+	sparks.explosiveness = 1.0
+	sparks.spread = 180.0
+	sparks.gravity = Vector2(0, 120)
+	sparks.initial_velocity_min = 30.0
+	sparks.initial_velocity_max = 90.0
+	sparks.color = Color(1.0, 0.78, 0.35, 0.9)
+	sparks.emitting = false
+	sparks.z_index = 2
+	add_child(sparks)
+	return sparks
+
+
+func _burst(particles: CPUParticles2D) -> void:
+	particles.restart()
+	particles.emitting = true
 
 
 func _physics_process(delta: float) -> void:
@@ -127,6 +179,7 @@ func _physics_process(delta: float) -> void:
 	_was_on_floor = is_on_floor()
 	if just_landed:
 		AudioManager.play_sfx("land")
+		_burst(_land_dust)
 	_tick_chord(delta)
 	_tick_regen(delta)
 
@@ -179,6 +232,7 @@ func _physics_process(delta: float) -> void:
 	if not on_ladder and not on_rope:
 		velocity.y = minf(velocity.y, max_fall_speed)
 	_update_animation()
+	_roll_dust.emitting = current_state == State.CRAWL
 	if on_lift and _lifts.is_riding():
 		return
 	move_and_slide()
@@ -427,6 +481,8 @@ func _start_somersault() -> void:
 
 func _on_punch_area_entered(area: Area2D) -> void:
 	if area.has_method("on_punched"):
+		_sparks.global_position = punch_area.global_position
+		_burst(_sparks)
 		area.on_punched()
 
 
@@ -524,7 +580,6 @@ func _update_animation() -> void:
 	match current_state:
 		State.CLIMB:
 			_ladder.sync_pose()
-			anim.flip_h = false
 			if anim.animation != &"climb":
 				anim.play(&"climb")
 			anim.speed_scale = 0.0

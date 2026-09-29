@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3 uid="uid://guard01scene"]
 
 [ext_resource type="Script" path="res://scripts/enemies/guard.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur85_guard.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur26_guard.png" id="2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(14, 42)
@@ -11,31 +11,31 @@ size = Vector2(440, 80)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_i0"]
 atlas = ExtResource("2")
-region = Rect2(0, 0, 48, 56)
+region = Rect2(0, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_i1"]
 atlas = ExtResource("2")
-region = Rect2(48, 0, 48, 56)
+region = Rect2(96, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_r0"]
 atlas = ExtResource("2")
-region = Rect2(96, 0, 48, 56)
+region = Rect2(192, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_r1"]
 atlas = ExtResource("2")
-region = Rect2(144, 0, 48, 56)
+region = Rect2(288, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_r2"]
 atlas = ExtResource("2")
-region = Rect2(192, 0, 48, 56)
+region = Rect2(384, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_r3"]
 atlas = ExtResource("2")
-region = Rect2(240, 0, 48, 56)
+region = Rect2(480, 0, 96, 112)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_p0"]
 atlas = ExtResource("2")
-region = Rect2(288, 0, 48, 56)
+region = Rect2(576, 0, 96, 112)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_guard"]
 animations = [{
@@ -67,6 +67,7 @@ shape = SubResource("RectangleShape2D_body")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 texture_filter = 0
+scale = Vector2(0.5, 0.5)
 sprite_frames = SubResource("SpriteFrames_guard")
 animation = &"idle"
 centered = false

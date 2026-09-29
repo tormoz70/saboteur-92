@@ -186,8 +186,8 @@ func test_crawl_uses_the_embryo_roll() -> void:
 	assert_eq(_player.anim.animation, &"roll")
 	assert_eq(
 		_player.anim.sprite_frames.get_frame_count(&"roll"),
-		4,
-		"floor roll uses original SOM1C–SOM4C"
+		8,
+		"floor roll plays eight in-between frames"
 	)
 
 
@@ -197,8 +197,8 @@ func test_somersault_uses_the_original_four_tucks() -> void:
 	assert_eq(_player.anim.animation, &"somersault")
 	assert_eq(
 		_player.anim.sprite_frames.get_frame_count(&"somersault"),
-		4,
-		"air flip uses original SOM1C–SOM4C"
+		8,
+		"air flip plays eight in-between frames"
 	)
 
 

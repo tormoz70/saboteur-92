@@ -132,9 +132,9 @@ func process_climb(delta: float, axis: float) -> void:
 
 
 func sync_pose() -> void:
-	# Original flips the same sprite every tile; lock the pose to world Y so
-	# up and down stay on the same rungs instead of skipping every other frame.
-	climb_frame = int(floor(_p.global_position.y / CLIMB_STEP_PX)) & 1
+	# Six climb frames cover the same two rungs the old two-frame flip used.
+	var span := CLIMB_STEP_PX * 2.0 / 6.0
+	climb_frame = posmod(int(floor(_p.global_position.y / span)), 6)
 
 
 func _enter() -> void:

@@ -1,18 +1,14 @@
-[gd_scene load_steps=8 format=3 uid="uid://mainbootstrap"]
+[gd_scene load_steps=6 format=3 uid="uid://mainbootstrap"]
 
 [ext_resource type="Script" path="res://scripts/ui/title_screen.gd" id="1"]
 [ext_resource type="Theme" path="res://assets/ui/modern_theme.tres" id="2"]
 [ext_resource type="Script" path="res://scripts/ui/menu_backdrop.gd" id="3"]
-[ext_resource type="Texture2D" path="res://assets/sprites/saboteur93_player.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/sprites/saboteur26_player.png" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/ui/settings_menu.tscn" id="5"]
-[ext_resource type="Shader" path="res://assets/shaders/menu_figure.gdshader" id="6"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_nina"]
 atlas = ExtResource("4")
-region = Rect2(432, 0, 48, 56)
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_figure"]
-shader = ExtResource("6")
+region = Rect2(24, 11, 47, 101)
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -45,7 +41,6 @@ offset_right = 264.0
 offset_bottom = 84.0
 grow_vertical = 2
 mouse_filter = 2
-material = SubResource("ShaderMaterial_figure")
 texture = SubResource("AtlasTexture_nina")
 expand_mode = 1
 stretch_mode = 5
