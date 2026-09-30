@@ -113,7 +113,7 @@ func _enter() -> void:
 	if area != null:
 		var col := area.get_child(0) as CollisionShape2D
 		if col != null:
-			_rope_y = col.global_position.y
+			_rope_y = area.get_meta("rope_y", col.global_position.y)
 	_snap_y()
 	_p.velocity = Vector2(_dir * _p.rope_speed, 0.0)
 	_p.current_state = Player.State.RUN

@@ -11,6 +11,8 @@ const TILE_LADDER := 2
 const TILE_ONEWAY := 3
 const TILE_ROPE := 4
 const CELL := 8
+## Rope trigger rects reach this far above and below the rope cells.
+const ROPE_PAD_Y := 24
 
 
 static func rle_decode(runs: Array) -> PackedInt32Array:
@@ -327,6 +329,11 @@ static func find_ropes_across(sources: Array, cell: int = CELL) -> Array:
 			continue
 		# Tall pad so a scaled LadderDetector still overlaps after snaps.
 		rects.append(
-			[int(rect[0]) - 8, int(rect[1]) - 24, int(rect[2]) + 16, int(rect[3]) + 48]
+			[
+				int(rect[0]) - 8,
+				int(rect[1]) - ROPE_PAD_Y,
+				int(rect[2]) + 16,
+				int(rect[3]) + ROPE_PAD_Y * 2,
+			]
 		)
 	return rects

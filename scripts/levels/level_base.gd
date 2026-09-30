@@ -266,6 +266,8 @@ func _build_rope_areas() -> void:
 	for rect in TileMapUtils.find_ropes_across(_collision_sources()):
 		var area := Area2D.new()
 		area.set_meta("rope", true)
+		# The rope is the top pixel row of its cells, level with the crossbars.
+		area.set_meta("rope_y", (float(rect[1]) + TileMapUtils.ROPE_PAD_Y) * _scale)
 		area.collision_layer = CollisionLayers.LAYER_TRIGGERS
 		area.collision_mask = 0
 		area.monitorable = true

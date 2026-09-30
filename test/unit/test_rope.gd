@@ -4,7 +4,11 @@ extends GutTest
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const FLOOR_TOP := 200.0
+# The rope line, level with the crossbars like the map's rope cells.
 const ROPE_Y := 200.0
+# Like level_base: one 16 px cell padded well above and below the line.
+const ROPE_H := 16.0
+const ROPE_PAD := 48.0
 const ACTIONS := ["move_left", "move_right", "move_up", "move_down", "jump", "punch"]
 
 var _player: Player
@@ -46,6 +50,20 @@ func test_running_across_the_rope_reaches_the_far_crossbar() -> void:
 	assert_false(_player.on_rope, "she steps off the rope onto the pad")
 
 
+func test_feet_stay_on_the_rope_line() -> void:
+	await _press("move_right")
+	var frames := 0
+	while frames < 180 and _player.global_position.x < 260.0:
+		await _step(1)
+		frames += 1
+	assert_true(_player.on_rope, "on the rope in the open span")
+	var feet := (
+		_player.global_position.y
+		+ (Player.BODY_STAND_POS.y + Player.BODY_STAND_SIZE.y * 0.5) * _player.scale.y
+	)
+	assert_almost_eq(feet, ROPE_Y, 0.5, "soles on the rope line, not sunk into it")
+
+
 func test_stopping_mid_rope_falls() -> void:
 	await _press("move_right")
 	var frames := 0
@@ -83,15 +101,16 @@ func _make_floor(x: float, w: float) -> StaticBody2D:
 func _make_rope(x: float, w: float) -> Area2D:
 	var area := Area2D.new()
 	area.set_meta("rope", true)
+	area.set_meta("rope_y", ROPE_Y)
 	area.collision_layer = CollisionLayers.LAYER_TRIGGERS
 	area.collision_mask = 0
 	area.monitorable = true
 	area.monitoring = false
 	var col := CollisionShape2D.new()
 	var shape := RectangleShape2D.new()
-	shape.size = Vector2(w, 48.0)
+	shape.size = Vector2(w, ROPE_H + ROPE_PAD * 2.0)
 	col.shape = shape
-	col.position = Vector2(x + w * 0.5, ROPE_Y)
+	col.position = Vector2(x + w * 0.5, ROPE_Y + ROPE_H * 0.5)
 	area.add_child(col)
 	return area
 
